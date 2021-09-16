@@ -68,6 +68,9 @@ private:
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    struct PushConstants {
+        glm::mat4 trasformationMatrix;
+    };
 
     EngineSettings engineSettings;
 
@@ -221,12 +224,11 @@ public:
     VkImageView textureImageView;
 private:
     VkImage textureImage;
+    VmaAllocation textureAllocation;
     Engine *context;
     static bool compatabilityCheckCompleted;
     static bool supportsLinearBlitting_;
     bool supportsLinearBlitting();
-
-    VkDeviceMemory textureImageMemory;
 
     void generateMipmaps();
 };

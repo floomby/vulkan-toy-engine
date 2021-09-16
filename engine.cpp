@@ -15,6 +15,69 @@
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
 
+// TODO, do this same thing for vma errors as well
+static std::map<int, const char *> vulkanErrors = {
+    { 0, "VK_SUCCESS" },
+    { 1, "VK_NOT_READY" },
+    { 2, "VK_TIMEOUT" },
+    { 3, "VK_EVENT_SET" },
+    { 4, "VK_EVENT_RESET" },
+    { 5, "VK_INCOMPLETE" },
+    { 1, "VK_ERROR_OUT_OF_HOST_MEMORY" },
+    { 2, "VK_ERROR_OUT_OF_DEVICE_MEMORY" },
+    { 3, "VK_ERROR_INITIALIZATION_FAILED" },
+    { 4, "VK_ERROR_DEVICE_LOST" },
+    { 5, "VK_ERROR_MEMORY_MAP_FAILED" },
+    { 6, "VK_ERROR_LAYER_NOT_PRESENT" },
+    { 7, "VK_ERROR_EXTENSION_NOT_PRESENT" },
+    { 8, "VK_ERROR_FEATURE_NOT_PRESENT" },
+    { 9, "VK_ERROR_INCOMPATIBLE_DRIVER" },
+    { 10, "VK_ERROR_TOO_MANY_OBJECTS" },
+    { 11, "VK_ERROR_FORMAT_NOT_SUPPORTED" },
+    { 12, "VK_ERROR_FRAGMENTED_POOL" },
+    { 13, "VK_ERROR_UNKNOWN" },
+    { 1000069000, "VK_ERROR_OUT_OF_POOL_MEMORY" },
+    { 1000072003, "VK_ERROR_INVALID_EXTERNAL_HANDLE" },
+    { 1000161000, "VK_ERROR_FRAGMENTATION" },
+    { 1000257000, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS" },
+    { 1000000000, "VK_ERROR_SURFACE_LOST_KHR" },
+    { 1000000001, "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR" },
+    { 1000001003, "VK_SUBOPTIMAL_KHR" },
+    { 1000001004, "VK_ERROR_OUT_OF_DATE_KHR" },
+    { 1000003001, "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR" },
+    { 1000011001, "VK_ERROR_VALIDATION_FAILED_EXT" },
+    { 1000012000, "VK_ERROR_INVALID_SHADER_NV" },
+    { 1000158000, "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT" },
+    { 1000174001, "VK_ERROR_NOT_PERMITTED_EXT" },
+    { 1000255000, "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT" },
+    { 1000268000, "VK_THREAD_IDLE_KHR" },
+    { 1000268001, "VK_THREAD_DONE_KHR" },
+    { 1000268002, "VK_OPERATION_DEFERRED_KHR" },
+    { 1000268003, "VK_OPERATION_NOT_DEFERRED_KHR" },
+    { 1000297000, "VK_PIPELINE_COMPILE_REQUIRED_EXT" },
+    { VK_ERROR_OUT_OF_POOL_MEMORY, "VK_ERROR_OUT_OF_POOL_MEMORY_KHR" },
+    { VK_ERROR_INVALID_EXTERNAL_HANDLE, "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR" },
+    { VK_ERROR_FRAGMENTATION, "VK_ERROR_FRAGMENTATION_EXT" },
+    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS, "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT" },
+    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS_KHR" },
+    { VK_PIPELINE_COMPILE_REQUIRED_EXT, "VK_ERROR_PIPELINE_COMPILE_REQUIRED_EXT" }
+};
+
+void vulkanErrorGuard_(VkResult result, const char *errorMessage, const char *file, int line) {
+    if (result != VK_SUCCESS) {
+        std::stringstream message;
+        auto errorName = vulkanErrors.find(result);
+        if (errorName == vulkanErrors.end()) {
+            message << errorMessage << "\n\tUnknow vulkan error: " << std::dec << result << "   " << file << ":" << line << std::endl;
+        } else {
+            message << errorMessage << "\n\t" << "Vulkan error: " << std::dec << result << "   " << file << ":" << line << std::endl;
+        }
+        throw std::runtime_error(message.str());
+    }
+}
+
+#define vulkanErrorGuard(result, message) vulkanErrorGuard_(result, message, __FILE__, __LINE__)
+
 std::vector<char> Utilities::readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -357,7 +420,7 @@ void Engine::setupLogicalDevice() {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) throw std::runtime_error("Failed to create logical device.");
+    vulkanErrorGuard(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "Failed to create logical device.");
 
     vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.presentFamily.value(), 0, &presentQueue);
@@ -448,8 +511,7 @@ void Engine::createSwapChain() {
 
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create swap chain.");
+    vulkanErrorGuard(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain), "Failed to create swap chain.");
 
     vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
     swapChainImages.resize(imageCount);
@@ -477,8 +539,7 @@ VkImageView Engine::createImageView(VkImage image, VkFormat format, VkImageAspec
     viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
     VkImageView imageView;
-    if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create texture image view.");
+    vulkanErrorGuard(vkCreateImageView(device, &viewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
     return imageView;
 }
@@ -565,8 +626,7 @@ void Engine::createRenderPass() {
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create render pass.");
+    vulkanErrorGuard(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass), "Failed to create render pass.");
 }
 
 // This is for the default scene on engine loading
@@ -591,8 +651,7 @@ void Engine::createDescriptorSetLayout() {
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) 
-        throw std::runtime_error("Failed to create descriptor set layout.");
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout), "Failed to create descriptor set layout.");
 }
 
 VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
@@ -602,8 +661,7 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create shader module.");
+    vulkanErrorGuard(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule), "Failed to create shader module.");
 
     return shaderModule;
 }
@@ -710,12 +768,17 @@ void Engine::createGraphicsPipeline() {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; 
-    pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-    pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create pipeline layout.");
+    VkPushConstantRange pushConstantRange;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(PushConstants);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout), "Failed to create pipeline layout.");
 
     VkPipelineDepthStencilStateCreateInfo depthStencil {};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -751,13 +814,11 @@ void Engine::createGraphicsPipeline() {
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline), "Failed to create graphics pipeline.");
     
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
-
 
 void Engine::createCommandPools() {
     VkCommandPoolCreateInfo poolInfo {};
@@ -765,23 +826,21 @@ void Engine::createCommandPools() {
     poolInfo.queueFamilyIndex = physicalDeviceIndices.graphicsFamily.value();
     poolInfo.flags = 0; // Optional
 
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create command pool.");
+    vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool), "Failed to create command pool.");
 
     if (engineSettings.verbose) std::cout << std::hex << "commandPool: " << commandPool << std::endl;
 
     if (engineSettings.useConcurrentTransferQueue) {
         poolInfo.queueFamilyIndex = physicalDeviceIndices.transferFamily.value();
 
-        if (vkCreateCommandPool(device, &poolInfo, nullptr, &transferCommandPool) != VK_SUCCESS)
-            throw std::runtime_error("Failed to create transfer command pool.");
+        vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &transferCommandPool), "Failed to create transfer command pool.");
 
         if (engineSettings.verbose) std::cout << "transferCommandPool: " << transferCommandPool << std::endl;
     }
 }
 
 uint32_t Engine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    std::cout << "Most calls to this function should be elliminated." << std::endl << boost::stacktrace::stacktrace() << std::endl;
+    std::cout << "Most calls to this function should be elliminated in favor of using the vma allocator." << std::endl << boost::stacktrace::stacktrace() << std::endl;
 
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -795,7 +854,7 @@ uint32_t Engine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
 void Engine::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
     VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t mipLevels) {
 
-    std::cout << std::dec << "Creating image with mip levels of " << mipLevels << std::endl;
+    // std::cout << std::dec << "Creating image with mip levels of " << mipLevels << std::endl;
     VkImageCreateInfo imageInfo {};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -812,8 +871,7 @@ void Engine::createImage(uint32_t width, uint32_t height, VkFormat format, VkIma
     // should the transfer queue transfer it?
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create image.");
+    vulkanErrorGuard(vkCreateImage(device, &imageInfo, nullptr, &image), "Failed to create image.");
 
     VkMemoryRequirements memRequirements;
     vkGetImageMemoryRequirements(device, image, &memRequirements);
@@ -823,8 +881,7 @@ void Engine::createImage(uint32_t width, uint32_t height, VkFormat format, VkIma
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
-        throw std::runtime_error("Failed to allocate image memory.");
+    vulkanErrorGuard(vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory), "Failed to allocate image memory.");
 
     vkBindImageMemory(device, image, imageMemory, 0);
 }
@@ -1222,8 +1279,8 @@ void Engine::drawFrame() {
 
 void Engine::runScene(Scene scene) {
     while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
         drawFrame();
+        glfwPollEvents();
     }
 
     vkDeviceWaitIdle(device);
@@ -1232,8 +1289,8 @@ void Engine::runScene(Scene scene) {
 
 Engine::Scene Engine::loadDefaultScene() {
     Scene ret;
-    // ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png").translate({1, 0, 1}));
-    ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png"));
+    ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png").translate({5, 0, 0}));
+    // ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png"));
 
     return ret;
 }
@@ -1315,6 +1372,14 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
 }
 
 void Engine::createCommandBuffers() {
+    PushConstants testPush = {{
+        { 1, 0, 0, 0 },
+        { 0, 1, 0, 0 },
+        { 0, 0, 1, 0 },
+        { 0, 0, 1, 1 }
+    }};
+
+
     size_t count = swapChainFramebuffers.size();
     commandBuffers.resize(count);
     transferCommandBuffers.resize(count);
@@ -1372,6 +1437,7 @@ void Engine::createCommandBuffers() {
         vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+        vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &testPush);
         vkCmdDrawIndexed(commandBuffers[i], indicesCount, 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffers[i]);
@@ -1454,11 +1520,6 @@ void Engine::cleanupSwapChain() {
 void Engine::cleanup() {
     cleanupSwapChain();
 
-    // vkDestroySampler(device, textureSampler, nullptr);
-    // vkDestroyImageView(device, textureImageView, nullptr);
-    // vkDestroyImage(device, textureImage, nullptr);
-    // vkFreeMemory(device, textureImageMemory, nullptr);
-
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
     vkDestroyBuffer(device, indexBuffer, nullptr);
@@ -1502,32 +1563,113 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     height = entity.texureHeight;
     VkDeviceSize imageSize = width * height * 4;
 
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
+    VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    stagingBufInfo.size = imageSize;
+    stagingBufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-    context->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer, stagingBufferMemory);
+    VmaAllocationCreateInfo stagingBufAllocCreateInfo = {};
+    stagingBufAllocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    stagingBufAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
     
-    void* data;
-    vkMapMemory(context->device, stagingBufferMemory, 0, imageSize, 0, &data);
-    // std::raise(SIGTRAP);
-    std::cout << std::hex << reinterpret_cast<void *>(entity.texturePixels) << std::endl << std::flush;
-    memcpy(data, entity.texturePixels, imageSize);
-    vkUnmapMemory(context->device, stagingBufferMemory);
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
+    VmaAllocationInfo stagingBufferAllocationInfo = {};
+    if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocationInfo) !=VK_SUCCESS)
+        throw std::runtime_error("Unable to alloctate memory for texture.");
+
+    memcpy(stagingBufferAllocationInfo.pMappedData, entity.texturePixels, imageSize);
 
     mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 
-    context->createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, mipLevels);
+    VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0;
 
-    context->transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-    context->copyBufferToImage(stagingBuffer, textureImage, width, height);
+    VmaAllocationCreateInfo imageAllocCreateInfo = {};
+    imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    vkDestroyBuffer(context->device, stagingBuffer, nullptr);
-    vkFreeMemory(context->device, stagingBufferMemory, nullptr);
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Unable to create image");
 
-    generateMipmaps();
+    // just use the graphics queue for now, it is guarenteed to work
+    VkCommandBuffer commandBuffer = context->engineSettings.useConcurrentTransferQueue ?
+        context->beginSingleTimeCommands(context->transferCommandPool) : context->beginSingleTimeCommands();
+    
+    VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+    imageMemoryBarrier.subresourceRange.levelCount = 1;
+    imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+    imageMemoryBarrier.subresourceRange.layerCount = 1;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+
+    VkBufferImageCopy region = {};
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.layerCount = 1;
+    region.imageExtent.width = width;
+    region.imageExtent.height = height;
+    region.imageExtent.depth = 1;
+
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+
+    context->endSingleTimeCommands(commandBuffer);
+
+    vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
+
+    VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    textureImageViewInfo.image = textureImage;
+    textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // Fix this
+    textureImageViewInfo.subresourceRange.baseMipLevel = 0;
+    textureImageViewInfo.subresourceRange.levelCount = 1;
+    textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
+    textureImageViewInfo.subresourceRange.layerCount = 1;
+    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
+    
+    InternalTextures::references.insert({ textureImage, 1 });
 
     textureImageView = context->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
 
@@ -1550,17 +1692,79 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.maxLod = static_cast<float>(mipLevels);
+    // fix me
+    samplerInfo.maxLod = static_cast<float>(1);
     samplerInfo.mipLodBias = 0.0f; // Optional
 
-    if (vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
-        throw std::runtime_error("Failed to create texture sampler.");
-
-    // add the referce to the reference counter
-    
-    InternalTextures::references.insert({ textureImage, 1 });
+    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
 }
 
+// InternalTexture::InternalTexture(Engine *context, const Entity& entity, bool old) {
+//     this->context = context; // We shouldn't need to worry about this pointer ever being invalid
+//     width = entity.textureWidth;
+//     height = entity.texureHeight;
+//     VkDeviceSize imageSize = width * height * 4;
+
+//     VkBuffer stagingBuffer;
+//     VkDeviceMemory stagingBufferMemory;
+
+//     context->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+//         stagingBuffer, stagingBufferMemory);
+    
+//     void* data;
+//     vkMapMemory(context->device, stagingBufferMemory, 0, imageSize, 0, &data);
+//     // std::raise(SIGTRAP);
+//     std::cout << std::hex << reinterpret_cast<void *>(entity.texturePixels) << std::endl << std::flush;
+//     memcpy(data, entity.texturePixels, imageSize);
+//     vkUnmapMemory(context->device, stagingBufferMemory);
+
+//     mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
+//     context->createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+//         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+//         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, mipLevels);
+
+//     context->transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
+//     context->copyBufferToImage(stagingBuffer, textureImage, width, height);
+
+//     vkDestroyBuffer(context->device, stagingBuffer, nullptr);
+//     vkFreeMemory(context->device, stagingBufferMemory, nullptr);
+
+//     generateMipmaps();
+
+//     textureImageView = context->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+
+//     VkSamplerCreateInfo samplerInfo {};
+//     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+//     samplerInfo.magFilter = VK_FILTER_LINEAR;
+//     samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+//     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+//     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+//     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+//     samplerInfo.anisotropyEnable = VK_TRUE;
+//     // For right now we just use the max supported sampler anisotrpy
+//     samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
+
+//     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+//     samplerInfo.unnormalizedCoordinates = VK_FALSE;
+//     samplerInfo.compareEnable = VK_FALSE;
+//     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+//     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+//     samplerInfo.mipLodBias = 0.0f;
+//     samplerInfo.maxLod = static_cast<float>(mipLevels);
+//     samplerInfo.mipLodBias = 0.0f; // Optional
+
+//     if (vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
+//         throw std::runtime_error("Failed to create texture sampler.");
+
+//     // add the referce to the reference counter
+    
+//     InternalTextures::references.insert({ textureImage, 1 });
+// }
+
+// MaxLoD is not working right cause something is wrong
 void InternalTexture::generateMipmaps() {
     // I will leave this in here in case we want to handle multiple image formats in the future
     VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
@@ -1657,24 +1861,27 @@ void InternalTexture::generateMipmaps() {
         0, nullptr,
         1, &barrier);
 
-    context->endSingleTimeCommands(commandBuffer);
+    if (context->engineSettings.useConcurrentTransferQueue) context->endSingleTimeCommands(commandBuffer, context->transferCommandPool, context->transferQueue);
+    else context->endSingleTimeCommands(commandBuffer);
 }
 
 InternalTexture::~InternalTexture() {
     if (--InternalTextures::references[textureImage] == 0) {
         vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
-        vkDestroyImage(context->device, textureImage, nullptr);
-        vkFreeMemory(context->device, textureImageMemory, nullptr);
+        vmaDestroyImage(context->memoryAllocator, textureImage, nullptr);
     }
 }
 
 InternalTexture::InternalTexture(const InternalTexture& other) {
-    textureImageMemory = other.textureImageMemory;
     textureImageView = other.textureImageView;
     textureImage = other.textureImage;
     textureSampler = other.textureSampler;
+    textureAllocation = other.textureAllocation;
     context = other.context;
+    mipLevels = other.mipLevels;
+    width = other.width;
+    height = other.height;
     InternalTextures::references[textureImage]++; 
 }
 
@@ -1683,15 +1890,19 @@ InternalTexture& InternalTexture::operator=(const InternalTexture& other) {
 }
 
 InternalTexture::InternalTexture(InternalTexture&& other) noexcept
-: textureImageView(other.textureImageView), textureSampler(other.textureSampler),
-textureImage(other.textureImage), textureImageMemory(other.textureImageMemory), context(other.context)
+: textureImageView(other.textureImageView), textureSampler(other.textureSampler), mipLevels(other.mipLevels),
+textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation),
+width(other.width), height(other.height)
 { InternalTextures::references[textureImage]++; }
 
 InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
-    textureImageMemory = other.textureImageMemory;
     textureImageView = other.textureImageView;
     textureImage = other.textureImage;
     textureSampler = other.textureSampler;
+    textureAllocation = other.textureAllocation;
     context = other.context;
+    mipLevels = other.mipLevels;
+    width = other.width;
+    height = other.height;
     return *this;
 }

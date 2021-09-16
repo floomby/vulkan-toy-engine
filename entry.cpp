@@ -47,3 +47,19 @@ int main(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
+
+
+/*
+Next steps
+ Cpu allocator
+ Get lod working
+ Add instances
+  Game state
+ ECS
+ Blinn-Phong
+ Input
+  Keyboard input
+  Mouse input
+   Cammera movement
+ better model library (assimp?)
+*/
