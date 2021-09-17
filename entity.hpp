@@ -8,6 +8,7 @@ typedef unsigned char stbi_uc;
 class Entity : Utilities {
     friend class InternalTexture;
     friend class Engine;
+    friend class Scene;
 public:
     Entity(const char *model, const char *texture);
     std::vector<uint32_t> mapOffsetToIndices(size_t offset);

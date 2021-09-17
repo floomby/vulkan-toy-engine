@@ -1,3 +1,8 @@
+#define VMA_DEBUG_LOG(format, ...) do { \
+    printf(format, ##__VA_ARGS__); \
+    printf("\n"); \
+} while(false)
+
 #define VMA_IMPLEMENTATION
 #include "libs/vk_mem_alloc.h"
 
@@ -327,7 +332,7 @@ Engine::SwapChainSupportDetails Engine::querySwapChainSupport(VkPhysicalDevice d
     SwapChainSupportDetails details;
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
-    
+
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
     if (formatCount != 0) {
@@ -370,12 +375,12 @@ void Engine::pickPhysicalDevice() {
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
             vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
             int score = deviceProperties.limits.maxImageDimension2D;
-            if (!indices.isSupported() || !deviceSupportsExtensions(device) || 
+            if (!indices.isSupported() || !deviceSupportsExtensions(device) ||
                 !deviceSupportsSwapChain(device) || !deviceFeatures.samplerAnisotropy) score = invalidateScore(score);
             return std::make_pair(score, std::make_tuple(device, deviceProperties, deviceFeatures, indices));
         });
 
-    if (engineSettings.verbose) for(const auto& [score, details] : deviceInfos) std::cout << score << " - " << std::get<1>(details).deviceName 
+    if (engineSettings.verbose) for(const auto& [score, details] : deviceInfos) std::cout << score << " - " << std::get<1>(details).deviceName
         << " - " << std::get<1>(details).apiVersion << std::endl;
 
     if (deviceInfos.rbegin()->first < 0)
@@ -386,6 +391,7 @@ void Engine::pickPhysicalDevice() {
     physicalDeviceIndices = std::get<3>(std::next(deviceInfos.rbegin(), deviceListOffset)->second);
     // for right now just run at max availible anisotrpic filtering level for textures
     maxSamplerAnisotropy = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.maxSamplerAnisotropy;
+    minUniformBufferOffsetAlignment = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.minUniformBufferOffsetAlignment;
 
     if (engineSettings.verbose) std::cout << physicalDeviceIndices.info();
 }
@@ -480,7 +486,7 @@ void Engine::createSwapChain() {
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 
-    if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) 
+    if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
         imageCount = swapChainSupport.capabilities.maxImageCount;
 
     VkSwapchainCreateInfoKHR createInfo {};
@@ -633,7 +639,9 @@ void Engine::createRenderPass() {
 void Engine::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding {};
     uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    // uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
     uboLayoutBinding.descriptorCount = 1;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
@@ -648,7 +656,7 @@ void Engine::createDescriptorSetLayout() {
     std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.bindingCount = bindings.size();
     layoutInfo.pBindings = bindings.data();
 
     vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout), "Failed to create descriptor set layout.");
@@ -712,7 +720,7 @@ void Engine::createGraphicsPipeline() {
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor {};
-    scissor.offset = {0, 0};
+    scissor.offset = { 0, 0 };
     scissor.extent = swapChainExtent;
 
     VkPipelineViewportStateCreateInfo viewportState {};
@@ -815,7 +823,7 @@ void Engine::createGraphicsPipeline() {
     pipelineInfo.pDepthStencilState = &depthStencil;
 
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline), "Failed to create graphics pipeline.");
-    
+
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
@@ -840,12 +848,14 @@ void Engine::createCommandPools() {
 }
 
 uint32_t Engine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-    std::cout << "Most calls to this function should be elliminated in favor of using the vma allocator." << std::endl << boost::stacktrace::stacktrace() << std::endl;
+    if(engineSettings.extremelyVerbose)
+        std::cout << "Most calls to this function should be elliminated in favor of using the vma allocator." << std::endl
+            << boost::stacktrace::stacktrace() << std::endl;
 
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
 
-    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) if (typeFilter & (1 << i) && 
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) if (typeFilter & (1 << i) &&
         (memProperties.memoryTypes[i].propertyFlags & properties) == properties) return i;
 
     throw std::runtime_error("Failed to find suitable memory type.");
@@ -1093,7 +1103,7 @@ void Engine::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 }
 
 void Engine::createModelBuffers(std::vector<Entity> entities) {
-    // TODO Check if vulkan allows you to copy everything without having to stage everything in a host buffer first
+    // TODO Switch to vma allocations
     // TODO also this code is probably slow
     size_t vertexOffset = 0, indicesOffset = 0;
     std::vector<Vertex> vertexAccumulator;
@@ -1106,8 +1116,6 @@ void Engine::createModelBuffers(std::vector<Entity> entities) {
         vertexOffset += entity.vertices.size();
         indicesOffset += entity.indices.size();
     }
-
-    // VkDeviceSize bufferSize = sizeof(vertexAccumulator[0]) * vertexAccumulator.size();
 
     VkDeviceSize bufferSize = sizeof(vertexAccumulator[0]) * vertexAccumulator.size();
 
@@ -1122,7 +1130,7 @@ void Engine::createModelBuffers(std::vector<Entity> entities) {
     // memcpy(data, vertexAccumulator.data(), bufferSize);
     memcpy(data, vertexAccumulator.data(), bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
-    
+
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory,
         engineSettings.useConcurrentTransferQueue, { physicalDeviceIndices.graphicsFamily.value(), physicalDeviceIndices.transferFamily.value() });
 
@@ -1168,16 +1176,14 @@ void Engine::initVulkan() {
     createCommandPools();
     createDepthResources();
     createFramebuffers();
-    currentScene = loadDefaultScene();
 
-    // TODO extract this code
-    for(const auto& entity : currentScene.entities) {
-        currentScene.textures.push_back(InternalTexture(this, entity));
-    }
-    createModelBuffers(currentScene.entities);
+    // this sets the currentScene pointer
+    loadDefaultScene();
+
+    createModelBuffers(currentScene->entities);
     createUniformBuffers();
-    createDescriptors(currentScene.textures);
-    createCommandBuffers();
+    createDescriptors(currentScene->textures);
+    // recordCommandBuffers();
     initSynchronization();
     currentFrame = 0;
     framebufferResized = false;
@@ -1186,11 +1192,6 @@ void Engine::initVulkan() {
 void Engine::init() {
     initWidow();
     initVulkan();
-}
-
-Engine::Scene Engine::initScene(/* stuff */) {
-    Scene ret {};
-    return ret;
 }
 
 // Here is the big graphics update function
@@ -1203,11 +1204,13 @@ void Engine::updateScene(uint32_t currentImage) {
     UniformBufferObject ubo {};
     ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
 
-    ubo.proj[1][1] *= -1;
+    pushConstants.projection[1][1] *= -1;
+
+    pushConstants.instanceCount = 1;
 
     void* data;
     vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
@@ -1224,7 +1227,8 @@ void Engine::drawFrame() {
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapChain();
         return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) throw std::runtime_error("Failed to aquire swap chain image.");
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        throw std::runtime_error("Failed to aquire swap chain image.");
 
     if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
         vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
@@ -1232,6 +1236,8 @@ void Engine::drawFrame() {
     imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
     updateScene(imageIndex);
+    // Idk if this is good practice or not
+    recordCommandBuffers();
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1250,9 +1256,8 @@ void Engine::drawFrame() {
     submitInfo.pSignalSemaphores = signalSemaphores;
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
-    
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
-        throw std::runtime_error("Failed to submit draw command buffer.");
+
+    vulkanErrorGuard(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "Failed to submit draw command buffer.");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1272,12 +1277,13 @@ void Engine::drawFrame() {
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         framebufferResized = false;
         recreateSwapChain();
-    } else if (result != VK_SUCCESS) throw std::runtime_error("Failed to present swap chain image.");
+    } else if (result != VK_SUCCESS)
+        throw std::runtime_error("Failed to present swap chain image.");
 
     currentFrame = (currentFrame + 1) % engineSettings.maxFramesInFlight;
 }
 
-void Engine::runScene(Scene scene) {
+void Engine::runCurrentScene() {
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
@@ -1287,12 +1293,8 @@ void Engine::runScene(Scene scene) {
     // cleanup();
 }
 
-Engine::Scene Engine::loadDefaultScene() {
-    Scene ret;
-    ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png").translate({5, 0, 0}));
-    // ret.entities.push_back(Entity("models/viking_room.obj", "textures/viking_room.png"));
-
-    return ret;
+void Engine::loadDefaultScene() {
+    currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
 }
 
 void Engine::createUniformBuffers() {
@@ -1310,19 +1312,18 @@ void Engine::createUniformBuffers() {
 
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};
-    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    poolSizes[0].descriptorCount = swapChainImages.size();
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+    poolSizes[1].descriptorCount = swapChainImages.size();
 
-    VkDescriptorPoolCreateInfo poolInfo{};
+    VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.poolSizeCount = poolSizes.size();
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+    poolInfo.maxSets = swapChainImages.size();
 
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) 
-        throw std::runtime_error("Failed to create descriptor pool.");
+    vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool.");
 
     std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo {};
@@ -1332,10 +1333,8 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     allocInfo.pSetLayouts = layouts.data();
 
     descriptorSets.resize(swapChainImages.size());
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) 
-        throw std::runtime_error("Failed to allocate descriptor sets.");
-    
-    // SOMETHING IS WRONG HERE!!!!!
+    vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()), "Failed to allocate descriptor sets.");
+
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         VkDescriptorBufferInfo bufferInfo {};
         bufferInfo.buffer = uniformBuffers[i];
@@ -1348,7 +1347,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         descriptorWrites[0].dstSet = descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
         descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &bufferInfo;
 
@@ -1367,30 +1366,22 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         descriptorWrites[1].descriptorCount = imageInfos.size();
         descriptorWrites[1].pImageInfo = imageInfos.data();
 
-        vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
     }
 }
 
-void Engine::createCommandBuffers() {
-    PushConstants testPush = {{
-        { 1, 0, 0, 0 },
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
-        { 0, 0, 1, 1 }
-    }};
-
-
+void Engine::recordCommandBuffers() {
     size_t count = swapChainFramebuffers.size();
     commandBuffers.resize(count);
     transferCommandBuffers.resize(count);
-    
+
     VkCommandBufferAllocateInfo commandAlocInfo {};
     commandAlocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandAlocInfo.commandPool = commandPool;
     commandAlocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     commandAlocInfo.commandBufferCount = count;
 
-    if (vkAllocateCommandBuffers(device, &commandAlocInfo, commandBuffers.data()) != VK_SUCCESS) throw std::runtime_error("Failed to allocate command buffers.");
+    vulkanErrorGuard(vkAllocateCommandBuffers(device, &commandAlocInfo, commandBuffers.data()), "Failed to allocate command buffers.");
 
     if (engineSettings.useConcurrentTransferQueue) {
         VkCommandBufferAllocateInfo transferCommandAlocInfo {};
@@ -1398,9 +1389,10 @@ void Engine::createCommandBuffers() {
         transferCommandAlocInfo.commandPool = transferCommandPool;
         transferCommandAlocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         transferCommandAlocInfo.commandBufferCount = count;
-        if (vkAllocateCommandBuffers(device, &transferCommandAlocInfo, transferCommandBuffers.data()) != VK_SUCCESS)
-            throw std::runtime_error("Failed to allocate transfer command buffers.");
+        vulkanErrorGuard(vkAllocateCommandBuffers(device, &transferCommandAlocInfo, transferCommandBuffers.data()), "Failed to allocate transfer command buffers.");
     }
+
+    std::vector<uint32_t> dynamicOffsets = { 0 };
 
     for (size_t i = 0; i < commandBuffers.size(); i++) {
         VkCommandBufferBeginInfo beginInfo {};
@@ -1408,8 +1400,7 @@ void Engine::createCommandBuffers() {
         beginInfo.flags = 0; // Optional
         beginInfo.pInheritanceInfo = nullptr; // Optional
 
-        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS)
-            throw std::runtime_error("Failed to begin recording command buffer.");
+        vulkanErrorGuard(vkBeginCommandBuffer(commandBuffers[i], &beginInfo), "Failed to begin recording command buffer.");
 
         VkRenderPassBeginInfo renderPassInfo {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1436,13 +1427,12 @@ void Engine::createCommandBuffers() {
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
-        vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &testPush);
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, dynamicOffsets.data());
+        vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
         vkCmdDrawIndexed(commandBuffers[i], indicesCount, 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffers[i]);
-        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
-            throw std::runtime_error("Failed to record command buffer.");
+        vulkanErrorGuard(vkEndCommandBuffer(commandBuffers[i]), "Failed to record command buffer.");
     }
 }
 
@@ -1460,11 +1450,11 @@ void Engine::initSynchronization() {
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     for(size_t i = 0; i < engineSettings.maxFramesInFlight; i++) {
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS || 
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create synchronization primatives.");
-        if (engineSettings.verbose) std::cout << std::hex << "Fence " << i << " : " << inFlightFences[i] << std::endl;
+        // if (engineSettings.verbose) std::cout << std::hex << "Fence " << i << " : " << inFlightFences[i] << std::endl;
     }
 }
 
@@ -1487,8 +1477,8 @@ void Engine::recreateSwapChain() {
     createDepthResources();
     createFramebuffers();
     createUniformBuffers();
-    createDescriptors(currentScene.textures);
-    createCommandBuffers();
+    createDescriptors(currentScene->textures);
+    // recordCommandBuffers();
 }
 
 void Engine::cleanupSwapChain() {
@@ -1496,16 +1486,20 @@ void Engine::cleanupSwapChain() {
     vkDestroyImage(device, depthImage, nullptr);
     vkFreeMemory(device, depthImageMemory, nullptr);
 
-    for (auto framebuffer : swapChainFramebuffers) vkDestroyFramebuffer(device, framebuffer, nullptr);
+    for (auto framebuffer : swapChainFramebuffers)
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
 
     vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
-    if (engineSettings.useConcurrentTransferQueue) vkFreeCommandBuffers(device, transferCommandPool, transferCommandBuffers.size(), transferCommandBuffers.data());
+    if (engineSettings.useConcurrentTransferQueue)
+        vkFreeCommandBuffers(device, transferCommandPool, transferCommandBuffers.size(), transferCommandBuffers.data());
 
     vkDestroyPipeline(device, graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
-    for (auto imageView : swapChainImageViews) vkDestroyImageView(device, imageView, nullptr);
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
@@ -1536,6 +1530,8 @@ void Engine::cleanup() {
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
 
+    vmaDestroyAllocator(memoryAllocator);
+
     vkDestroyDevice(device, nullptr);
 
     if (engineSettings.validationLayers.size()) DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -1548,8 +1544,7 @@ void Engine::cleanup() {
 }
 
 Engine::~Engine() {
-    currentScene.entities.clear();
-    currentScene.textures.clear();
+    delete currentScene;
     cleanup();
 }
 
@@ -1558,7 +1553,7 @@ namespace InternalTextures {
 };
 
 InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
-    this->context = context; // We shouldn't need to worry about this pointer ever being invalid
+    this->context = context;
     width = entity.textureWidth;
     height = entity.texureHeight;
     VkDeviceSize imageSize = width * height * 4;
@@ -1570,7 +1565,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     VmaAllocationCreateInfo stagingBufAllocCreateInfo = {};
     stagingBufAllocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
     stagingBufAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    
+
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
     VmaAllocationInfo stagingBufferAllocationInfo = {};
@@ -1588,7 +1583,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
-    imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -1602,10 +1597,11 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
-    // just use the graphics queue for now, it is guarenteed to work
-    VkCommandBuffer commandBuffer = context->engineSettings.useConcurrentTransferQueue ?
-        context->beginSingleTimeCommands(context->transferCommandPool) : context->beginSingleTimeCommands();
-    
+    // Hm, how to use the transfer queue for this?
+    // VkCommandBuffer commandBuffer = context->engineSettings.useConcurrentTransferQueue ?
+    //     context->beginSingleTimeCommands(context->transferCommandPool) : context->beginSingleTimeCommands();
+    VkCommandBuffer commandBuffer = context->beginSingleTimeCommands();
+
     VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
     imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1660,7 +1656,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     textureImageViewInfo.image = textureImage;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
     textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     // Fix this
     textureImageViewInfo.subresourceRange.baseMipLevel = 0;
@@ -1668,10 +1664,8 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
     textureImageViewInfo.subresourceRange.layerCount = 1;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
-    
-    InternalTextures::references.insert({ textureImage, 1 });
 
-    textureImageView = context->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+    InternalTextures::references.insert({ textureImage, 1 });
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1698,71 +1692,6 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
 
     vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
 }
-
-// InternalTexture::InternalTexture(Engine *context, const Entity& entity, bool old) {
-//     this->context = context; // We shouldn't need to worry about this pointer ever being invalid
-//     width = entity.textureWidth;
-//     height = entity.texureHeight;
-//     VkDeviceSize imageSize = width * height * 4;
-
-//     VkBuffer stagingBuffer;
-//     VkDeviceMemory stagingBufferMemory;
-
-//     context->createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-//         stagingBuffer, stagingBufferMemory);
-    
-//     void* data;
-//     vkMapMemory(context->device, stagingBufferMemory, 0, imageSize, 0, &data);
-//     // std::raise(SIGTRAP);
-//     std::cout << std::hex << reinterpret_cast<void *>(entity.texturePixels) << std::endl << std::flush;
-//     memcpy(data, entity.texturePixels, imageSize);
-//     vkUnmapMemory(context->device, stagingBufferMemory);
-
-//     mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
-
-//     context->createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
-//         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-//         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, mipLevels);
-
-//     context->transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mipLevels);
-//     context->copyBufferToImage(stagingBuffer, textureImage, width, height);
-
-//     vkDestroyBuffer(context->device, stagingBuffer, nullptr);
-//     vkFreeMemory(context->device, stagingBufferMemory, nullptr);
-
-//     generateMipmaps();
-
-//     textureImageView = context->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
-
-//     VkSamplerCreateInfo samplerInfo {};
-//     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-//     samplerInfo.magFilter = VK_FILTER_LINEAR;
-//     samplerInfo.minFilter = VK_FILTER_LINEAR;
-
-//     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-//     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-//     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-//     samplerInfo.anisotropyEnable = VK_TRUE;
-//     // For right now we just use the max supported sampler anisotrpy
-//     samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
-
-//     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-//     samplerInfo.unnormalizedCoordinates = VK_FALSE;
-//     samplerInfo.compareEnable = VK_FALSE;
-//     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-//     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-//     samplerInfo.mipLodBias = 0.0f;
-//     samplerInfo.maxLod = static_cast<float>(mipLevels);
-//     samplerInfo.mipLodBias = 0.0f; // Optional
-
-//     if (vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
-//         throw std::runtime_error("Failed to create texture sampler.");
-
-//     // add the referce to the reference counter
-    
-//     InternalTextures::references.insert({ textureImage, 1 });
-// }
 
 // MaxLoD is not working right cause something is wrong
 void InternalTexture::generateMipmaps() {
@@ -1799,8 +1728,6 @@ void InternalTexture::generateMipmaps() {
         0, nullptr,
         1, &barrier);
 
-    // std::cout << std::dec << height << "x" << width << std::endl;
-
     for (uint32_t i = 1; i < mipLevels; i++) {
         // std::cout << std::dec << "Blitting mipmap level: " << i  << std::endl;
 
@@ -1827,7 +1754,7 @@ void InternalTexture::generateMipmaps() {
             textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &imageBlit,
             VK_FILTER_LINEAR);
-        
+
         barrier.subresourceRange.baseMipLevel = i;
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1841,7 +1768,7 @@ void InternalTexture::generateMipmaps() {
             1, &barrier);
     }
 
-    for (uint32_t i = 1; i < mipLevels; i++) { 
+    for (uint32_t i = 1; i < mipLevels; i++) {
         barrier.subresourceRange.baseMipLevel = i;
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1861,15 +1788,16 @@ void InternalTexture::generateMipmaps() {
         0, nullptr,
         1, &barrier);
 
-    if (context->engineSettings.useConcurrentTransferQueue) context->endSingleTimeCommands(commandBuffer, context->transferCommandPool, context->transferQueue);
-    else context->endSingleTimeCommands(commandBuffer);
+    context->endSingleTimeCommands(commandBuffer);
+    // if (context->engineSettings.useConcurrentTransferQueue) context->endSingleTimeCommands(commandBuffer, context->transferCommandPool, context->transferQueue);
+    // else context->endSingleTimeCommands(commandBuffer);
 }
 
 InternalTexture::~InternalTexture() {
     if (--InternalTextures::references[textureImage] == 0) {
         vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, textureImage, nullptr);
+        vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
     }
 }
 
@@ -1882,7 +1810,7 @@ InternalTexture::InternalTexture(const InternalTexture& other) {
     mipLevels = other.mipLevels;
     width = other.width;
     height = other.height;
-    InternalTextures::references[textureImage]++; 
+    InternalTextures::references[textureImage]++;
 }
 
 InternalTexture& InternalTexture::operator=(const InternalTexture& other) {
@@ -1905,4 +1833,48 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
     width = other.width;
     height = other.height;
     return *this;
+}
+
+Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>> entities, size_t initialSize) {
+    this->context = context;
+    // FIXME Crappy slowness
+    for(const auto& entity : entities) {
+        this->entities.push_back(Entity(entity.first, entity.second));
+    }
+    for(const auto& entity : this->entities) {
+        textures.push_back(InternalTexture(context, entity));
+    }
+
+    // TODO not finished (but fine for now)
+    currentSize = initialSize;
+    currentUsed = 0;
+    instances = static_cast<Instance *>(::operator new(initialSize * sizeof(Instance)));
+}
+
+Scene::~Scene() {
+    // technically calling the instance destructors is not required since we placemented them, but it is good practice
+    // to do so and can prevent future bugs
+    for(int i = 0; i < currentUsed; i++)
+        delete (instances + i);
+    ::operator delete(instances);
+}
+
+void Scene::addInstance(int entityIndex, glm::mat4 transformationMatrix) {
+    if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
+    Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex);
+}
+
+std::pair<const Utilities::Vertex *, const uint32_t *> Scene::makeBuffers() {
+    size_t vertexOffset = 0, indicesOffset = 0;
+    for(const auto& entity : entities) {
+        models.push_back({ vertexOffset, indicesOffset, entity.indices.size() });
+        vertexBuffer.insert(vertexBuffer.end(), entity.vertices.begin(), entity.vertices.end());
+        for(const auto& idx : entity.indices) {
+            indexBuffer.push_back(idx + vertexOffset);
+        }
+        vertexOffset += entity.vertices.size();
+        indicesOffset += entity.indices.size();
+    }
+
+    return { vertexBuffer.data(), indexBuffer.data() };
 }

@@ -7,14 +7,20 @@
 // TODO Check that glm is not incleded already (it uses once though so figure out how to do this the right way)
 
 #include "utilities.hpp"
-#include "entity.hpp"
+#include "instance.hpp"
 
 // #include <map>
 #include <set>
 
+#define VMA_DEBUG_LOG(format, ...) do { \
+    printf(format, ##__VA_ARGS__); \
+    printf("\n"); \
+} while(false)
+
+
 #include "libs/vk_mem_alloc.h"
 
-class InternalTexture;
+class Scene;
 
 struct EngineSettings {
     bool useConcurrentTransferQueue;
@@ -24,21 +30,17 @@ struct EngineSettings {
     int maxFramesInFlight;
     const char *applicationName;
     bool verbose;
+    bool extremelyVerbose;
 };
 
 class Engine : Utilities {
     // TODO add stuff to the engine class to be able to remove this friend declaration
     friend class InternalTexture;
 public:
-    struct Scene {
-        std::vector<Entity> entities;
-        std::vector<InternalTexture> textures;
-    };
-
     Engine(EngineSettings engineSettings);
     void init();
-    Scene initScene(/* entities and stuff */);
-    void runScene(Scene scene);
+    // Scene *initScene(/* entities and stuff */);
+    void runCurrentScene();
 
     ~Engine();
     Engine(const Engine& other) = delete;
@@ -68,11 +70,22 @@ private:
         std::vector<VkPresentModeKHR> presentModes;
     };
 
-    struct PushConstants {
-        glm::mat4 trasformationMatrix;
+    struct UniformBufferObject {
+        glm::mat4 model;
     };
 
+    struct PushConstants {
+        glm::mat4 view;
+        glm::mat4 projection;
+        int instanceCount;
+    };
+
+    PushConstants pushConstants;
+
     EngineSettings engineSettings;
+
+    float maxSamplerAnisotropy;
+    size_t minUniformBufferOffsetAlignment;
 
     void initWidow();
     void initVulkan();
@@ -99,7 +112,6 @@ private:
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     QueueFamilyIndices physicalDeviceIndices;
-    float maxSamplerAnisotropy;
     static QueueFamilyIndices findQueueFamilyIndices(VkPhysicalDevice device, VkSurfaceKHR surface, bool useConcurrentTransferQueue);
     bool deviceSupportsExtensions(VkPhysicalDevice device);
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
@@ -174,7 +186,6 @@ private:
     // TODO This is temporary (need to go away once we change the vertex shader and create instances)
     size_t indicesCount;
 
-
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     void createUniformBuffers();
@@ -185,7 +196,7 @@ private:
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
-    void createCommandBuffers();
+    void recordCommandBuffers();
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -200,12 +211,43 @@ private:
 
     void updateScene(uint32_t currentImage);
 
-    Scene currentScene;
-    Scene loadDefaultScene();
+    Scene *currentScene;
+    void loadDefaultScene();
 
     void cleanupSwapChain();
     void cleanup();
 };
+
+class Scene {
+public:
+    // vertex and index offsets for the model
+    Scene(Engine* context, std::vector<std::pair<const char *, const char *>>, size_t initalSize);
+
+    ~Scene();
+    Scene(const Scene& other) = delete;
+    Scene(Scene&& other) noexcept = delete;
+    Scene& operator=(const Scene& other) = delete;
+    Scene& operator=(Scene&& other) noexcept = delete;
+
+    void addInstance(int entityIndex, glm::mat4 transformationMatrix);
+
+    // Right now these are public so the engine can see them to copy them to vram
+    std::vector<Entity> entities;
+    std::vector<InternalTexture> textures;
+    std::vector<SceneModelInfo> models;
+
+    std::pair<const Utilities::Vertex *, const uint32_t *> makeBuffers();
+private:
+    Engine* context;
+
+    // TODO Make this use something real (ring maybe?)
+    size_t currentSize, currentUsed;
+    Instance *instances;
+
+    std::vector<Utilities::Vertex> vertexBuffer;
+    std::vector<uint32_t> indexBuffer;
+};
+
 
 class InternalTexture {
 public:
