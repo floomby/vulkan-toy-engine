@@ -135,7 +135,8 @@ void Engine::initWidow()
     glfwSetWindowUserPointer(window, this);
 
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    // glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    for (int i = 0; i < 8; i++) mouseButtonsPressed[i] = false;
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
 }
 
 void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -1164,6 +1165,11 @@ void Engine::createModelBuffers() {
 
 void Engine::initVulkan() {
     enableValidationLayers();
+    initInstance();
+    pickPhysicalDevice();
+    setupLogicalDevice();
+    createSwapChain();
+    createImageViews();
     createRenderPass();
     // This may change for each scene (idk yet)
     createDescriptorSetLayout();
