@@ -181,10 +181,7 @@ private:
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool pool, VkQueue queue);
-    void createModelBuffers(std::vector<Entity> entities);
-
-    // TODO This is temporary (need to go away once we change the vertex shader and create instances)
-    size_t indicesCount;
+    void createModelBuffers();
 
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
@@ -196,6 +193,8 @@ private:
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
+    void allocateCommandBuffers();
+
     void recordCommandBuffers();
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -236,16 +235,16 @@ public:
     std::vector<InternalTexture> textures;
     std::vector<SceneModelInfo> models;
 
-    std::pair<const Utilities::Vertex *, const uint32_t *> makeBuffers();
-private:
-    Engine* context;
+    void makeBuffers();
+
+    std::vector<Utilities::Vertex> vertexBuffer;
+    std::vector<uint32_t> indexBuffer;
 
     // TODO Make this use something real (ring maybe?)
     size_t currentSize, currentUsed;
     Instance *instances;
-
-    std::vector<Utilities::Vertex> vertexBuffer;
-    std::vector<uint32_t> indexBuffer;
+private:
+    Engine* context;
 };
 
 

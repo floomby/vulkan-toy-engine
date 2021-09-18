@@ -832,7 +832,7 @@ void Engine::createCommandPools() {
     VkCommandPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = physicalDeviceIndices.graphicsFamily.value();
-    poolInfo.flags = 0; // Optional
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool), "Failed to create command pool.");
 
@@ -1102,33 +1102,19 @@ void Engine::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
     endSingleTimeCommands(commandBuffer, pool, queue);
 }
 
-void Engine::createModelBuffers(std::vector<Entity> entities) {
-    // TODO Switch to vma allocations
-    // TODO also this code is probably slow
-    size_t vertexOffset = 0, indicesOffset = 0;
-    std::vector<Vertex> vertexAccumulator;
-    std::vector<uint32_t> indicesAccumulator;
-    for(const auto& entity : entities) {
-        vertexAccumulator.insert(vertexAccumulator.end(), entity.vertices.begin(), entity.vertices.end());
-        for(const auto& idx : entity.indices) {
-            indicesAccumulator.push_back(idx + vertexOffset);
-        }
-        vertexOffset += entity.vertices.size();
-        indicesOffset += entity.indices.size();
-    }
-
-    VkDeviceSize bufferSize = sizeof(vertexAccumulator[0]) * vertexAccumulator.size();
-
+void Engine::createModelBuffers() {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
+
+    // Vertex buffer
+    VkDeviceSize bufferSize = currentScene->vertexBuffer.size() * sizeof(Vertex);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         stagingBuffer, stagingBufferMemory);
 
     void* data;
     vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    // memcpy(data, vertexAccumulator.data(), bufferSize);
-    memcpy(data, vertexAccumulator.data(), bufferSize);
+    memcpy(data, currentScene->vertexBuffer.data(), bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory,
@@ -1141,14 +1127,14 @@ void Engine::createModelBuffers(std::vector<Entity> entities) {
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-    bufferSize = sizeof(indicesAccumulator[0]) * indicesAccumulator.size();
-    indicesCount = indicesAccumulator.size();
+    // Index buffer
+    bufferSize = currentScene->indexBuffer.size() * sizeof(uint32_t);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         stagingBuffer, stagingBufferMemory);
 
     vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indicesAccumulator.data(), bufferSize);
+    memcpy(data, currentScene->indexBuffer.data(), bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory,
@@ -1180,13 +1166,7 @@ void Engine::initVulkan() {
     // this sets the currentScene pointer
     loadDefaultScene();
 
-    createModelBuffers(currentScene->entities);
     createUniformBuffers();
-    createDescriptors(currentScene->textures);
-    // recordCommandBuffers();
-    initSynchronization();
-    currentFrame = 0;
-    framebufferResized = false;
 }
 
 void Engine::init() {
@@ -1284,6 +1264,15 @@ void Engine::drawFrame() {
 }
 
 void Engine::runCurrentScene() {
+    createModelBuffers();
+    createUniformBuffers();
+    createDescriptors(currentScene->textures);
+    allocateCommandBuffers();
+    recordCommandBuffers();
+    initSynchronization();
+    currentFrame = 0;
+    framebufferResized = false;
+
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
@@ -1295,6 +1284,8 @@ void Engine::runCurrentScene() {
 
 void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
+    currentScene->makeBuffers();
+    currentScene->addInstance(0, glm::mat4(1.0f));
 }
 
 void Engine::createUniformBuffers() {
@@ -1370,7 +1361,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     }
 }
 
-void Engine::recordCommandBuffers() {
+void Engine::allocateCommandBuffers() {
     size_t count = swapChainFramebuffers.size();
     commandBuffers.resize(count);
     transferCommandBuffers.resize(count);
@@ -1392,8 +1383,9 @@ void Engine::recordCommandBuffers() {
         vulkanErrorGuard(vkAllocateCommandBuffers(device, &transferCommandAlocInfo, transferCommandBuffers.data()), "Failed to allocate transfer command buffers.");
     }
 
-    std::vector<uint32_t> dynamicOffsets = { 0 };
+}
 
+void Engine::recordCommandBuffers() {
     for (size_t i = 0; i < commandBuffers.size(); i++) {
         VkCommandBufferBeginInfo beginInfo {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1427,9 +1419,13 @@ void Engine::recordCommandBuffers() {
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, dynamicOffsets.data());
-        vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
-        vkCmdDrawIndexed(commandBuffers[i], indicesCount, 1, 0, 0, 0);
+        // This loop indexing will change once the instance allocator changes
+        for(int j = 0; j < currentScene->currentUsed; j++) {
+            uint32_t dynamicOffset = j;
+            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
+            vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+            vkCmdDrawIndexed(commandBuffers[i], currentScene->models.at(j).indexCount, 1, 0, 0, 0);
+        }
 
         vkCmdEndRenderPass(commandBuffers[i]);
         vulkanErrorGuard(vkEndCommandBuffer(commandBuffers[i]), "Failed to record command buffer.");
@@ -1855,7 +1851,7 @@ Scene::~Scene() {
     // technically calling the instance destructors is not required since we placemented them, but it is good practice
     // to do so and can prevent future bugs
     for(int i = 0; i < currentUsed; i++)
-        delete (instances + i);
+        (instances + i)->~Instance();
     ::operator delete(instances);
 }
 
@@ -1864,7 +1860,7 @@ void Scene::addInstance(int entityIndex, glm::mat4 transformationMatrix) {
     Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex);
 }
 
-std::pair<const Utilities::Vertex *, const uint32_t *> Scene::makeBuffers() {
+void Scene::makeBuffers() {
     size_t vertexOffset = 0, indicesOffset = 0;
     for(const auto& entity : entities) {
         models.push_back({ vertexOffset, indicesOffset, entity.indices.size() });
@@ -1875,6 +1871,4 @@ std::pair<const Utilities::Vertex *, const uint32_t *> Scene::makeBuffers() {
         vertexOffset += entity.vertices.size();
         indicesOffset += entity.indices.size();
     }
-
-    return { vertexBuffer.data(), indexBuffer.data() };
 }
