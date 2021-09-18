@@ -133,13 +133,26 @@ void Engine::initWidow()
 
     window = glfwCreateWindow(engineSettings.width, engineSettings.height, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
+
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    // glfwSetMouseButtonCallback(window, mouseButtonCallback);
 }
 
 void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->framebufferResized = true;
 }
+
+void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    engine->mouseButtonsPressed[button] = action == GLFW_PRESS;
+}
+
+void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    
+
+}
+
 
 std::vector<const char *> Engine::getUnsupportedLayers() {
     std::vector<const char *> ret;
@@ -1151,11 +1164,6 @@ void Engine::createModelBuffers() {
 
 void Engine::initVulkan() {
     enableValidationLayers();
-    initInstance();
-    pickPhysicalDevice();
-    setupLogicalDevice();
-    createSwapChain();
-    createImageViews();
     createRenderPass();
     // This may change for each scene (idk yet)
     createDescriptorSetLayout();
@@ -1163,6 +1171,13 @@ void Engine::initVulkan() {
     createCommandPools();
     createDepthResources();
     createFramebuffers();
+
+    uniformBuffers.resize(swapChainImages.size());
+    uniformBufferAllocations.resize(swapChainImages.size());
+    uniformSkip = sizeof(UniformBufferObject) / minUniformBufferOffsetAlignment + 
+        (sizeof(UniformBufferObject) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
+    std::cout << std::dec << "Skip: " << uniformSkip << " min alignment: " << minUniformBufferOffsetAlignment << std::endl;
+    // uniformSkip = sizeof(UniformBufferObject);
 
     // this sets the currentScene pointer
     loadDefaultScene();
@@ -1173,15 +1188,24 @@ void Engine::init() {
     initVulkan();
 }
 
+void Engine::handleInput() {
+    for (int i = 0; i < 8; i++) {
+        if (mouseButtonsPressed[i]) {
+            std::cout << "Pressed button " << i << std::endl;
+            mouseButtonsPressed[i] = false;
+        }
+    }
+}
+
 // Here is the big graphics update function
-void Engine::updateScene(uint32_t currentImage) {
+void Engine::updateScene(uint32_t currentBuffer) {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    UniformBufferObject ubo {};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // UniformBufferObject ubo {};
+    // ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
     pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
@@ -1191,13 +1215,21 @@ void Engine::updateScene(uint32_t currentImage) {
 
     pushConstants.instanceCount = 1;
 
-    void* data;
-    vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
-    memcpy(data, &ubo, sizeof(ubo));
-    vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
+    // Is better to map the data ourselves or let vma do it? (NO, it isn't at least not for every frame, it causes flickering)
+    // This flickering may be an indication the fences are messed up, I would think I shouldn't ever have that with the way I am drawing
+    // void* data;
+    // vulkanErrorGuard(vkMapMemory(device, uniformBufferAllocations[currentBuffer]->GetMemory(), 0, sizeof(ubo), 0, &data), "Unable to map memory");
+    // memcpy(data, &ubo, sizeof(ubo));
+    // memcpy(uniformBufferAllocations[currentBuffer]->GetMappedData(), &ubo, sizeof(ubo));
+    for (int i = 0; i < currentScene->currentUsed; i++) {
+        (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
+    }
+
+    currentScene->updateUniforms(uniformBufferAllocations[currentBuffer]->GetMappedData(), uniformSkip);
+    // vkUnmapMemory(device, uniformBufferAllocations[currentBuffer]->GetMemory());
 }
 
-// TODO The synchornization code is pretty much nonsence, it works but is badly designed.
+// TODO The synchornization code is pretty much nonsence, it works but is bad
 // The fences are for the swap chain, but they also protect the command buffers since we are tripple buffering the commands (at least on my machine)
 void Engine::drawFrame() {
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
@@ -1253,8 +1285,8 @@ void Engine::drawFrame() {
 
     presentInfo.pResults = nullptr; // Optional
 
-    // THIS IS BROKEN ON RESIZE!! We present bad images, there is some
-    // sort of a race condition or something causing the image to be in undefined layout when we get here 
+    // THIS IS BROKEN ON RESIZE!! We present bad images. There is some sort of
+    // a race condition or something causing the image to be in undefined layout when we get here 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
@@ -1267,9 +1299,36 @@ void Engine::drawFrame() {
     currentFrame = (currentFrame + 1) % engineSettings.maxFramesInFlight;
 }
 
+void Engine::allocateUniformBuffers(size_t instanceCount) {
+    for (int i = 0; i < uniformBuffers.size(); i++) {
+        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufferInfo.size = instanceCount * uniformSkip;
+        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo bufferAllocationInfo = {};
+        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) !=VK_SUCCESS)
+            throw std::runtime_error("Unable to alloctate memory for uniform buffers.");
+    }
+}
+
+void Engine::reallocateUniformBuffers(size_t instanceCount) {
+    destroyUniformBuffers();
+    allocateUniformBuffers(instanceCount);
+}
+
+void Engine::destroyUniformBuffers() {
+    for (int i = 0; i < uniformBuffers.size(); i++)
+        vmaDestroyBuffer(memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+}
+
 void Engine::runCurrentScene() {
+    // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
-    createUniformBuffers();
+    // createUniformBuffers();
+    allocateUniformBuffers(currentScene->currentUsed);
     createDescriptors(currentScene->textures);
     allocateCommandBuffers();
     initSynchronization();
@@ -1279,6 +1338,7 @@ void Engine::runCurrentScene() {
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
+        handleInput();
     }
 
     vkDeviceWaitIdle(device);
@@ -1288,20 +1348,26 @@ void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     currentScene->makeBuffers();
     currentScene->addInstance(0, glm::mat4(1.0f));
+    currentScene->addInstance(0, glm::mat4({
+        { 1, 0, 0, 0 },
+        { 0, 1, 0, 0 },
+        { 0, 0, 1, 0 },
+        { 0, 0, 1, 1 }
+    }));
 }
 
-void Engine::createUniformBuffers() {
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+// void Engine::createUniformBuffers() {
+//     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-    uniformBuffers.resize(swapChainImages.size());
-    uniformBuffersMemory.resize(swapChainImages.size());
+//     uniformBuffers.resize(swapChainImages.size());
+//     uniformBuffersMemory.resize(swapChainImages.size());
 
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
-        // Am I making this in the correct queue (I think so)
-        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            uniformBuffers[i], uniformBuffersMemory[i]);
-    }
-}
+//     for (size_t i = 0; i < swapChainImages.size(); i++) {
+//         // Am I making this in the correct queue (I think so)
+//         createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+//             uniformBuffers[i], uniformBuffersMemory[i]);
+//     }
+// }
 
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};
@@ -1332,7 +1398,9 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         VkDescriptorBufferInfo bufferInfo {};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
+        // Idk if this involves a performance hit other than always copying the whole buffer even if it is not completely filled (this should be very small)
+        // It does save updating the descriptor set though, which means it could be faster this way (this would be my guess)
+        bufferInfo.range = VK_WHOLE_SIZE;
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
 
@@ -1422,10 +1490,12 @@ void Engine::recordCommandBuffer(int index) {
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->currentUsed; j++) {
-        uint32_t dynamicOffset = j;
+        uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(commandBuffers[index], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
-        vkCmdDrawIndexed(commandBuffers[index], currentScene->models.at(j).indexCount, 1, 0, 0, 0);
+        // TODO we can bundle draw commands the entities are the same (this includes the textures)
+        vkCmdDrawIndexed(commandBuffers[index], (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
     }
 
     vkCmdEndRenderPass(commandBuffers[index]);
@@ -1503,11 +1573,8 @@ void Engine::cleanupSwapChain() {
 
 void Engine::cleanup() {
     cleanupSwapChain();
-    
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
-        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
-    }
+
+    destroyUniformBuffers();
 
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
@@ -1867,5 +1934,11 @@ void Scene::makeBuffers() {
         }
         vertexOffset += entity.vertices.size();
         indicesOffset += entity.indices.size();
+    }
+}
+
+void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
+    for (int i = 0; i < currentUsed; i++) {
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, instances + i, sizeof(UniformBufferObject));
     }
 }

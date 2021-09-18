@@ -4,10 +4,10 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
     this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
-    coordinates = glm::mat4(1.0f);
+    state.model = glm::mat4(1.0f);
 };
 
 Instance& Instance::Transform(glm::mat4 transformationMatrix) noexcept {
-    coordinates *= transformationMatrix;
+    state.model *= transformationMatrix;
     return *this;
 };

@@ -59,8 +59,8 @@ int main(int argc, char **argv) {
 Next steps
  Cpu allocator
  Get lod working
- Add instances
-  Game state
+ game instance allocations
+ game state
  ECS
  Blinn-Phong
  Input
@@ -69,4 +69,5 @@ Next steps
    Cammera movement
  better model library (assimp?)
  emmisivity maps
+ makefile build faster (probably some code changes needed though)
 */

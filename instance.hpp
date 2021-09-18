@@ -9,15 +9,18 @@ struct SceneModelInfo {
     size_t vertexOffset, indexOffset, indexCount;
 };
 
+struct UniformBufferObject {
+    glm::mat4 model;
+};
+
 class Instance {
 public:
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo) noexcept;
     Instance& Transform(glm::mat4 transformationMatrix) noexcept;
 
-    // Is this the best way to hold this information?
-    glm::mat4 coordinates;
+    UniformBufferObject state;
+    SceneModelInfo* sceneModelInfo;
 private:
     Entity* entity;
     InternalTexture* texture;
-    SceneModelInfo* sceneModelInfo;
 };

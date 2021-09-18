@@ -70,10 +70,6 @@ private:
         std::vector<VkPresentModeKHR> presentModes;
     };
 
-    struct UniformBufferObject {
-        glm::mat4 model;
-    };
-
     struct PushConstants {
         glm::mat4 view;
         glm::mat4 projection;
@@ -93,6 +89,10 @@ private:
     GLFWwindow *window;
     bool framebufferResized;
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+
+    bool mouseButtonsPressed[8];
+    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
     std::vector<const char *> getUnsupportedLayers();
     void enableValidationLayers();
@@ -184,8 +184,15 @@ private:
     void createModelBuffers();
 
     std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-    void createUniformBuffers();
+    std::vector<VmaAllocation> uniformBufferAllocations;
+    size_t uniformSkip;
+    void allocateUniformBuffers(size_t instanceCount);
+    void reallocateUniformBuffers(size_t instanceCount);
+    void destroyUniformBuffers();
+    // std::vector<VkDeviceMemory> uniformBuffersMemory;
+    // void createUniformBuffers();
+
+
 
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -208,6 +215,8 @@ private:
     int currentFrame;
     int commandBufferIndex;
     void drawFrame();
+
+    void handleInput();
 
     void updateScene(uint32_t currentImage);
 
@@ -244,6 +253,8 @@ public:
     // TODO Make this use something real (ring maybe?)
     size_t currentSize, currentUsed;
     Instance *instances;
+    
+    void updateUniforms(void *buffer, size_t uniformSkip);
 private:
     Engine* context;
 };
