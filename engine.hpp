@@ -10,6 +10,7 @@
 #include "instance.hpp"
 
 // #include <map>
+#include <boost/lockfree/spsc_queue.hpp>
 #include <set>
 
 #define VMA_DEBUG_LOG(format, ...) do { \
@@ -39,7 +40,6 @@ class Engine : Utilities {
 public:
     Engine(EngineSettings engineSettings);
     void init();
-    // Scene *initScene(/* entities and stuff */);
     void runCurrentScene();
 
     ~Engine();
@@ -73,10 +73,14 @@ private:
     struct PushConstants {
         glm::mat4 view;
         glm::mat4 projection;
-        int instanceCount;
-    };
+    } pushConstants;
 
-    PushConstants pushConstants;
+    struct Cammera {
+        const float minZoom = 1.0f, maxZoom = 10.0f;
+        const float gimbleStop = 0.1f;
+        glm::vec3 position;
+        glm::vec3 target;
+    } cammera;
 
     EngineSettings engineSettings;
 
@@ -90,9 +94,31 @@ private:
     bool framebufferResized;
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
 
+    enum MouseAction {
+        MOUSE_NONE,
+        MOUSE_PANNING,
+        MOUSE_ROTATING
+    } mouseAction;
+
+    struct {
+        float x, y;
+    } lastMousePosition;
+
     bool mouseButtonsPressed[8];
+    struct MouseEvent {
+        int action, button, mods;
+        float x, y;
+    };
+    boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+    float scrollAmount;
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    bool keysPressed[349];
+    struct KeyEvent {
+        int action, key, mods;
+    };
+    boost::lockfree::spsc_queue<KeyEvent, boost::lockfree::capacity<1024>> keyboardInput;
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     std::vector<const char *> getUnsupportedLayers();
     void enableValidationLayers();
@@ -189,10 +215,6 @@ private:
     void allocateUniformBuffers(size_t instanceCount);
     void reallocateUniformBuffers(size_t instanceCount);
     void destroyUniformBuffers();
-    // std::vector<VkDeviceMemory> uniformBuffersMemory;
-    // void createUniformBuffers();
-
-
 
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;

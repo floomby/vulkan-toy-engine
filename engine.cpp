@@ -137,6 +137,10 @@ void Engine::initWidow()
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     for (int i = 0; i < 8; i++) mouseButtonsPressed[i] = false;
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    scrollAmount = 0.0f;
+    glfwSetScrollCallback(window, scrollCallback);
+    memset(&keysPressed, 0, sizeof(keysPressed));
+    glfwSetKeyCallback(window, keyCallback);
 }
 
 void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -147,13 +151,24 @@ void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height
 void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->mouseButtonsPressed[button] = action == GLFW_PRESS;
+    double x, y;
+    glfwGetCursorPos(engine->window, &x, &y);
+    engine->mouseInput.push({ action, button, mods, (float)x, (float)y });
 }
 
 void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    
-
+    auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    engine->scrollAmount -= yoffset;
 }
 
+void Engine::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    if (key == GLFW_KEY_UNKNOWN) {
+        std::cerr << "Unknown key (ignoring)" << std::endl;
+        return;
+    }
+    engine->keyboardInput.push({ action, key, mods });
+}
 
 std::vector<const char *> Engine::getUnsupportedLayers() {
     std::vector<const char *> ret;
@@ -299,7 +314,6 @@ std::string Engine::QueueFamilyIndices::info() {
     output << "Transfer family: " << (transferFamily.has_value() ? std::to_string(transferFamily.value()) : "None") << std::endl;
     return output.str();
 }
-
 
 bool Engine::deviceSupportsExtensions(VkPhysicalDevice device) {
     uint32_t extensionCount;
@@ -1194,13 +1208,126 @@ void Engine::init() {
     initVulkan();
 }
 
+inline float fixBounds(float value) {
+    return value > 0 ? value : value + 360;
+};
+
 void Engine::handleInput() {
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    float deltaX = lastMousePosition.x - x;
+    float deltaY = lastMousePosition.y - y;
+
     for (int i = 0; i < 8; i++) {
         if (mouseButtonsPressed[i]) {
             std::cout << "Pressed button " << i << std::endl;
             mouseButtonsPressed[i] = false;
         }
     }
+    KeyEvent keyEvent;
+    while(keyboardInput.pop(keyEvent)) {
+        if (keyEvent.action == GLFW_PRESS) {
+            keysPressed[keyEvent.key] = true;
+        } else if (keyEvent.action == GLFW_RELEASE) {
+            keysPressed[keyEvent.key] = false;
+        }
+    }
+    // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
+    auto pointing = cammera.position - cammera.target;
+    auto strafing = normalize(cross(pointing, { 0.0f, 0.0f, 1.0f }));
+    auto fowarding = normalize(cross(strafing, { 0.0f, 0.0f, 1.0f }));
+    auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
+    auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
+    auto orbitMatrix = glm::toMat3(orbit);
+    auto reverseOrbitMatrix = glm::toMat3(reverseOrbit);
+    auto tilt = glm::angleAxis(glm::radians(0.1f), strafing);
+    auto reverseTilt = glm::angleAxis(glm::radians(359.9f), strafing);
+    auto tiltMatrix = glm::toMat3(tilt);
+    auto reverseTiltMatrix = glm::toMat3(reverseTilt);
+
+    if (scrollAmount != 0.0f) {
+        auto normedPointing = normalize(pointing);
+        cammera.position += scrollAmount / 5.0f * normedPointing;
+        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = normedPointing * cammera.maxZoom;
+        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = normedPointing * cammera.minZoom;
+        scrollAmount = 0.0f;
+    }
+
+    MouseEvent mouseEvent;
+    while (mouseInput.pop(mouseEvent)) {
+        if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
+            mouseAction = MOUSE_PANNING;
+        } else if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
+            mouseAction = MOUSE_ROTATING;
+        }
+        if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
+            mouseAction = MOUSE_NONE; 
+        }
+    }
+
+    if (keysPressed[GLFW_KEY_RIGHT]) {
+        cammera.position -= strafing / 600.0f;
+        cammera.target -= strafing / 600.0f;
+    }
+    if (keysPressed[GLFW_KEY_LEFT]) {
+        cammera.position += strafing / 600.0f;
+        cammera.target += strafing / 600.0f;
+    }
+    if (keysPressed[GLFW_KEY_DOWN]) {
+        cammera.position -= fowarding / 600.0f;
+        cammera.target -= fowarding / 600.0f;
+    }
+    if (keysPressed[GLFW_KEY_UP]) {
+        cammera.position += fowarding / 600.0f;
+        cammera.target += fowarding / 600.0f;
+    }
+
+    if (mouseAction == MOUSE_PANNING) {
+        cammera.position -= strafing / 100.0f * deltaX;
+        cammera.target -= strafing / 100.0f * deltaX;
+        cammera.position -= fowarding / 100.0f * deltaY;
+        cammera.target -= fowarding / 100.0f * deltaY;
+    } else if (mouseAction == MOUSE_ROTATING) {
+        if (deltaY != 0.0f) {
+            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY) / 2.0f, strafing);
+            auto mouseTiltMatrix = glm::toMat3(mouseTilt);
+            auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
+            if ((newPosition.z - cammera.target.z) > cammera.gimbleStop && (newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
+                (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
+                    cammera.position = newPosition;
+            }
+        }
+        if (deltaX != 0.0f) {
+            auto mouseOrbit = glm::angleAxis(glm::radians(deltaX) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
+            auto mouseOrbitMatrix = glm::toMat3(mouseOrbit);
+            cammera.position = mouseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
+        }
+    }
+
+    // use key presses for now
+    if (keysPressed[GLFW_KEY_A]) {
+        cammera.position = orbitMatrix * (cammera.position - cammera.target) + cammera.target;
+    }
+    if (keysPressed[GLFW_KEY_D]) {
+        cammera.position = reverseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
+    }
+    if (keysPressed[GLFW_KEY_W]) {
+        auto newPosition = tiltMatrix * (cammera.position - cammera.target) + cammera.target;
+        // avoid gimble problems
+        if ((newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
+            (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
+                cammera.position = newPosition;
+        }
+    }
+    if (keysPressed[GLFW_KEY_S]) {
+        auto newPosition = reverseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
+        if ((newPosition.z - cammera.target.z) > cammera.gimbleStop) {
+                cammera.position = newPosition;
+        }
+    }
+
+    lastMousePosition.x = x;
+    lastMousePosition.y = y;
 }
 
 // Here is the big graphics update function
@@ -1210,25 +1337,14 @@ void Engine::updateScene(uint32_t currentBuffer) {
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    // UniformBufferObject ubo {};
-    // ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-    pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
+    // pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
+    // I think we can just leave the fov the same
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
-
     pushConstants.projection[1][1] *= -1;
 
-    pushConstants.instanceCount = 1;
-
-    // Is better to map the data ourselves or let vma do it? (NO, it isn't at least not for every frame, it causes flickering)
-    // This flickering may be an indication the fences are messed up, I would think I shouldn't ever have that with the way I am drawing
-    // void* data;
-    // vulkanErrorGuard(vkMapMemory(device, uniformBufferAllocations[currentBuffer]->GetMemory(), 0, sizeof(ubo), 0, &data), "Unable to map memory");
-    // memcpy(data, &ubo, sizeof(ubo));
-    // memcpy(uniformBufferAllocations[currentBuffer]->GetMappedData(), &ubo, sizeof(ubo));
     for (int i = 0; i < currentScene->currentUsed; i++) {
-        (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
+        // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
     currentScene->updateUniforms(uniformBufferAllocations[currentBuffer]->GetMappedData(), uniformSkip);
@@ -1333,13 +1449,19 @@ void Engine::destroyUniformBuffers() {
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
-    // createUniformBuffers();
     allocateUniformBuffers(currentScene->currentUsed);
     createDescriptors(currentScene->textures);
     allocateCommandBuffers();
     initSynchronization();
     currentFrame = 0;
     framebufferResized = false;
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    lastMousePosition.x = x;
+    lastMousePosition.y = y;
+
+    cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
+    cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -1354,26 +1476,13 @@ void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     currentScene->makeBuffers();
     currentScene->addInstance(0, glm::mat4(1.0f));
-    currentScene->addInstance(0, glm::mat4({
-        { 1, 0, 0, 0 },
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
-        { 0, 0, 1, 1 }
-    }));
+    // currentScene->addInstance(0, glm::mat4({
+    //     { 1, 0, 0, 0 },
+    //     { 0, 1, 0, 0 },
+    //     { 0, 0, 1, 0 },
+    //     { 0, 0, 1, 1 }
+    // }));
 }
-
-// void Engine::createUniformBuffers() {
-//     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-//     uniformBuffers.resize(swapChainImages.size());
-//     uniformBuffersMemory.resize(swapChainImages.size());
-
-//     for (size_t i = 0; i < swapChainImages.size(); i++) {
-//         // Am I making this in the correct queue (I think so)
-//         createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-//             uniformBuffers[i], uniformBuffersMemory[i]);
-//     }
-// }
 
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};

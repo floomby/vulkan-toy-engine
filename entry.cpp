@@ -63,10 +63,6 @@ Next steps
  game state
  ECS
  Blinn-Phong
- Input
-  Keyboard input
-  Mouse input
-   Cammera movement
  better model library (assimp?)
  emmisivity maps
  makefile build faster (probably some code changes needed though)
