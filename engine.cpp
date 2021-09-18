@@ -431,7 +431,7 @@ void Engine::setupLogicalDevice() {
     vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.presentFamily.value(), 0, &presentQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.transferFamily.value(), 0, &transferQueue);
-    if (engineSettings.verbose) std::cout << std::hex << "Presentation queue: " << presentQueue << "  Graphics queue: " << graphicsQueue << "  Transfer queue: " << transferQueue << std::endl;
+    // if (engineSettings.verbose) std::cout << std::hex << "Presentation queue: " << presentQueue << "  Graphics queue: " << graphicsQueue << "  Transfer queue: " << transferQueue << std::endl;
 
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = physicalDevice;
@@ -453,7 +453,6 @@ VkPresentModeKHR Engine::chooseSwapPresentMode(const std::vector<VkPresentModeKH
     for (const auto& availablePresentMode : availablePresentModes)
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
             return availablePresentMode;
-
 
     return VK_PRESENT_MODE_FIFO_KHR;
 }
@@ -506,8 +505,8 @@ void Engine::createSwapChain() {
         createInfo.pQueueFamilyIndices = queueFamilyIndices;
     } else {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0; // Optional
-        createInfo.pQueueFamilyIndices = nullptr; // Optional
+        createInfo.queueFamilyIndexCount = 0;
+        createInfo.pQueueFamilyIndices = nullptr;
     }
 
     createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
@@ -539,7 +538,7 @@ VkImageView Engine::createImageView(VkImage image, VkFormat format, VkImageAspec
     viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
     viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
-    // The docs said you could just do this, I don't know if their is a downside
+    // The docs said you could just do this, I don't know if their is a downside (might be slower or something)
     viewInfo.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
@@ -714,8 +713,8 @@ void Engine::createGraphicsPipeline() {
     VkViewport viewport {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float) swapChainExtent.width;
-    viewport.height = (float) swapChainExtent.height;
+    viewport.width = static_cast<float>(swapChainExtent.width);
+    viewport.height = static_cast<float>(swapChainExtent.height);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -1035,11 +1034,11 @@ void Engine::createFramebuffers() {
         framebufferInfo.height = swapChainExtent.height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
-            throw std::runtime_error("Failed to create framebuffer.");
+        vulkanErrorGuard(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]), "Failed to create framebuffer.");
     }
 }
 
+// TODO Elliminate this in favor of using the other allocator
 void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer,
     VkDeviceMemory& bufferMemory, bool concurrent, std::vector<uint32_t> queues) {
 
@@ -1068,6 +1067,8 @@ void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
         throw std::runtime_error("Failed to allocate buffer memory.");
 
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
+
+    // std::cout << std::hex << "Buffer: " << buffer << "\n" << boost::stacktrace::stacktrace() << std::endl;
 }
 
 void Engine::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
@@ -1165,8 +1166,6 @@ void Engine::initVulkan() {
 
     // this sets the currentScene pointer
     loadDefaultScene();
-
-    createUniformBuffers();
 }
 
 void Engine::init() {
@@ -1198,6 +1197,8 @@ void Engine::updateScene(uint32_t currentImage) {
     vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
 }
 
+// TODO The synchornization code is pretty much nonsence, it works but is badly designed.
+// The fences are for the swap chain, but they also protect the command buffers since we are tripple buffering the commands (at least on my machine)
 void Engine::drawFrame() {
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -1209,7 +1210,7 @@ void Engine::drawFrame() {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
-
+    
     if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
         vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
     }
@@ -1217,7 +1218,7 @@ void Engine::drawFrame() {
 
     updateScene(imageIndex);
     // Idk if this is good practice or not
-    recordCommandBuffers();
+    recordCommandBuffer(commandBufferIndex);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1229,7 +1230,7 @@ void Engine::drawFrame() {
     submitInfo.pWaitDstStageMask = waitStages;
 
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+    submitInfo.pCommandBuffers = &commandBuffers[commandBufferIndex];
 
     VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
     submitInfo.signalSemaphoreCount = 1;
@@ -1252,6 +1253,8 @@ void Engine::drawFrame() {
 
     presentInfo.pResults = nullptr; // Optional
 
+    // THIS IS BROKEN ON RESIZE!! We present bad images, there is some
+    // sort of a race condition or something causing the image to be in undefined layout when we get here 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
@@ -1260,6 +1263,7 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to present swap chain image.");
 
+    commandBufferIndex = (commandBufferIndex + 1) % commandBuffers.size();
     currentFrame = (currentFrame + 1) % engineSettings.maxFramesInFlight;
 }
 
@@ -1268,7 +1272,6 @@ void Engine::runCurrentScene() {
     createUniformBuffers();
     createDescriptors(currentScene->textures);
     allocateCommandBuffers();
-    recordCommandBuffers();
     initSynchronization();
     currentFrame = 0;
     framebufferResized = false;
@@ -1279,7 +1282,6 @@ void Engine::runCurrentScene() {
     }
 
     vkDeviceWaitIdle(device);
-    // cleanup();
 }
 
 void Engine::loadDefaultScene() {
@@ -1382,54 +1384,52 @@ void Engine::allocateCommandBuffers() {
         transferCommandAlocInfo.commandBufferCount = count;
         vulkanErrorGuard(vkAllocateCommandBuffers(device, &transferCommandAlocInfo, transferCommandBuffers.data()), "Failed to allocate transfer command buffers.");
     }
-
 }
 
-void Engine::recordCommandBuffers() {
-    for (size_t i = 0; i < commandBuffers.size(); i++) {
-        VkCommandBufferBeginInfo beginInfo {};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
+// THINK Is there any benifit to having multiple commandBuffers
+void Engine::recordCommandBuffer(int index) {
+    VkCommandBufferBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = 0; // Optional
+    beginInfo.pInheritanceInfo = nullptr; // Optional
 
-        vulkanErrorGuard(vkBeginCommandBuffer(commandBuffers[i], &beginInfo), "Failed to begin recording command buffer.");
+    vulkanErrorGuard(vkBeginCommandBuffer(commandBuffers[index], &beginInfo), "Failed to begin recording command buffer.");
 
-        VkRenderPassBeginInfo renderPassInfo {};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapChainFramebuffers[i];
+    VkRenderPassBeginInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass;
+    renderPassInfo.framebuffer = swapChainFramebuffers[index];
 
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapChainExtent;
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = swapChainExtent;
 
-        std::array<VkClearValue, 2> clearValues = {};
-        clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
-        clearValues[1].depthStencil = { 1.0f, 0 };
+    std::array<VkClearValue, 2> clearValues = {};
+    clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+    clearValues[1].depthStencil = { 1.0f, 0 };
 
-        renderPassInfo.clearValueCount = clearValues.size();
-        renderPassInfo.pClearValues = clearValues.data();
+    renderPassInfo.clearValueCount = clearValues.size();
+    renderPassInfo.pClearValues = clearValues.data();
 
-        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffers[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-        VkBuffer vertexBuffers[] = { vertexBuffer };
-        VkDeviceSize offsets[] = { 0 };
+    VkBuffer vertexBuffers[] = { vertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
 
-        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(commandBuffers[index], 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(commandBuffers[index], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-        // This loop indexing will change once the instance allocator changes
-        for(int j = 0; j < currentScene->currentUsed; j++) {
-            uint32_t dynamicOffset = j;
-            vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[i], 1, &dynamicOffset);
-            vkCmdPushConstants(commandBuffers[i], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
-            vkCmdDrawIndexed(commandBuffers[i], currentScene->models.at(j).indexCount, 1, 0, 0, 0);
-        }
-
-        vkCmdEndRenderPass(commandBuffers[i]);
-        vulkanErrorGuard(vkEndCommandBuffer(commandBuffers[i]), "Failed to record command buffer.");
+    // This loop indexing will change once the instance allocator changes
+    for(int j = 0; j < currentScene->currentUsed; j++) {
+        uint32_t dynamicOffset = j;
+        vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[index], 1, &dynamicOffset);
+        vkCmdPushConstants(commandBuffers[index], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+        vkCmdDrawIndexed(commandBuffers[index], currentScene->models.at(j).indexCount, 1, 0, 0, 0);
     }
+
+    vkCmdEndRenderPass(commandBuffers[index]);
+    vulkanErrorGuard(vkEndCommandBuffer(commandBuffers[index]), "Failed to record command buffer.");
 }
 
 void Engine::initSynchronization() {
@@ -1445,7 +1445,7 @@ void Engine::initSynchronization() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for(size_t i = 0; i < engineSettings.maxFramesInFlight; i++) {
+    for(int i = 0; i < engineSettings.maxFramesInFlight; i++) {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
@@ -1472,9 +1472,8 @@ void Engine::recreateSwapChain() {
     createGraphicsPipeline();
     createDepthResources();
     createFramebuffers();
-    createUniformBuffers();
     createDescriptors(currentScene->textures);
-    // recordCommandBuffers();
+    allocateCommandBuffers();
 }
 
 void Engine::cleanupSwapChain() {
@@ -1499,16 +1498,16 @@ void Engine::cleanupSwapChain() {
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
-        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
-    }
-
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 }
 
 void Engine::cleanup() {
     cleanupSwapChain();
+    
+    for (size_t i = 0; i < swapChainImages.size(); i++) {
+        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+    }
 
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
@@ -1848,8 +1847,6 @@ Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>>
 }
 
 Scene::~Scene() {
-    // technically calling the instance destructors is not required since we placemented them, but it is good practice
-    // to do so and can prevent future bugs
     for(int i = 0; i < currentUsed; i++)
         (instances + i)->~Instance();
     ::operator delete(instances);

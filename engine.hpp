@@ -195,7 +195,7 @@ private:
     std::vector<VkCommandBuffer> transferCommandBuffers;
     void allocateCommandBuffers();
 
-    void recordCommandBuffers();
+    void recordCommandBuffer(int index);
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -205,7 +205,8 @@ private:
 
     void recreateSwapChain();
 
-    size_t currentFrame;
+    int currentFrame;
+    int commandBufferIndex;
     void drawFrame();
 
     void updateScene(uint32_t currentImage);
