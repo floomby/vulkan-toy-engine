@@ -54,9 +54,9 @@ int main(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-
 /*
 Next steps
+ * Rewrite the command buffer descriptors and synchronization
  Cpu allocator
  Get lod working
  game instance allocations

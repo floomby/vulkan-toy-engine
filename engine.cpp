@@ -132,6 +132,8 @@ void Engine::initWidow()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     window = glfwCreateWindow(engineSettings.width, engineSettings.height, "Vulkan", nullptr, nullptr);
+    framebufferSize.width = engineSettings.width;
+    framebufferSize.height = engineSettings.height;
     glfwSetWindowUserPointer(window, this);
 
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
@@ -146,6 +148,8 @@ void Engine::initWidow()
 void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->framebufferResized = true;
+    engine->framebufferSize.width = width;
+    engine->framebufferSize.height = height;
 }
 
 void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -667,8 +671,6 @@ void Engine::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding {};
     uboLayoutBinding.binding = 0;
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    // uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
     uboLayoutBinding.descriptorCount = 1;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
@@ -863,14 +865,15 @@ void Engine::createCommandPools() {
 
     vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool), "Failed to create command pool.");
 
-    if (engineSettings.verbose) std::cout << std::hex << "commandPool: " << commandPool << std::endl;
+    // if (engineSettings.verbose) std::cout << std::hex << "commandPool: " << commandPool << std::endl;
 
     if (engineSettings.useConcurrentTransferQueue) {
+        poolInfo.flags = 0;
         poolInfo.queueFamilyIndex = physicalDeviceIndices.transferFamily.value();
 
         vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &transferCommandPool), "Failed to create transfer command pool.");
 
-        if (engineSettings.verbose) std::cout << "transferCommandPool: " << transferCommandPool << std::endl;
+        // if (engineSettings.verbose) std::cout << "transferCommandPool: " << transferCommandPool << std::endl;
     }
 }
 
@@ -1212,11 +1215,21 @@ inline float fixBounds(float value) {
     return value > 0 ? value : value + 360;
 };
 
+void Engine::raycast(float x, float y) {
+    float normedDeviceX = x / framebufferSize.width * 2.0f - 1.0f;
+    float normedDeviceY = 1.0f - y / framebufferSize.height * 2.0f;
+    auto homogeneousRay = glm::vec4(normedDeviceX, normedDeviceX, 1.0f, 1.0f);
+    auto eyeRay = glm::inverse(pushConstants.projection) * homogeneousRay;
+    eyeRay.z = 1.0f;
+    eyeRay.w = 0.0f;
+    auto worldRay = glm::inverse(pushConstants.projection) * eyeRay;
+}
+
 void Engine::handleInput() {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
-    float deltaX = lastMousePosition.x - x;
-    float deltaY = lastMousePosition.y - y;
+    float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
+    float deltaY = (lastMousePosition.y - y) / framebufferSize.height;
 
     for (int i = 0; i < 8; i++) {
         if (mouseButtonsPressed[i]) {
@@ -1228,6 +1241,15 @@ void Engine::handleInput() {
     while(keyboardInput.pop(keyEvent)) {
         if (keyEvent.action == GLFW_PRESS) {
             keysPressed[keyEvent.key] = true;
+
+            if (keyEvent.key == GLFW_KEY_T) {
+                currentScene->addInstance(0, glm::mat4({
+                    { .5, 0, 0, 0 },
+                    { 0, .5, 0, 0 },
+                    { 0, 0, .5, 0 },
+                    { 0, 0, 0, .5 }
+                }));
+            }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
         }
@@ -1236,14 +1258,14 @@ void Engine::handleInput() {
     auto pointing = cammera.position - cammera.target;
     auto strafing = normalize(cross(pointing, { 0.0f, 0.0f, 1.0f }));
     auto fowarding = normalize(cross(strafing, { 0.0f, 0.0f, 1.0f }));
-    auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
-    auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
-    auto orbitMatrix = glm::toMat3(orbit);
-    auto reverseOrbitMatrix = glm::toMat3(reverseOrbit);
-    auto tilt = glm::angleAxis(glm::radians(0.1f), strafing);
-    auto reverseTilt = glm::angleAxis(glm::radians(359.9f), strafing);
-    auto tiltMatrix = glm::toMat3(tilt);
-    auto reverseTiltMatrix = glm::toMat3(reverseTilt);
+    // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
+    // auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
+    // auto orbitMatrix = glm::toMat3(orbit);
+    // auto reverseOrbitMatrix = glm::toMat3(reverseOrbit);
+    // auto tilt = glm::angleAxis(glm::radians(0.1f), strafing);
+    // auto reverseTilt = glm::angleAxis(glm::radians(359.9f), strafing);
+    // auto tiltMatrix = glm::toMat3(tilt);
+    // auto reverseTiltMatrix = glm::toMat3(reverseTilt);
 
     if (scrollAmount != 0.0f) {
         auto normedPointing = normalize(pointing);
@@ -1255,13 +1277,16 @@ void Engine::handleInput() {
 
     MouseEvent mouseEvent;
     while (mouseInput.pop(mouseEvent)) {
-        if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
+        if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
             mouseAction = MOUSE_PANNING;
-        } else if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
+        } else if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
             mouseAction = MOUSE_ROTATING;
         }
-        if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_1) {
-            mouseAction = MOUSE_NONE; 
+        if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
+            mouseAction = MOUSE_NONE;
+        }
+        if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
+            mouseAction = MOUSE_DRAGGING;
         }
     }
 
@@ -1282,14 +1307,15 @@ void Engine::handleInput() {
         cammera.target += fowarding / 600.0f;
     }
 
+    // Panning needs to take into account zooming
     if (mouseAction == MOUSE_PANNING) {
-        cammera.position -= strafing / 100.0f * deltaX;
-        cammera.target -= strafing / 100.0f * deltaX;
-        cammera.position -= fowarding / 100.0f * deltaY;
-        cammera.target -= fowarding / 100.0f * deltaY;
+        cammera.position -= strafing * 4.0f * deltaX;
+        cammera.target -= strafing * 4.0f * deltaX;
+        cammera.position -= fowarding * 4.0f * deltaY;
+        cammera.target -= fowarding * 4.0f * deltaY;
     } else if (mouseAction == MOUSE_ROTATING) {
         if (deltaY != 0.0f) {
-            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY) / 2.0f, strafing);
+            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, strafing);
             auto mouseTiltMatrix = glm::toMat3(mouseTilt);
             auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
             if ((newPosition.z - cammera.target.z) > cammera.gimbleStop && (newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
@@ -1298,33 +1324,33 @@ void Engine::handleInput() {
             }
         }
         if (deltaX != 0.0f) {
-            auto mouseOrbit = glm::angleAxis(glm::radians(deltaX) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
+            auto mouseOrbit = glm::angleAxis(glm::radians(deltaX * 400.0f) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
             auto mouseOrbitMatrix = glm::toMat3(mouseOrbit);
             cammera.position = mouseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
         }
     }
 
-    // use key presses for now
-    if (keysPressed[GLFW_KEY_A]) {
-        cammera.position = orbitMatrix * (cammera.position - cammera.target) + cammera.target;
-    }
-    if (keysPressed[GLFW_KEY_D]) {
-        cammera.position = reverseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
-    }
-    if (keysPressed[GLFW_KEY_W]) {
-        auto newPosition = tiltMatrix * (cammera.position - cammera.target) + cammera.target;
-        // avoid gimble problems
-        if ((newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
-            (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
-                cammera.position = newPosition;
-        }
-    }
-    if (keysPressed[GLFW_KEY_S]) {
-        auto newPosition = reverseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
-        if ((newPosition.z - cammera.target.z) > cammera.gimbleStop) {
-                cammera.position = newPosition;
-        }
-    }
+    // // use key presses for now
+    // if (keysPressed[GLFW_KEY_A]) {
+    //     cammera.position = orbitMatrix * (cammera.position - cammera.target) + cammera.target;
+    // }
+    // if (keysPressed[GLFW_KEY_D]) {
+    //     cammera.position = reverseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
+    // }
+    // if (keysPressed[GLFW_KEY_W]) {
+    //     auto newPosition = tiltMatrix * (cammera.position - cammera.target) + cammera.target;
+    //     // avoid gimble problems
+    //     if ((newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
+    //         (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
+    //             cammera.position = newPosition;
+    //     }
+    // }
+    // if (keysPressed[GLFW_KEY_S]) {
+    //     auto newPosition = reverseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
+    //     if ((newPosition.z - cammera.target.z) > cammera.gimbleStop) {
+    //             cammera.position = newPosition;
+    //     }
+    // }
 
     lastMousePosition.x = x;
     lastMousePosition.y = y;
@@ -1344,10 +1370,11 @@ void Engine::updateScene(uint32_t currentBuffer) {
     pushConstants.projection[1][1] *= -1;
 
     for (int i = 0; i < currentScene->currentUsed; i++) {
+        (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
         // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
-    currentScene->updateUniforms(uniformBufferAllocations[currentBuffer]->GetMappedData(), uniformSkip);
+    // currentScene->updateUniforms(uniformBufferAllocations[currentBuffer]->GetMappedData(), uniformSkip);
     // vkUnmapMemory(device, uniformBufferAllocations[currentBuffer]->GetMemory());
 }
 
@@ -1373,6 +1400,7 @@ void Engine::drawFrame() {
     updateScene(imageIndex);
     // Idk if this is good practice or not
     recordCommandBuffer(commandBufferIndex);
+    currentScene->updateUniforms(uniformBufferAllocations[(commandBufferIndex + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1462,6 +1490,8 @@ void Engine::runCurrentScene() {
 
     cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
+
+    currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();

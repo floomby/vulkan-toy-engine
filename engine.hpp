@@ -93,11 +93,15 @@ private:
     GLFWwindow *window;
     bool framebufferResized;
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+    struct {
+        int width, height;
+    } framebufferSize;
 
     enum MouseAction {
         MOUSE_NONE,
         MOUSE_PANNING,
-        MOUSE_ROTATING
+        MOUSE_ROTATING,
+        MOUSE_DRAGGING
     } mouseAction;
 
     struct {
@@ -112,6 +116,8 @@ private:
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     float scrollAmount;
+    void raycast(float x, float y);
+
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     bool keysPressed[349];
     struct KeyEvent {
