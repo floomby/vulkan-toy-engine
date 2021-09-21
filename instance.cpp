@@ -7,7 +7,7 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
     state.model = glm::mat4(1.0f);
 };
 
-Instance& Instance::Transform(glm::mat4 transformationMatrix) noexcept {
+Instance& Instance::transform(glm::mat4 transformationMatrix) noexcept {
     state.model *= transformationMatrix;
     return *this;
 };

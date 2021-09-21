@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     settings.height = 600;
     settings.width = 800;
     settings.validationLayers = { "VK_LAYER_KHRONOS_validation" };
-    settings.maxFramesInFlight = 3;
+    // settings.maxFramesInFlight = 3;
     settings.applicationName = "Vulkan Test";
     settings.extremelyVerbose = false;
     settings.verbose = true;
@@ -56,8 +56,7 @@ int main(int argc, char **argv) {
 
 /*
 Next steps
- * Rewrite the command buffer descriptors and synchronization
- Cpu allocator
+ Cpu allocator (vma)
  Get lod working
  game instance allocations
  game state
@@ -65,5 +64,8 @@ Next steps
  Blinn-Phong
  better model library (assimp?)
  emmisivity maps
- makefile build faster (probably some code changes needed though)
+ makefile build faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
+ raycasting
+ frustum contians calculation
+ 2d for hud
 */

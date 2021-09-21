@@ -515,15 +515,15 @@ void Engine::createSwapChain() {
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
     VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
-    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+    concurrentFrames = swapChainSupport.capabilities.minImageCount + 1;
 
-    if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
-        imageCount = swapChainSupport.capabilities.maxImageCount;
+    if (swapChainSupport.capabilities.maxImageCount > 0 && concurrentFrames > swapChainSupport.capabilities.maxImageCount)
+        concurrentFrames = swapChainSupport.capabilities.maxImageCount;
 
     VkSwapchainCreateInfoKHR createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.surface = surface;
-    createInfo.minImageCount = imageCount;
+    createInfo.minImageCount = concurrentFrames;
     createInfo.imageFormat = surfaceFormat.format;
     createInfo.imageColorSpace = surfaceFormat.colorSpace;
     createInfo.imageExtent = extent;
@@ -550,9 +550,9 @@ void Engine::createSwapChain() {
 
     vulkanErrorGuard(vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain), "Failed to create swap chain.");
 
-    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
-    swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+    vkGetSwapchainImagesKHR(device, swapChain, &concurrentFrames, nullptr);
+    swapChainImages.resize(concurrentFrames);
+    vkGetSwapchainImagesKHR(device, swapChain, &concurrentFrames, swapChainImages.data());
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
@@ -570,7 +570,7 @@ VkImageView Engine::createImageView(VkImage image, VkFormat format, VkImageAspec
     viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
     viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
-    // The docs said you could just do this, I don't know if their is a downside (might be slower or something)
+    // The docs said you could just do this, I don't know if there is a downside (might be slower or something)
     viewInfo.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
@@ -857,6 +857,7 @@ void Engine::createGraphicsPipeline() {
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
+// Remember that all the command buffers from a pool must be accessed from the same thread
 void Engine::createCommandPools() {
     VkCommandPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -891,6 +892,7 @@ uint32_t Engine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
     throw std::runtime_error("Failed to find suitable memory type.");
 }
 
+// TODO Really all calls to this should be replaced with vmaCreateImage
 void Engine::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
     VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t mipLevels) {
 
@@ -926,10 +928,12 @@ void Engine::createImage(uint32_t width, uint32_t height, VkFormat format, VkIma
     vkBindImageMemory(device, image, imageMemory, 0);
 }
 
+// This creates a command buffer for the graphics queue in the default command pool
 VkCommandBuffer Engine::beginSingleTimeCommands() {
     return beginSingleTimeCommands(commandPool);
 }
 
+// We can use this to create a command buffer on other queues (namely the tranfer queue) in the default command buffer
 VkCommandBuffer Engine::beginSingleTimeCommands(VkCommandPool pool) {
     VkCommandBufferAllocateInfo allocInfo {};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1069,7 +1073,7 @@ void Engine::createFramebuffers() {
     }
 }
 
-// TODO Elliminate this in favor of using the other allocator
+// TODO Elliminate this in favor of using vmaCreateBuffer
 void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer,
     VkDeviceMemory& bufferMemory, bool concurrent, std::vector<uint32_t> queues) {
 
@@ -1083,8 +1087,7 @@ void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
         bufferInfo.pQueueFamilyIndices = queues.data();
     }
 
-    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create buffer.");
+    vulkanErrorGuard(vkCreateBuffer(device, &bufferInfo, nullptr, &buffer), "Failed to create buffer.");
 
     VkMemoryRequirements memRequirements;
     vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
@@ -1094,8 +1097,7 @@ void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-        throw std::runtime_error("Failed to allocate buffer memory.");
+    vulkanErrorGuard(vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory), "Failed to allocate buffer memory.");
 
     vkBindBufferMemory(device, buffer, bufferMemory, 0);
 
@@ -1185,20 +1187,19 @@ void Engine::initVulkan() {
     initInstance();
     pickPhysicalDevice();
     setupLogicalDevice();
+
     createSwapChain();
     createImageViews();
     createRenderPass();
     // This may change for each scene (idk yet)
+
     createDescriptorSetLayout();
     createGraphicsPipeline();
     createCommandPools();
+
     createDepthResources();
     createFramebuffers();
 
-    uniformBuffers.resize(swapChainImages.size());
-    uniformBufferAllocations.resize(swapChainImages.size());
-    uniformSkip = sizeof(UniformBufferObject) / minUniformBufferOffsetAlignment + 
-        (sizeof(UniformBufferObject) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
     std::cout << std::dec << "Skip: " << uniformSkip << " min alignment: " << minUniformBufferOffsetAlignment << std::endl;
     // uniformSkip = sizeof(UniformBufferObject);
 
@@ -1216,13 +1217,32 @@ inline float fixBounds(float value) {
 };
 
 void Engine::raycast(float x, float y) {
-    float normedDeviceX = x / framebufferSize.width * 2.0f - 1.0f;
+    float normedDeviceX = 1.0 - x / framebufferSize.width * 2.0f;
     float normedDeviceY = 1.0f - y / framebufferSize.height * 2.0f;
-    auto homogeneousRay = glm::vec4(normedDeviceX, normedDeviceX, 1.0f, 1.0f);
+    auto homogeneousRay = glm::vec4(normedDeviceX, normedDeviceY, 1.0f, 1.0f);
     auto eyeRay = glm::inverse(pushConstants.projection) * homogeneousRay;
     eyeRay.z = 1.0f;
     eyeRay.w = 0.0f;
-    auto worldRay = glm::inverse(pushConstants.projection) * eyeRay;
+    auto worldRay = glm::inverse(pushConstants.view) * eyeRay;
+    // std::cout << std::dec << "Ray " << worldRay << std::endl;
+
+    glm::vec3 ray = { worldRay.x, worldRay.y, worldRay.z };
+
+    float denom = glm::dot(ray, { 0.0f, 0.0f, 1.0f });
+    if (denom == 0) {
+        std::cout << "orthognal" << std::endl;
+        return;
+    }
+
+    float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
+    auto intersection = cammera.position + ray * dist;
+
+    currentScene->addInstance(0, {
+        { 1, 0, 0, 0 },
+        { 0, 1, 0, 0 },
+        { 0, 0, 1, 0 },
+        { intersection.x, intersection.y, intersection.z, 1 }
+    });
 }
 
 void Engine::handleInput() {
@@ -1231,9 +1251,9 @@ void Engine::handleInput() {
     float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
     float deltaY = (lastMousePosition.y - y) / framebufferSize.height;
 
+    // Do I want this?
     for (int i = 0; i < 8; i++) {
         if (mouseButtonsPressed[i]) {
-            std::cout << "Pressed button " << i << std::endl;
             mouseButtonsPressed[i] = false;
         }
     }
@@ -1270,8 +1290,8 @@ void Engine::handleInput() {
     if (scrollAmount != 0.0f) {
         auto normedPointing = normalize(pointing);
         cammera.position += scrollAmount / 5.0f * normedPointing;
-        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = normedPointing * cammera.maxZoom;
-        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = normedPointing * cammera.minZoom;
+        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = normedPointing * cammera.maxZoom + cammera.target;
+        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = normedPointing * cammera.minZoom + cammera.target;
         scrollAmount = 0.0f;
     }
 
@@ -1287,6 +1307,10 @@ void Engine::handleInput() {
         }
         if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_DRAGGING;
+            raycast(mouseEvent.x, mouseEvent.y);
+        }
+        if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
+            mouseAction = MOUSE_NONE;
         }
     }
 
@@ -1370,7 +1394,7 @@ void Engine::updateScene(uint32_t currentBuffer) {
     pushConstants.projection[1][1] *= -1;
 
     for (int i = 0; i < currentScene->currentUsed; i++) {
-        (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
+        // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
         // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
@@ -1381,7 +1405,7 @@ void Engine::updateScene(uint32_t currentBuffer) {
 // TODO The synchornization code is pretty much nonsence, it works but is bad
 // The fences are for the swap chain, but they also protect the command buffers since we are tripple buffering the commands (at least on my machine)
 void Engine::drawFrame() {
-    vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    // vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
@@ -1391,16 +1415,13 @@ void Engine::drawFrame() {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
-    
-    if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
-        vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-    }
-    imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
-    updateScene(imageIndex);
-    // Idk if this is good practice or not
-    recordCommandBuffer(commandBufferIndex);
-    currentScene->updateUniforms(uniformBufferAllocations[(commandBufferIndex + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
+    // Wait for the previous fence
+    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame]);
+    updateScene(currentFrame);
+    // update the next frames uniforms
+    currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1412,12 +1433,13 @@ void Engine::drawFrame() {
     submitInfo.pWaitDstStageMask = waitStages;
 
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[commandBufferIndex];
+    submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
     VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
+    // reset the fence to unsignalled
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
     vulkanErrorGuard(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "Failed to submit draw command buffer.");
@@ -1435,8 +1457,6 @@ void Engine::drawFrame() {
 
     presentInfo.pResults = nullptr; // Optional
 
-    // THIS IS BROKEN ON RESIZE!! We present bad images. There is some sort of
-    // a race condition or something causing the image to be in undefined layout when we get here 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
@@ -1445,14 +1465,18 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to present swap chain image.");
 
-    commandBufferIndex = (commandBufferIndex + 1) % commandBuffers.size();
-    currentFrame = (currentFrame + 1) % engineSettings.maxFramesInFlight;
+    currentFrame = (currentFrame + 1) % concurrentFrames;
 }
 
 void Engine::allocateUniformBuffers(size_t instanceCount) {
+    uniformBuffers.resize(concurrentFrames);
+    uniformBufferAllocations.resize(concurrentFrames);
+    uniformSkip = sizeof(UniformBufferObject) / minUniformBufferOffsetAlignment + 
+        (sizeof(UniformBufferObject) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
+
     for (int i = 0; i < uniformBuffers.size(); i++) {
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = instanceCount * uniformSkip;
+        bufferInfo.size = 50 * uniformSkip;
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
         VmaAllocationCreateInfo bufferAllocationInfo = {};
@@ -1491,7 +1515,9 @@ void Engine::runCurrentScene() {
     cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
+    // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
+    vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -1507,12 +1533,76 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     currentScene->addInstance(0, glm::mat4(1.0f));
     // currentScene->addInstance(0, glm::mat4({
-    //     { 1, 0, 0, 0 },
-    //     { 0, 1, 0, 0 },
-    //     { 0, 0, 1, 0 },
-    //     { 0, 0, 1, 1 }
+    //     { 0.5, 0, 0, 0 },
+    //     { 0, 0.5, 0, 0 },
+    //     { 0, 0, 0.5, 0 },
+    //     { 0, 0, 0, 1 }
     // }));
 }
+
+// void Engine::allocateDescriptors() {
+//     std::array<VkDescriptorPoolSize, 2> poolSizes {};
+//     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+//     poolSizes[0].descriptorCount = concurrentFrames;
+//     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//     poolSizes[1].descriptorCount = concurrentFrames;
+
+//     VkDescriptorPoolCreateInfo poolInfo {};
+//     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+//     poolInfo.poolSizeCount = poolSizes.size();
+//     poolInfo.pPoolSizes = poolSizes.data();
+//     poolInfo.maxSets = concurrentFrames;
+
+//     vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool.");
+
+//     std::vector<VkDescriptorSetLayout> layouts(concurrentFrames, descriptorSetLayout);
+//     VkDescriptorSetAllocateInfo allocInfo {};
+//     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+//     allocInfo.descriptorPool = descriptorPool;
+//     allocInfo.descriptorSetCount = concurrentFrames;
+//     allocInfo.pSetLayouts = layouts.data();
+
+//     descriptorSets.resize(swapChainImages.size());
+//     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()), "Failed to allocate descriptor sets.");
+
+//     descriptorDirty.resize(concurrentFrames, true);
+// }
+
+// void Engine::updateDescriptor(const std::vector<InternalTexture>& textures, int index) {
+//     VkDescriptorBufferInfo bufferInfo {};
+//     bufferInfo.buffer = uniformBuffers[index];
+//     bufferInfo.offset = 0;
+//     bufferInfo.range = VK_WHOLE_SIZE;
+
+//     std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
+
+//     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//     descriptorWrites[0].dstSet = descriptorSets[index];
+//     descriptorWrites[0].dstBinding = 0;
+//     descriptorWrites[0].dstArrayElement = 0;
+//     descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+//     descriptorWrites[0].descriptorCount = 1;
+//     descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+//     std::vector<VkDescriptorImageInfo> imageInfos(textures.size());
+//     for (int i = 0; i < textures.size(); i++) {
+//         imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//         imageInfos[i].imageView = textures[i].textureImageView;
+//         imageInfos[i].sampler = textures[i].textureSampler;
+//     }
+
+//     descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//     descriptorWrites[1].dstSet = descriptorSets[index];
+//     descriptorWrites[1].dstBinding = 1;
+//     descriptorWrites[1].dstArrayElement = 0;
+//     descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//     descriptorWrites[1].descriptorCount = imageInfos.size();
+//     descriptorWrites[1].pImageInfo = imageInfos.data();
+
+//     vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+//     descriptorDirty[index] = false;
+// }
 
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};
@@ -1577,15 +1667,16 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
 }
 
 void Engine::allocateCommandBuffers() {
-    size_t count = swapChainFramebuffers.size();
-    commandBuffers.resize(count);
-    transferCommandBuffers.resize(count);
+    // We called setup code incorrectly if these are not equal
+    assert(concurrentFrames == swapChainFramebuffers.size());
+    commandBuffers.resize(concurrentFrames);
+    transferCommandBuffers.resize(concurrentFrames);
 
     VkCommandBufferAllocateInfo commandAlocInfo {};
     commandAlocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandAlocInfo.commandPool = commandPool;
     commandAlocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    commandAlocInfo.commandBufferCount = count;
+    commandAlocInfo.commandBufferCount = concurrentFrames;
 
     vulkanErrorGuard(vkAllocateCommandBuffers(device, &commandAlocInfo, commandBuffers.data()), "Failed to allocate command buffers.");
 
@@ -1594,24 +1685,24 @@ void Engine::allocateCommandBuffers() {
         transferCommandAlocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         transferCommandAlocInfo.commandPool = transferCommandPool;
         transferCommandAlocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        transferCommandAlocInfo.commandBufferCount = count;
+        transferCommandAlocInfo.commandBufferCount = concurrentFrames;
         vulkanErrorGuard(vkAllocateCommandBuffers(device, &transferCommandAlocInfo, transferCommandBuffers.data()), "Failed to allocate transfer command buffers.");
     }
 }
 
 // THINK Is there any benifit to having multiple commandBuffers
-void Engine::recordCommandBuffer(int index) {
+void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0; // Optional
     beginInfo.pInheritanceInfo = nullptr; // Optional
 
-    vulkanErrorGuard(vkBeginCommandBuffer(commandBuffers[index], &beginInfo), "Failed to begin recording command buffer.");
+    vulkanErrorGuard(vkBeginCommandBuffer(buffer, &beginInfo), "Failed to begin recording command buffer.");
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = renderPass;
-    renderPassInfo.framebuffer = swapChainFramebuffers[index];
+    renderPassInfo.framebuffer = framebuffer;
 
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
@@ -1623,35 +1714,35 @@ void Engine::recordCommandBuffer(int index) {
     renderPassInfo.clearValueCount = clearValues.size();
     renderPassInfo.pClearValues = clearValues.data();
 
-    vkCmdBeginRenderPass(commandBuffers[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     VkBuffer vertexBuffers[] = { vertexBuffer };
     VkDeviceSize offsets[] = { 0 };
 
-    vkCmdBindVertexBuffers(commandBuffers[index], 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(commandBuffers[index], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->currentUsed; j++) {
         uint32_t dynamicOffset = j * uniformSkip;
-        vkCmdBindDescriptorSets(commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[index], 1, &dynamicOffset);
-        vkCmdPushConstants(commandBuffers[index], pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(commandBuffers[index], (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
+        vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
             (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
     }
 
-    vkCmdEndRenderPass(commandBuffers[index]);
-    vulkanErrorGuard(vkEndCommandBuffer(commandBuffers[index]), "Failed to record command buffer.");
+    vkCmdEndRenderPass(buffer);
+    vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");
 }
 
 void Engine::initSynchronization() {
-    imageAvailableSemaphores.resize(engineSettings.maxFramesInFlight);
-    renderFinishedSemaphores.resize(engineSettings.maxFramesInFlight);
-    inFlightFences.resize(engineSettings.maxFramesInFlight);
-    imagesInFlight.resize(engineSettings.maxFramesInFlight, VK_NULL_HANDLE);
+    imageAvailableSemaphores.resize(concurrentFrames);
+    renderFinishedSemaphores.resize(concurrentFrames);
+    inFlightFences.resize(concurrentFrames);
+    // imagesInFlight.resize(concurrentFrames, VK_NULL_HANDLE);
 
     VkSemaphoreCreateInfo semaphoreInfo {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1660,7 +1751,7 @@ void Engine::initSynchronization() {
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for(int i = 0; i < engineSettings.maxFramesInFlight; i++) {
+    for(int i = 0; i < concurrentFrames; i++) {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
@@ -1728,7 +1819,7 @@ void Engine::cleanup() {
     vkDestroyBuffer(device, vertexBuffer, nullptr);
     vkFreeMemory(device, vertexBufferMemory, nullptr);
 
-    for (size_t i = 0; i < engineSettings.maxFramesInFlight; i++) {
+    for (size_t i = 0; i < concurrentFrames; i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
@@ -2067,6 +2158,7 @@ Scene::~Scene() {
 void Scene::addInstance(int entityIndex, glm::mat4 transformationMatrix) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
     Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex);
+    tmp->transform(transformationMatrix);
 }
 
 void Scene::makeBuffers() {
@@ -2084,6 +2176,6 @@ void Scene::makeBuffers() {
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
     for (int i = 0; i < currentUsed; i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, instances + i, sizeof(UniformBufferObject));
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, &((instances + i)->state), sizeof(UniformBufferObject));
     }
 }

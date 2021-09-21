@@ -28,7 +28,7 @@ struct EngineSettings {
     uint height, width;
     std::vector<const char *> validationLayers;
     std::vector<VkValidationFeatureEnableEXT> validationExtentions;
-    int maxFramesInFlight;
+    // int maxFramesInFlight;
     const char *applicationName;
     bool verbose;
     bool extremelyVerbose;
@@ -157,6 +157,7 @@ private:
     VmaAllocator memoryAllocator;
     void setupLogicalDevice();
 
+    uint32_t concurrentFrames;
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
@@ -224,24 +225,27 @@ private:
 
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
+    std::vector<bool> descriptorDirty;
+    // void allocateDescriptors();
+    // void updateDescriptor(const std::vector<InternalTexture>& textures, int index);
+
     void createDescriptors(const std::vector<InternalTexture>& textures);
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
     void allocateCommandBuffers();
 
-    void recordCommandBuffer(int index);
+    void recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet);
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
-    std::vector<VkFence> imagesInFlight;
+    // std::vector<VkFence> imagesInFlight;
     void initSynchronization();
 
     void recreateSwapChain();
 
     int currentFrame;
-    int commandBufferIndex;
     void drawFrame();
 
     void handleInput();

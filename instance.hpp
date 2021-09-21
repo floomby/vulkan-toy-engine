@@ -16,7 +16,7 @@ struct UniformBufferObject {
 class Instance {
 public:
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo) noexcept;
-    Instance& Transform(glm::mat4 transformationMatrix) noexcept;
+    Instance& transform(glm::mat4 transformationMatrix) noexcept;
 
     UniformBufferObject state;
     SceneModelInfo* sceneModelInfo;

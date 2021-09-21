@@ -14,6 +14,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/common.hpp>
 
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -70,4 +71,10 @@ namespace std {
                    (hash<glm::vec2>()(vertex.texCoord) << 1);
         }
     };
+
+    inline ostream& operator<<(ostream& os, const glm::vec4& vec)
+    {
+        os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z << " w:" << vec.w;
+        return os;
+    }
 }
