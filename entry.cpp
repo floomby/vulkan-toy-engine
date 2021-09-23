@@ -60,12 +60,12 @@ Next steps
  Get lod working
  game instance allocations
  game state
- ECS
+ ECS? (or something else as an organizational structure for the proccessing)
  Blinn-Phong
- better model library (assimp?)
- emmisivity maps
+ lt - better model library (assimp?)
+ lt - emmisivity maps
  makefile build faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
- raycasting
- frustum contians calculation
  2d for hud
+ culling (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
+ lt - shadow render pass
 */

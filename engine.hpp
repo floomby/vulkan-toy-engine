@@ -78,6 +78,7 @@ private:
     struct Cammera {
         const float minZoom = 1.0f, maxZoom = 10.0f;
         const float gimbleStop = 0.1f;
+        const float minClip = 0.1f, maxClip = 40.0f;
         glm::vec3 position;
         glm::vec3 target;
     } cammera;
@@ -97,13 +98,14 @@ private:
         int width, height;
     } framebufferSize;
 
+    // Mouse ui state stuff
     enum MouseAction {
         MOUSE_NONE,
         MOUSE_PANNING,
         MOUSE_ROTATING,
         MOUSE_DRAGGING
     } mouseAction;
-
+    glm::vec3 dragStart;
     struct {
         float x, y;
     } lastMousePosition;
@@ -112,11 +114,13 @@ private:
     struct MouseEvent {
         int action, button, mods;
         float x, y;
+        glm::vec3 ray;
     };
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     float scrollAmount;
-    void raycast(float x, float y);
+    glm::vec3 raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView);
+    glm::vec3 raycastDevice(float normedDeviceX, float normedDeviceY, glm::mat4 inverseProjection, glm::mat4 inverseView);
 
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     bool keysPressed[349];
@@ -167,9 +171,13 @@ private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     void createSwapChain();
 
+    std::vector<VkImage> subpassImages;
+    std::vector<VmaAllocation> subpassImageAllocations;
+    std::vector<VkImageView> subpassImageViews;
     std::vector<VkImageView> swapChainImageViews;
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     void createImageViews();
+    void destroyImageViews();
 
     VkRenderPass renderPass;
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
@@ -177,20 +185,19 @@ private:
     void createRenderPass();
 
     VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorSetLayout hudDescriptorLayout;
     void createDescriptorSetLayout();
 
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkPipelineLayout hudPipelineLayout;
+    std::vector<VkPipeline> graphicsPipelines;
     VkShaderModule createShaderModule(const std::vector<char>& code);
-    void createGraphicsPipeline();
+    void createGraphicsPipelines();
 
     VkCommandPool commandPool;
     VkCommandPool transferCommandPool;
     void createCommandPools();
 
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
         VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t mipLevels = 1);
@@ -200,7 +207,12 @@ private:
     void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue);
     bool hasStencilComponent(VkFormat format);
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
+
+    std::vector<VkImage> depthImages;
+    std::vector<VmaAllocation> depthImageAllocations;
+    std::vector<VkImageView> depthImageViews;
     void createDepthResources();
+    void destroyDepthResources();
 
     std::vector<VkFramebuffer> swapChainFramebuffers;
     void createFramebuffers();
@@ -224,7 +236,9 @@ private:
     void destroyUniformBuffers();
 
     VkDescriptorPool descriptorPool;
+    VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
+    std::vector<VkDescriptorSet> hudDescriptorSets;
     std::vector<bool> descriptorDirty;
     // void allocateDescriptors();
     // void updateDescriptor(const std::vector<InternalTexture>& textures, int index);
@@ -235,7 +249,7 @@ private:
     std::vector<VkCommandBuffer> transferCommandBuffers;
     void allocateCommandBuffers();
 
-    void recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet);
+    void recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet, VkDescriptorSet& hudDescriptorSet);
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -270,7 +284,7 @@ public:
     Scene& operator=(const Scene& other) = delete;
     Scene& operator=(Scene&& other) noexcept = delete;
 
-    void addInstance(int entityIndex, glm::mat4 transformationMatrix);
+    void addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading);
 
     // Right now these are public so the engine can see them to copy them to vram
     std::vector<Entity> entities;
@@ -290,7 +304,6 @@ public:
 private:
     Engine* context;
 };
-
 
 class InternalTexture {
 public:

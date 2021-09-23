@@ -77,4 +77,10 @@ namespace std {
         os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z << " w:" << vec.w;
         return os;
     }
+
+    inline ostream& operator<<(ostream& os, const glm::vec3& vec)
+    {
+        os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z;
+        return os;
+    }
 }

@@ -1,7 +1,7 @@
 CFLAGS = -std=c++20 -O2 -ggdb -DBOOST_STACKTRACE_USE_BACKTRACE
 LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -lboost_program_options -lbacktrace
 
-shaders: shaders/shader.frag shaders/shader.vert
+shaders: shaders/shader.frag shaders/shader.vert shaders/hud.frag shaders/hud.vert
 	cd shaders && ./compile.sh
 
 .PHONY: clean

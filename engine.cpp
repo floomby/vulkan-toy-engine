@@ -583,10 +583,53 @@ VkImageView Engine::createImageView(VkImage image, VkFormat format, VkImageAspec
 
 // These views are for the swap chain in case that wasn't obvious...
 void Engine::createImageViews() {
+    subpassImages.resize(swapChainImages.size());
+    subpassImageAllocations.resize(swapChainImages.size());
+    subpassImageViews.resize(swapChainImages.size());
     swapChainImageViews.resize(swapChainImages.size());
 
-    for (size_t i = 0; i < swapChainImages.size(); i++)
-        swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, 1);
+    for (int i = 0; i < swapChainImages.size(); i++) {
+        VkImageCreateInfo imageInfo {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = swapChainExtent.width;
+        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        // I am not sure about this one
+        imageInfo.format = swapChainImageFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        // imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo imageAllocCreateInfo = {};
+        imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &subpassImages[i], &subpassImageAllocations[i], nullptr);
+
+        // I cant even do this here because with have no commandbuffers yet
+        // transitionImageLayout(subpassImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        VkImageViewCreateInfo imageViewInfo {};
+
+        subpassImageViews[i] = createImageView(subpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+
+        swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+}
+
+void Engine::destroyImageViews() {
+    for(int i = 0; i < subpassImages.size(); i++) {
+        vkDestroyImageView(device, subpassImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, subpassImages[i], subpassImageAllocations[i]);
+    }
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
 }
 
 VkFormat Engine::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
@@ -609,13 +652,10 @@ void Engine::createRenderPass() {
     VkAttachmentDescription colorAttachment {};
     colorAttachment.format = swapChainImageFormat;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
@@ -629,39 +669,64 @@ void Engine::createRenderPass() {
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference colorAttachmentRef {};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentDescription subpassAttachment {};
+    subpassAttachment.format = swapChainImageFormat;
+    subpassAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    subpassAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    subpassAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    subpassAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    subpassAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    subpassAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    subpassAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkAttachmentReference depthAttachmentRef {};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference subpass0color = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference subpass0depth = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    std::array<VkSubpassDescription, 2> subpasses {};
+    subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[0].colorAttachmentCount = 1;
+    subpasses[0].pColorAttachments = &subpass0color;
+    subpasses[0].pDepthStencilAttachment = &subpass0depth;
+    subpasses[0].pResolveAttachments = nullptr;
 
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+    VkAttachmentReference subpass1color = { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference subpass1inputs[1] = {
+        { 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+    };
+
+    subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[1].colorAttachmentCount = 1;
+    subpasses[1].pColorAttachments = &subpass1color;
+    subpasses[1].pDepthStencilAttachment = VK_NULL_HANDLE;
+    subpasses[1].pResolveAttachments = nullptr;
+    subpasses[1].inputAttachmentCount = 1;
+    subpasses[1].pInputAttachments = subpass1inputs;
+
+    std::array<VkAttachmentDescription, 3> attachments = { subpassAttachment, depthAttachment, colorAttachment };
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = attachments.size();
     renderPassInfo.pAttachments = attachments.data();
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.subpassCount = subpasses.size();;
+    renderPassInfo.pSubpasses = subpasses.data();
 
-    VkSubpassDependency dependency {};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcAccessMask = 0;
+    std::array<VkSubpassDependency, 2> dependencies {};
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[0].srcAccessMask = 0;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = 1;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
+    renderPassInfo.dependencyCount = dependencies.size();
+    renderPassInfo.pDependencies = dependencies.data();
 
     vulkanErrorGuard(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass), "Failed to create render pass.");
 }
@@ -689,6 +754,19 @@ void Engine::createDescriptorSetLayout() {
     layoutInfo.pBindings = bindings.data();
 
     vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout), "Failed to create descriptor set layout.");
+
+    VkDescriptorSetLayoutBinding hudColorInput {};
+    hudColorInput.binding = 0;
+    hudColorInput.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    hudColorInput.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    hudColorInput.descriptorCount = 1;
+
+    VkDescriptorSetLayoutCreateInfo hudLayout {};
+    hudLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    hudLayout.bindingCount = 1;
+    hudLayout.pBindings = &hudColorInput;
+
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &hudLayout, nullptr, &hudDescriptorLayout), "Failed to create hud descriptor set layout.");
 }
 
 VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
@@ -703,12 +781,18 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
     return shaderModule;
 }
 
-void Engine::createGraphicsPipeline() {
+void Engine::createGraphicsPipelines() {
+    graphicsPipelines.resize(2);
+
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
+    auto hudVertShaderCode = readFile("shaders/hud_vert.spv");
+    auto hudFragShaderCode = readFile("shaders/hud_frag.spv");
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+    VkShaderModule hudVertShaderModule = createShaderModule(hudVertShaderCode);
+    VkShaderModule hudFragShaderModule = createShaderModule(hudFragShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo {};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -722,7 +806,20 @@ void Engine::createGraphicsPipeline() {
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.pName = "main";
 
+    VkPipelineShaderStageCreateInfo hudVertShaderStageInfo {};
+    hudVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    hudVertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    hudVertShaderStageInfo.module = hudVertShaderModule;
+    hudVertShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo hudFragShaderStageInfo {};
+    hudFragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    hudFragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    hudFragShaderStageInfo.module = hudFragShaderModule;
+    hudFragShaderStageInfo.pName = "main";
+
     VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+    VkPipelineShaderStageCreateInfo hudShaders[] = { hudVertShaderStageInfo, hudFragShaderStageInfo };
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -839,7 +936,6 @@ void Engine::createGraphicsPipeline() {
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr; // Optional
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = nullptr; // Optional
 
@@ -851,10 +947,35 @@ void Engine::createGraphicsPipeline() {
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
+
+    // turn off depth stenciling for drawing the hud
+    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.subpass = 1;
+
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = hudShaders;
+
+    VkPipelineLayoutCreateInfo hudLayoutInfo {};
+    hudLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    hudLayoutInfo.setLayoutCount = 1;
+    hudLayoutInfo.pSetLayouts = &hudDescriptorLayout;
+    hudLayoutInfo.pushConstantRangeCount = 1;
+    hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    // This way I don't have to worry about which is the front side of the triangles for the hud, we wouldnt want anything culled anyways
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &hudLayoutInfo, nullptr, &hudPipelineLayout), "Failed to create pipeline layout.");
+
+    pipelineInfo.layout = hudPipelineLayout;
+
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(device, hudFragShaderModule, nullptr);
+    vkDestroyShaderModule(device, hudVertShaderModule, nullptr);
 }
 
 // Remember that all the command buffers from a pool must be accessed from the same thread
@@ -1042,22 +1163,53 @@ void Engine::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 }
 
 void Engine::createDepthResources() {
+    depthImages.resize(swapChainImages.size());
+    depthImageAllocations.resize(swapChainImages.size());
+    depthImageViews.resize(swapChainImages.size());
+
     VkFormat depthFormat = findDepthFormat();
 
-    createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+    for (int i = 0; i < swapChainImages.size(); i++) {
+        VkImageCreateInfo imageInfo {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = swapChainExtent.width;
+        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = depthFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-    transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        VmaAllocationCreateInfo imageAllocCreateInfo = {};
+        imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &depthImages[i], &depthImageAllocations[i], nullptr);
+        
+        depthImageViews[i] = createImageView(depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        transitionImageLayout(depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    }
+}
+
+void Engine::destroyDepthResources() {
+    for(int i = 0; i < depthImages.size(); i++) {
+        vkDestroyImageView(device, depthImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, depthImages[i], depthImageAllocations[i]);
+    }
 }
 
 void Engine::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        std::array<VkImageView, 2> attachments = {
-            swapChainImageViews[i],
-            depthImageView
+        std::array<VkImageView, 3> attachments = {
+            subpassImageViews[i],
+            depthImageViews[i],
+            swapChainImageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo {};
@@ -1191,10 +1343,9 @@ void Engine::initVulkan() {
     createSwapChain();
     createImageViews();
     createRenderPass();
-    // This may change for each scene (idk yet)
 
     createDescriptorSetLayout();
-    createGraphicsPipeline();
+    createGraphicsPipelines();
     createCommandPools();
 
     createDepthResources();
@@ -1216,33 +1367,54 @@ inline float fixBounds(float value) {
     return value > 0 ? value : value + 360;
 };
 
-void Engine::raycast(float x, float y) {
+// TODO Name this better (What is this calculated value called anyways?)
+static float whichSideOfPlane(glm::vec3 n, float d, glm::vec3 x) {
+    return glm::dot(n, x) + d;
+}
+
+// Note that this is signed and N HAS TO BE NORMALIZED
+static float distancePointToPlane(glm::vec3 n, float d, glm::vec3 x) {
+    return (glm::dot(n, x) + d) / glm::l2Norm(n);
+}
+
+// creates the frustum, but not actually a frustum bounding planes (passing the straffing vector saves having to recalculate it)
+static std::array<std::pair<glm::vec3, float>, 5> boundingPlanes(glm::vec3 pos, glm::vec3 strafing, glm::vec3 normedPointing, glm::vec3 r1, glm::vec3 r2) {
+    std::array<std::pair<glm::vec3, float>, 5> ret;
+    
+    auto n = glm::normalize(glm::cross(strafing, r1));
+    ret[0] = { n, -distancePointToPlane(n, 0, pos) };
+
+    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r1));
+    ret[1] = { n, -distancePointToPlane(n, 0, pos) };
+
+    n = glm::normalize(glm::cross(strafing, r2));
+    ret[2] = { n, -distancePointToPlane(n, 0, pos) };
+
+    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r2));
+    ret[3] = { n, -distancePointToPlane(n, 0, pos) };
+
+    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r2));
+    ret[3] = { n, -distancePointToPlane(n, 0, pos) };
+
+    ret[4] = { normedPointing, -distancePointToPlane(normedPointing, 0, pos) };
+
+    return ret;
+}
+
+glm::vec3 Engine::raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView) {
     float normedDeviceX = 1.0 - x / framebufferSize.width * 2.0f;
     float normedDeviceY = 1.0f - y / framebufferSize.height * 2.0f;
+    return raycastDevice(normedDeviceX, normedDeviceY, inverseProjection, inverseView);
+}
+
+glm::vec3 Engine::raycastDevice(float normedDeviceX, float normedDeviceY, glm::mat4 inverseProjection, glm::mat4 inverseView) {
     auto homogeneousRay = glm::vec4(normedDeviceX, normedDeviceY, 1.0f, 1.0f);
-    auto eyeRay = glm::inverse(pushConstants.projection) * homogeneousRay;
+    auto eyeRay = inverseProjection * homogeneousRay;
     eyeRay.z = 1.0f;
     eyeRay.w = 0.0f;
-    auto worldRay = glm::inverse(pushConstants.view) * eyeRay;
-    // std::cout << std::dec << "Ray " << worldRay << std::endl;
-
+    auto worldRay = inverseView * eyeRay;
     glm::vec3 ray = { worldRay.x, worldRay.y, worldRay.z };
-
-    float denom = glm::dot(ray, { 0.0f, 0.0f, 1.0f });
-    if (denom == 0) {
-        std::cout << "orthognal" << std::endl;
-        return;
-    }
-
-    float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
-    auto intersection = cammera.position + ray * dist;
-
-    currentScene->addInstance(0, {
-        { 1, 0, 0, 0 },
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
-        { intersection.x, intersection.y, intersection.z, 1 }
-    });
+    return ray;
 }
 
 void Engine::handleInput() {
@@ -1250,6 +1422,11 @@ void Engine::handleInput() {
     glfwGetCursorPos(window, &x, &y);
     float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
     float deltaY = (lastMousePosition.y - y) / framebufferSize.height;
+
+    // I probably don't need this every frame, but for rigth now just calculate it every frame
+    auto inverseProjection = glm::inverse(pushConstants.projection);
+    auto inverseView = glm::inverse(pushConstants.view);
+    auto mouseRay = raycast(x, y, inverseProjection, inverseView);
 
     // Do I want this?
     for (int i = 0; i < 8; i++) {
@@ -1263,19 +1440,19 @@ void Engine::handleInput() {
             keysPressed[keyEvent.key] = true;
 
             if (keyEvent.key == GLFW_KEY_T) {
-                currentScene->addInstance(0, glm::mat4({
-                    { .5, 0, 0, 0 },
-                    { 0, .5, 0, 0 },
-                    { 0, 0, .5, 0 },
-                    { 0, 0, 0, .5 }
-                }));
+                // currentScene->addInstance(0, glm::mat4({
+                //     { .5, 0, 0, 0 },
+                //     { 0, .5, 0, 0 },
+                //     { 0, 0, .5, 0 },
+                //     { 0, 0, 0, .5 }
+                // }));
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
         }
     }
     // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
-    auto pointing = cammera.position - cammera.target;
+    auto pointing = normalize(cammera.position - cammera.target);
     auto strafing = normalize(cross(pointing, { 0.0f, 0.0f, 1.0f }));
     auto fowarding = normalize(cross(strafing, { 0.0f, 0.0f, 1.0f }));
     // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
@@ -1288,10 +1465,9 @@ void Engine::handleInput() {
     // auto reverseTiltMatrix = glm::toMat3(reverseTilt);
 
     if (scrollAmount != 0.0f) {
-        auto normedPointing = normalize(pointing);
-        cammera.position += scrollAmount / 5.0f * normedPointing;
-        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = normedPointing * cammera.maxZoom + cammera.target;
-        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = normedPointing * cammera.minZoom + cammera.target;
+        cammera.position += scrollAmount / 5.0f * pointing;
+        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = pointing * cammera.maxZoom + cammera.target;
+        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = pointing * cammera.minZoom + cammera.target;
         scrollAmount = 0.0f;
     }
 
@@ -1307,10 +1483,40 @@ void Engine::handleInput() {
         }
         if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_DRAGGING;
-            raycast(mouseEvent.x, mouseEvent.y);
+            // Unless the framerate is crap this should be almost identical to the mouseRay
+            // dragStart = raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView);
+            dragStart = mouseRay;
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_NONE;
+            std::cout << "Dragged box:" << std::endl;
+            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStart, mouseRay);
+            // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStart, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
+            for(const auto& plane : planes) {
+                std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
+            }
+            for (int i = 0; i < currentScene->currentUsed; i++) {
+                (currentScene->instances + i)->highlight() = 
+                    whichSideOfPlane(planes[4].first, planes[4].second, (currentScene->instances + i)->position) < 0 &&
+                    (whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances + i)->position) < 0 != 
+                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances + i)->position) < 0) &&
+                    (whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances + i)->position) < 0 !=
+                    whichSideOfPlane(planes[3].first, planes[3].second - cammera.minClip, (currentScene->instances + i)->position) < 0
+                    // To only select things as far as the cammera drawing distance
+                    // && whichSideOfPlane(planes[3].first, planes[3].second - cammera.maxClip, (currentScene->instances + i)->position) > 0
+                    );
+            }
+        }
+        if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
+            float denom = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
+            if (denom == 0) {
+                std::cout << "orthognal" << std::endl;
+            } else {
+                float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
+                auto intersection = cammera.position + mouseRay * dist;
+
+                currentScene->addInstance(0, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
+            }
         }
     }
 
@@ -1390,23 +1596,13 @@ void Engine::updateScene(uint32_t currentBuffer) {
     // pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
     // I think we can just leave the fov the same
-    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
-
-    for (int i = 0; i < currentScene->currentUsed; i++) {
-        // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
-        // (currentScene->instances + i)->state.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f) * (i + 1), glm::vec3(0.0f, 0.0f, 1.0f));
-    }
-
-    // currentScene->updateUniforms(uniformBufferAllocations[currentBuffer]->GetMappedData(), uniformSkip);
-    // vkUnmapMemory(device, uniformBufferAllocations[currentBuffer]->GetMemory());
 }
 
 // TODO The synchornization code is pretty much nonsence, it works but is bad
 // The fences are for the swap chain, but they also protect the command buffers since we are tripple buffering the commands (at least on my machine)
 void Engine::drawFrame() {
-    // vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
@@ -1418,7 +1614,7 @@ void Engine::drawFrame() {
 
     // Wait for the previous fence
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
-    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame]);
+    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame], hudDescriptorSets[currentFrame]);
     updateScene(currentFrame);
     // update the next frames uniforms
     currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
@@ -1531,7 +1727,9 @@ void Engine::runCurrentScene() {
 void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     currentScene->makeBuffers();
-    currentScene->addInstance(0, glm::mat4(1.0f));
+    currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
+
     // currentScene->addInstance(0, glm::mat4({
     //     { 0.5, 0, 0, 0 },
     //     { 0, 0.5, 0, 0 },
@@ -1604,6 +1802,7 @@ void Engine::loadDefaultScene() {
 //     descriptorDirty[index] = false;
 // }
 
+// TODO We need to update the hud descriptors here
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -1611,13 +1810,24 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = swapChainImages.size();
 
+    VkDescriptorPoolSize hudPool;
+    hudPool.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    hudPool.descriptorCount = swapChainImages.size();
+
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = poolSizes.size();
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = swapChainImages.size();
 
+    VkDescriptorPoolCreateInfo hudPoolInfo {};
+    hudPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    hudPoolInfo.poolSizeCount = 1;
+    hudPoolInfo.pPoolSizes = &hudPool;
+    hudPoolInfo.maxSets = swapChainImages.size();
+
     vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool.");
+    vulkanErrorGuard(vkCreateDescriptorPool(device, &hudPoolInfo, nullptr, &hudDescriptorPool), "Failed to create hud descriptor pool.");
 
     std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo {};
@@ -1626,8 +1836,20 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     allocInfo.descriptorSetCount = swapChainImages.size();
     allocInfo.pSetLayouts = layouts.data();
 
+    std::vector<VkDescriptorSetLayout> hudLayouts(swapChainImages.size(), hudDescriptorLayout);
+    VkDescriptorSetAllocateInfo hudAllocInfo {};
+    hudAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    hudAllocInfo.descriptorPool = hudDescriptorPool;
+    hudAllocInfo.descriptorSetCount = swapChainImages.size();
+    hudAllocInfo.pSetLayouts = hudLayouts.data();
+
+
     descriptorSets.resize(swapChainImages.size());
+    hudDescriptorSets.resize(swapChainImages.size());
+
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()), "Failed to allocate descriptor sets.");
+    vulkanErrorGuard(vkAllocateDescriptorSets(device, &hudAllocInfo, hudDescriptorSets.data()), "Failed to allocate hud descriptor sets.");
+
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         VkDescriptorBufferInfo bufferInfo {};
@@ -1663,6 +1885,22 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         descriptorWrites[1].pImageInfo = imageInfos.data();
 
         vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+
+        VkDescriptorImageInfo descriptorImageInfo {};
+        descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        descriptorImageInfo.imageView = subpassImageViews[i];
+        descriptorImageInfo.sampler = VK_NULL_HANDLE;
+
+        VkWriteDescriptorSet hudWrite {};
+        hudWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        hudWrite.dstSet = hudDescriptorSets[i];
+        hudWrite.dstBinding = 0;
+        hudWrite.dstArrayElement = 0;
+        hudWrite.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        hudWrite.descriptorCount = 1;
+        hudWrite.pImageInfo = &descriptorImageInfo;
+
+        vkUpdateDescriptorSets(device, 1, &hudWrite, 0, nullptr);
     }
 }
 
@@ -1690,8 +1928,7 @@ void Engine::allocateCommandBuffers() {
     }
 }
 
-// THINK Is there any benifit to having multiple commandBuffers
-void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet) {
+void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet, VkDescriptorSet& hudDescriptorSet) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0; // Optional
@@ -1707,16 +1944,17 @@ void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebu
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
 
-    std::array<VkClearValue, 2> clearValues = {};
+    std::array<VkClearValue, 3> clearValues = {};
     clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
     clearValues[1].depthStencil = { 1.0f, 0 };
+    clearValues[2].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
 
     renderPassInfo.clearValueCount = clearValues.size();
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[0]);
 
     VkBuffer vertexBuffers[] = { vertexBuffer };
     VkDeviceSize offsets[] = { 0 };
@@ -1733,6 +1971,13 @@ void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebu
         vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
             (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
     }
+
+    vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+    vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
+
+    vkCmdDraw(buffer, 6, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
     vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");
@@ -1775,7 +2020,7 @@ void Engine::recreateSwapChain() {
     createSwapChain();
     createImageViews();
     createRenderPass();
-    createGraphicsPipeline();
+    createGraphicsPipelines();
     createDepthResources();
     createFramebuffers();
     createDescriptors(currentScene->textures);
@@ -1783,9 +2028,7 @@ void Engine::recreateSwapChain() {
 }
 
 void Engine::cleanupSwapChain() {
-    vkDestroyImageView(device, depthImageView, nullptr);
-    vkDestroyImage(device, depthImage, nullptr);
-    vkFreeMemory(device, depthImageMemory, nullptr);
+    destroyDepthResources();
 
     for (auto framebuffer : swapChainFramebuffers)
         vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -1794,17 +2037,19 @@ void Engine::cleanupSwapChain() {
     if (engineSettings.useConcurrentTransferQueue)
         vkFreeCommandBuffers(device, transferCommandPool, transferCommandBuffers.size(), transferCommandBuffers.data());
 
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    for (auto pipeline : graphicsPipelines)
+        vkDestroyPipeline(device, pipeline, nullptr);
+    // TODO I think we could technically keep the pipeline layouts even on resizing
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyPipelineLayout(device, hudPipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
-    for (auto imageView : swapChainImageViews) {
-        vkDestroyImageView(device, imageView, nullptr);
-    }
+    destroyImageViews();
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyDescriptorPool(device, hudDescriptorPool, nullptr);
 }
 
 void Engine::cleanup() {
@@ -1813,6 +2058,7 @@ void Engine::cleanup() {
     destroyUniformBuffers();
 
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, hudDescriptorLayout, nullptr);
 
     vkDestroyBuffer(device, indexBuffer, nullptr);
     vkFreeMemory(device, indexBufferMemory, nullptr);
@@ -2155,10 +2401,12 @@ Scene::~Scene() {
     ::operator delete(instances);
 }
 
-void Scene::addInstance(int entityIndex, glm::mat4 transformationMatrix) {
+void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
     Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex);
-    tmp->transform(transformationMatrix);
+    tmp->position = std::move(position);
+    tmp->heading = std::move(heading);
+    // tmp->transform(transformationMatrix);
 }
 
 void Scene::makeBuffers() {
@@ -2176,6 +2424,6 @@ void Scene::makeBuffers() {
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
     for (int i = 0; i < currentUsed; i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, &((instances + i)->state), sizeof(UniformBufferObject));
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances + i)->state(), sizeof(UniformBufferObject));
     }
 }

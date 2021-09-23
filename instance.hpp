@@ -11,16 +11,22 @@ struct SceneModelInfo {
 
 struct UniformBufferObject {
     glm::mat4 model;
+    glm::f32 highlight;
 };
 
 class Instance {
 public:
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo) noexcept;
-    Instance& transform(glm::mat4 transformationMatrix) noexcept;
+    // Instance& transform(glm::mat4 transformationMatrix) noexcept;
 
-    UniformBufferObject state;
+    UniformBufferObject *state();
     SceneModelInfo* sceneModelInfo;
+
+    glm::vec3 position, heading;
+    bool& highlight();
 private:
+    bool _highlight;
+    UniformBufferObject _state;
     Entity* entity;
     InternalTexture* texture;
 };
