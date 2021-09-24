@@ -21,7 +21,6 @@
 
 
 #include "libs/vk_mem_alloc.h"
-
 class Scene;
 
 struct EngineSettings {
@@ -38,6 +37,7 @@ struct EngineSettings {
 class Engine : Utilities {
     // TODO add stuff to the engine class to be able to remove this friend declaration
     friend class InternalTexture;
+    friend class Scene;
 public:
     Engine(EngineSettings engineSettings);
     void init();
@@ -80,7 +80,7 @@ private:
     //     glm::vec2 dragBox[2];
     // } hudConstants;
 
-    Gui gui;
+    Gui *gui;
 
     struct Cammera {
         const float minZoom = 1.0f, maxZoom = 10.0f;
@@ -246,9 +246,8 @@ private:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool pool, VkQueue queue);
     void createModelBuffers();
 
-    // std::vector<VkBuffer> hudBuffers;
+    size_t hudVertexCount;
     VkBuffer hudBuffer;
-    // std::vector<VmaAllocation> hudAllocations;
     VmaAllocation hudAllocation;
     void createHudBuffers();
 

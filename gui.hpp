@@ -2,15 +2,15 @@
 
 #include "utilities.hpp"
 
+#include <mutex>
+
+// This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
+// I just want to get it working though for right now (avoid that premature optimization)
+
 // For right now lets just draw triangles and get the rest right
 struct GuiVertex {
     glm::vec3 pos;
     glm::vec4 color;
-
-    // GuiVertex(GuiVertex& mE) = default;
-    // GuiVertex& operator=(GuiVertex& mE) = default;
-    // GuiVertex(GuiVertex&& mE) = default;
-    // GuiVertex& operator=(GuiVertex&& mE) = default;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
@@ -46,22 +46,29 @@ struct GuiPushConstant {
 class GuiComponent {
 public:
     std::vector<GuiComponent *> children;
-    size_t vertexsCount();
+    GuiComponent *parent;
+    size_t vertexCount();
     void appendVerticies(std::back_insert_iterator<std::vector<GuiVertex>> vertexIterator);
+    void signalDirty();
 };
 
 class Gui {
 public:
     Gui();
-    void updateBuffer(void *buffer, size_t max);
+
+    // These should be automatically deleted, but I want to be sure
+    Gui(const Gui& other) = delete;
+    Gui(Gui&& other) noexcept = delete;
+    Gui& operator=(const Gui& other) = delete;
+    Gui& operator=(Gui&& other) noexcept = delete;
+
+    size_t updateBuffer(void *buffer, size_t max);
     // Lets not reinvent the wheel here even if stl is sometimes slow
 
-    bool dirty;
-    void rebuildData();
+    // set this to true to indicate the need to update the buffers in vram
+    bool rebuilt;
 
-    size_t verticiesCount();
     // Takes normalized device coordinates
-    void addRectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
     std::vector<GuiVertex> rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
     void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
 
@@ -70,9 +77,13 @@ public:
     void lockPushConstant();
     void unlockPushConstant();
 private:
+    std::mutex constantMutex;
     GuiPushConstant _pushConstant;
+    std::mutex dataMutex;
     std::vector<GuiVertex> data;
     std::vector<GuiVertex> dragBox;
+
+    void rebuildBuffer();
 
     // This matches with a value in the hud vertex shader
     static constexpr float layerZOffset = 0.001f;

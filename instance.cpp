@@ -13,11 +13,12 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
 //     return *this;
 // };
 
-UniformBufferObject *Instance::state() {
+UniformBufferObject *Instance::state(glm::mat4 view) {
     // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)
     // probably fine for right now, but probably should be changed to something else
     _state.highlight = _highlight ? 1.0 : 0.0;
     _state.model = glm::translate(position);
+    _state.normal = glm::transpose(glm::inverse(view * _state.model));
     return &_state;
 }
 

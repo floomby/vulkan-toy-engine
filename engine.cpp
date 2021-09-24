@@ -953,7 +953,9 @@ void Engine::createGraphicsPipelines() {
     VkPushConstantRange pushConstantRange;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstants);
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    // Seems suspicious
+    // pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
 
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -1038,7 +1040,8 @@ void Engine::createGraphicsPipelines() {
     VkPushConstantRange hudPushConstantRange;
     hudPushConstantRange.offset = 0;
     hudPushConstantRange.size = sizeof(GuiPushConstant);
-    hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    // Why need fragment stage access here???? (I don't for my needs, but the validation is complaining, (it is like mixing up the subpasses or something))
+    hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     hudLayoutInfo.pushConstantRangeCount = 1;
     hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -1567,7 +1570,7 @@ void Engine::handleInput() {
     }
 
     if (mouseAction == MOUSE_DRAGGING) {
-        gui.setDragBox(dragStartDevice, mouseNormed);
+        gui->setDragBox(dragStartDevice, mouseNormed);
     }
 
     MouseEvent mouseEvent;
@@ -1589,7 +1592,7 @@ void Engine::handleInput() {
             // hudConstants.dragBox[0] = { mouseNormed.first, mouseNormed.second };
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
-            gui.setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
+            gui->setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
             mouseAction = MOUSE_NONE;
             std::cout << "Dragged box:" << std::endl;
             auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRay);
@@ -1714,9 +1717,9 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
 
-    if (gui.dirty) {
-        gui.rebuildData();
-        gui.updateBuffer(hudAllocation->GetMappedData(), gui.verticiesCount() + 12);
+    // update the gui vram if the gui buffer has been rebuilt
+    if (gui->rebuilt) {
+        hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
     }
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
     // Wait for the previous fence
@@ -1724,8 +1727,6 @@ void Engine::drawFrame() {
         hudDescriptorSets[currentFrame], hudBuffer);
     updateScene();
     // update the next frames uniforms
-    // TODO having these named the same and taking the same argument types, but not the same actual values for the arguments is confusing
-    
     currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % uniformBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
@@ -1820,12 +1821,11 @@ void Engine::runCurrentScene() {
     cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
-    gui = Gui();
+    gui = new Gui();
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
-    gui.rebuildData();
-    gui.updateBuffer(hudAllocation->GetMappedData(), gui.verticiesCount() + 12);
+    hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
     vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
@@ -1838,7 +1838,8 @@ void Engine::runCurrentScene() {
 }
 
 void Engine::loadDefaultScene() {
-    currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
+    // currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
+    currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
     currentScene->makeBuffers();
     currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
@@ -2072,7 +2073,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     for(int j = 0; j < currentScene->currentUsed; j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
         vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
             (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
@@ -2084,11 +2085,12 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
-    gui.lockPushConstant();
-    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GuiPushConstant), gui.pushConstant());
-    gui.unlockPushConstant();
+    gui->lockPushConstant();
+    // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
+    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), gui->pushConstant());
+    gui->unlockPushConstant();
 
-    vkCmdDraw(buffer, gui.verticiesCount() + 12, 1, 0, 0);
+    vkCmdDraw(buffer, hudVertexCount, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
     vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");
@@ -2204,6 +2206,7 @@ Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
     delete currentScene;
+    delete gui;
     cleanup();
 }
 
@@ -2539,6 +2542,6 @@ void Scene::makeBuffers() {
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
     for (int i = 0; i < currentUsed; i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances + i)->state(), sizeof(UniformBufferObject));
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances + i)->state(context->pushConstants.view), sizeof(UniformBufferObject));
     }
 }

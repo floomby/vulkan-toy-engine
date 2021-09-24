@@ -10,28 +10,16 @@ static std::vector<GuiVertex> background = {
 };
 
 Gui::Gui() {
-    dirty = true;
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 }
 
 // Doing it this way wastes sizeof(GuiVertex) * 12 bytes of vram
-// maxCount is for the size of the buffer (maybe I should just feed in the allaction so I can know the size)
-void Gui::updateBuffer(void *buffer, size_t maxCount) {
+// maxCount is for the size of the buffer (maybe I should just feed in the alloction so I can know the size)
+size_t Gui::updateBuffer(void *buffer, size_t maxCount) {
+    std::scoped_lock lock(dataMutex);
     assert(maxCount >= 12);
     memcpy(static_cast<GuiVertex *>(buffer) + 12, data.data(), std::min(maxCount - 12, data.size())* sizeof(GuiVertex));
-}
-
-size_t Gui::verticiesCount() {
-    return data.size();
-}
-
-void Gui::addRectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer) {
-    data.push_back({{ c0.first, c0.second, layerZOffset * layer }, color });
-    data.push_back({{ c1.first, c1.second, layerZOffset * layer }, color });
-    data.push_back({{ c0.first, c1.second, layerZOffset * layer }, color });
-    data.push_back({{ c0.first, c0.second, layerZOffset * layer }, color });
-    data.push_back({{ c1.first, c1.second, layerZOffset * layer }, color });
-    data.push_back({{ c1.first, c0.second, layerZOffset * layer }, color });
+    return std::min(maxCount, data.size() + 12);
 }
 
 std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer) {
@@ -53,18 +41,18 @@ void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
     _pushConstant.dragBox[1].y = c1.second;
 }
 
-void Gui::rebuildData() {
-    dirty = false;
-}
-
 GuiPushConstant *Gui::pushConstant() {
     return &_pushConstant;
 }
 
 void Gui::lockPushConstant() {
-
+    constantMutex.lock();
 }
 
 void Gui::unlockPushConstant() {
+    constantMutex.unlock();
+}
 
+void Gui::rebuildBuffer() {
+    rebuilt = true;
 }
