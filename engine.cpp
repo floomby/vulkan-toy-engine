@@ -1035,15 +1035,13 @@ void Engine::createGraphicsPipelines() {
 
     // pipelineInfo.pDynamicState = &dynamicState;
 
-    // VkPushConstantRange hudPushConstantRange;
-    // hudPushConstantRange.offset = 0;
-    // hudPushConstantRange.size = sizeof(HudPushConstants);
-    // hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkPushConstantRange hudPushConstantRange;
+    hudPushConstantRange.offset = 0;
+    hudPushConstantRange.size = sizeof(GuiPushConstant);
+    hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    // hudLayoutInfo.pushConstantRangeCount = 1;
-    // hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    hudLayoutInfo.pushConstantRangeCount = 0;
-    hudLayoutInfo.pPushConstantRanges = nullptr;
+    hudLayoutInfo.pushConstantRangeCount = 1;
+    hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &hudLayoutInfo, nullptr, &hudPipelineLayout), "Failed to create pipeline layout.");
 
@@ -1414,21 +1412,16 @@ void Engine::createModelBuffers() {
 }
 
 void Engine::createHudBuffers() {
-    hudBuffers.resize(concurrentFrames);
-    hudAllocations.resize(concurrentFrames);
+    VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    bufferInfo.size = 50 * sizeof(GuiVertex);
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-    for (int i = 0; i < concurrentFrames; i++) {
-        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = 50 * sizeof(GuiVertex);
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    VmaAllocationCreateInfo bufferAllocationInfo = {};
+    bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-        VmaAllocationCreateInfo bufferAllocationInfo = {};
-        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, hudBuffers.data() + i, hudAllocations.data() + i, nullptr) !=VK_SUCCESS)
-            throw std::runtime_error("Unable to allocate memory for hud buffer.");
-    }
+    if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, &hudBuffer, &hudAllocation, nullptr) !=VK_SUCCESS)
+        throw std::runtime_error("Unable to allocate memory for hud buffer.");
 }
 
 void Engine::initVulkan() {
@@ -1573,6 +1566,10 @@ void Engine::handleInput() {
         scrollAmount = 0.0f;
     }
 
+    if (mouseAction == MOUSE_DRAGGING) {
+        gui.setDragBox(dragStartDevice, mouseNormed);
+    }
+
     MouseEvent mouseEvent;
     while (mouseInput.pop(mouseEvent)) {
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
@@ -1592,7 +1589,7 @@ void Engine::handleInput() {
             // hudConstants.dragBox[0] = { mouseNormed.first, mouseNormed.second };
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
-            gui.addRectangle(dragStartDevice, mouseNormed, { 0.0f, 1.0f, 0.0f, 0.3f }, 1);
+            gui.setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
             mouseAction = MOUSE_NONE;
             std::cout << "Dragged box:" << std::endl;
             auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRay);
@@ -1717,14 +1714,18 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
 
-    // Wait for the previous fence
+    if (gui.dirty) {
+        gui.rebuildData();
+        gui.updateBuffer(hudAllocation->GetMappedData(), gui.verticiesCount() + 12);
+    }
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+    // Wait for the previous fence
     recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame],
-        hudDescriptorSets[currentFrame], hudBuffers[currentFrame]);
+        hudDescriptorSets[currentFrame], hudBuffer);
     updateScene();
     // update the next frames uniforms
     // TODO having these named the same and taking the same argument types, but not the same actual values for the arguments is confusing
-    gui.updateUniformBuffer(hudAllocations[(currentFrame + 1) % hudBuffers.size()]->GetMappedData(), gui.verticiesCount());
+    
     currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % uniformBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
@@ -1823,7 +1824,8 @@ void Engine::runCurrentScene() {
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
-    gui.updateUniformBuffer(hudAllocations[0]->GetMappedData(), gui.verticiesCount());
+    gui.rebuildData();
+    gui.updateBuffer(hudAllocation->GetMappedData(), gui.verticiesCount() + 12);
     vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
@@ -2082,13 +2084,11 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
-    // if (mouseAction == MOUSE_DRAGGING) {
-        // vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(HudPushConstants), &hudConstants);
-    // }
-    // pixels?
-    // vkCmdSetLineWidth(buffer, 4.0f);
-    
-    vkCmdDraw(buffer, gui.verticiesCount(), 1, 0, 0);
+    gui.lockPushConstant();
+    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GuiPushConstant), gui.pushConstant());
+    gui.unlockPushConstant();
+
+    vkCmdDraw(buffer, gui.verticiesCount() + 12, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
     vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");
@@ -2182,8 +2182,7 @@ void Engine::cleanup() {
         vkDestroyFence(device, inFlightFences[i], nullptr);
     }
 
-    for (int i = 0; i < concurrentFrames; i++)
-        vmaDestroyBuffer(memoryAllocator, hudBuffers[i], hudAllocations[i]);
+    vmaDestroyBuffer(memoryAllocator, hudBuffer, hudAllocation);
 
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
@@ -2202,6 +2201,8 @@ void Engine::cleanup() {
 }
 
 Engine::~Engine() {
+    // Lazy badness
+    if (std::uncaught_exceptions()) return;
     delete currentScene;
     cleanup();
 }

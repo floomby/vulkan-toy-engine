@@ -246,8 +246,10 @@ private:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool pool, VkQueue queue);
     void createModelBuffers();
 
-    std::vector<VkBuffer> hudBuffers;
-    std::vector<VmaAllocation> hudAllocations;
+    // std::vector<VkBuffer> hudBuffers;
+    VkBuffer hudBuffer;
+    // std::vector<VmaAllocation> hudAllocations;
+    VmaAllocation hudAllocation;
     void createHudBuffers();
 
     std::vector<VkBuffer> uniformBuffers;

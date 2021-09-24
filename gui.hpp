@@ -7,6 +7,11 @@ struct GuiVertex {
     glm::vec3 pos;
     glm::vec4 color;
 
+    // GuiVertex(GuiVertex& mE) = default;
+    // GuiVertex& operator=(GuiVertex& mE) = default;
+    // GuiVertex(GuiVertex&& mE) = default;
+    // GuiVertex& operator=(GuiVertex&& mE) = default;
+
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
         bindingDescription.binding = 0;
@@ -33,27 +38,43 @@ struct GuiVertex {
     }
 };
 
+// for the quickly updating stuff in the gui (right now just the drag box)
+struct GuiPushConstant {
+    glm::vec2 dragBox[2];
+};
+
+class GuiComponent {
+public:
+    std::vector<GuiComponent *> children;
+    size_t vertexsCount();
+    void appendVerticies(std::back_insert_iterator<std::vector<GuiVertex>> vertexIterator);
+};
+
 class Gui {
 public:
     Gui();
-    void updateUniformBuffer(void *buffer, size_t max);
+    void updateBuffer(void *buffer, size_t max);
     // Lets not reinvent the wheel here even if stl is sometimes slow
-    std::vector<GuiVertex> data = {
-        {{ -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-        {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-        {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-        {{ 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-        {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-        {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
-    };
-    // this member is whatever (like stupid)
+
+    bool dirty;
+    void rebuildData();
+
     size_t verticiesCount();
     // Takes normalized device coordinates
     void addRectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
+    std::vector<GuiVertex> rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
+    void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
+
+    // Gui is going to be a seperate thread
+    GuiPushConstant *pushConstant();
+    void lockPushConstant();
+    void unlockPushConstant();
 private:
-    // wtf c++? (Like why)
-    // A defaulted copy assignment operator for class T is defined as deleted if any of the following is true:
-    //  * T has a non-static data member of non-class type (or array thereof) that is const
+    GuiPushConstant _pushConstant;
+    std::vector<GuiVertex> data;
+    std::vector<GuiVertex> dragBox;
+
+    // This matches with a value in the hud vertex shader
     static constexpr float layerZOffset = 0.001f;
 };
 

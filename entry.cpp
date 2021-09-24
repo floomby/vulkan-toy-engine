@@ -57,16 +57,17 @@ int main(int argc, char **argv) {
 /*
 Next steps
  Cpu allocator (vma)
- Get lod working
- game instance allocations
+ get lod working
+ * game instance allocations
  game state
  ECS? (or something else as an organizational structure for the proccessing)
  Blinn-Phong
  lt - better model library (assimp?)
  lt - emmisivity maps
  makefile build faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
- 2d for hud
+ gui
  culling (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  lt - shadow render pass
- fix crashing on bad vulkan call (tries to free stuff that has not been allocated yet when doing stack unwinding)
+ there might still be a problem with selections
+ there is a bug with resizing again
 */
