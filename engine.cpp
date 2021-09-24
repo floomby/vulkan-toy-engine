@@ -1592,6 +1592,7 @@ void Engine::handleInput() {
             // hudConstants.dragBox[0] = { mouseNormed.first, mouseNormed.second };
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
+            gui.addRectangle(dragStartDevice, mouseNormed, { 0.0f, 1.0f, 0.0f, 0.3f }, 1);
             mouseAction = MOUSE_NONE;
             std::cout << "Dragged box:" << std::endl;
             auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRay);
@@ -1718,11 +1719,13 @@ void Engine::drawFrame() {
 
     // Wait for the previous fence
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
-    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame], hudDescriptorSets[currentFrame], hudBuffers[currentFrame]);
+    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame],
+        hudDescriptorSets[currentFrame], hudBuffers[currentFrame]);
     updateScene();
     // update the next frames uniforms
-    gui.updateUniformBuffer(hudAllocations[(currentFrame + 1) % hudBuffers.size()]->GetMappedData(), 6);
-    currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
+    // TODO having these named the same and taking the same argument types, but not the same actual values for the arguments is confusing
+    gui.updateUniformBuffer(hudAllocations[(currentFrame + 1) % hudBuffers.size()]->GetMappedData(), gui.verticiesCount());
+    currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % uniformBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1820,7 +1823,7 @@ void Engine::runCurrentScene() {
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
-    gui.updateUniformBuffer(hudAllocations[0]->GetMappedData(), 6);
+    gui.updateUniformBuffer(hudAllocations[0]->GetMappedData(), gui.verticiesCount());
     vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
@@ -2085,7 +2088,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     // pixels?
     // vkCmdSetLineWidth(buffer, 4.0f);
     
-    vkCmdDraw(buffer, 6, 1, 0, 0);
+    vkCmdDraw(buffer, gui.verticiesCount(), 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
     vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");

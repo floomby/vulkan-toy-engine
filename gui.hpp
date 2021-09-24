@@ -39,13 +39,22 @@ public:
     void updateUniformBuffer(void *buffer, size_t max);
     // Lets not reinvent the wheel here even if stl is sometimes slow
     std::vector<GuiVertex> data = {
-        {{ -1.0f, -1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }},
-        {{ -1.0f, 1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }},
-        {{ 1.0f, -1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }},
-        {{ 1.0f, 1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }},
-        {{ -1.0f, 1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }},
-        {{ 1.0f, -1.0f, 0.0f }, { 0.5f, 0.5f, 0.5f, 1.0f }}
+        {{ -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
+        {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
+        {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
+        {{ 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
+        {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
+        {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
     };
+    // this member is whatever (like stupid)
+    size_t verticiesCount();
+    // Takes normalized device coordinates
+    void addRectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
+private:
+    // wtf c++? (Like why)
+    // A defaulted copy assignment operator for class T is defined as deleted if any of the following is true:
+    //  * T has a non-static data member of non-class type (or array thereof) that is const
+    static constexpr float layerZOffset = 0.001f;
 };
 
 
