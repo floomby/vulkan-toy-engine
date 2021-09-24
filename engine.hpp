@@ -8,6 +8,7 @@
 
 #include "utilities.hpp"
 #include "instance.hpp"
+#include "gui.hpp"
 
 // #include <map>
 #include <boost/lockfree/spsc_queue.hpp>
@@ -75,6 +76,12 @@ private:
         glm::mat4 projection;
     } pushConstants;
 
+    // struct HudPushConstants {
+    //     glm::vec2 dragBox[2];
+    // } hudConstants;
+
+    Gui gui;
+
     struct Cammera {
         const float minZoom = 1.0f, maxZoom = 10.0f;
         const float gimbleStop = 0.1f;
@@ -85,12 +92,15 @@ private:
 
     EngineSettings engineSettings;
 
+    // Maybe shove these all in a struct to help organize them
     float maxSamplerAnisotropy;
     size_t minUniformBufferOffsetAlignment;
+    std::array<float, 2> lineWidthRange;
+    float lineWidthGranularity;
 
     void initWidow();
     void initVulkan();
-    
+
     GLFWwindow *window;
     bool framebufferResized;
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
@@ -105,7 +115,10 @@ private:
         MOUSE_ROTATING,
         MOUSE_DRAGGING
     } mouseAction;
-    glm::vec3 dragStart;
+
+    glm::vec3 dragStartRay;
+    std::pair<float, float> dragStartDevice;
+
     struct {
         float x, y;
     } lastMousePosition;
@@ -119,8 +132,11 @@ private:
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     float scrollAmount;
+
+    inline std::pair<float, float> normedDevice(float x, float y);
     glm::vec3 raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView);
     glm::vec3 raycastDevice(float normedDeviceX, float normedDeviceY, glm::mat4 inverseProjection, glm::mat4 inverseView);
+    glm::vec3 raycastDevice(std::pair<float, float> normedDevice, glm::mat4 inverseProjection, glm::mat4 inverseView);
 
     static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     bool keysPressed[349];
@@ -145,6 +161,8 @@ private:
     VkInstance instance;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     void initInstance();
+
+    std::set<std::string> getSupportedExtensions();
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     QueueFamilyIndices physicalDeviceIndices;
@@ -228,6 +246,10 @@ private:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool pool, VkQueue queue);
     void createModelBuffers();
 
+    std::vector<VkBuffer> hudBuffers;
+    std::vector<VmaAllocation> hudAllocations;
+    void createHudBuffers();
+
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VmaAllocation> uniformBufferAllocations;
     size_t uniformSkip;
@@ -239,22 +261,21 @@ private:
     VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
     std::vector<VkDescriptorSet> hudDescriptorSets;
-    std::vector<bool> descriptorDirty;
+    std::vector<bool> descriptorDirty; // I think I am not actually using this
     // void allocateDescriptors();
     // void updateDescriptor(const std::vector<InternalTexture>& textures, int index);
-
     void createDescriptors(const std::vector<InternalTexture>& textures);
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
     void allocateCommandBuffers();
 
-    void recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet, VkDescriptorSet& hudDescriptorSet);
+    void recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
+        const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer);
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
-    // std::vector<VkFence> imagesInFlight;
     void initSynchronization();
 
     void recreateSwapChain();
@@ -264,7 +285,7 @@ private:
 
     void handleInput();
 
-    void updateScene(uint32_t currentImage);
+    void updateScene();
 
     Scene *currentScene;
     void loadDefaultScene();

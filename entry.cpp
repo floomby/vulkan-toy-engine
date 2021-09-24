@@ -68,4 +68,5 @@ Next steps
  2d for hud
  culling (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  lt - shadow render pass
+ fix crashing on bad vulkan call (tries to free stuff that has not been allocated yet when doing stack unwinding)
 */

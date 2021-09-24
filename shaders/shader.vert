@@ -15,7 +15,7 @@ layout(location = 2) out float highlight;
 
 layout( push_constant ) uniform constants {
     mat4 view;
-	mat4 projection;
+    mat4 projection;
 } pushConstants;
 
 void main() {

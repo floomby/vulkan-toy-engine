@@ -6,8 +6,8 @@ shaders: shaders/shader.frag shaders/shader.vert shaders/hud.frag shaders/hud.ve
 
 .PHONY: clean
 
-engine: entry.cpp engine.cpp engine.hpp entity.cpp entity.hpp instance.hpp instance.cpp
-	g++ $(CFLAGS) -o result entry.cpp engine.cpp entity.cpp instance.cpp $(LDFLAGS)
+engine: entry.cpp engine.cpp engine.hpp entity.cpp entity.hpp instance.hpp instance.cpp gui.cpp gui.hpp
+	g++ $(CFLAGS) -o result entry.cpp engine.cpp entity.cpp instance.cpp gui.cpp $(LDFLAGS)
 
 clean:
 	rm -f result

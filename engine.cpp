@@ -119,14 +119,38 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 
 static const std::vector<const char*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    // I really want to use this, but I can't because nvidia drivers don't support it
+    // VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME
 };
 
 Engine::Engine(EngineSettings engineSettings) {
     this->engineSettings = engineSettings;
 }
 
+// This function is badly named since it only gets *intstance* extensions
+std::set<std::string> Engine::getSupportedExtensions() {
+    uint32_t count;
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    std::vector<VkExtensionProperties> extensions(count);
+    vkEnumerateInstanceExtensionProperties(nullptr, &count, extensions.data());
+    std::set<std::string> results;
+
+    for (auto & extension : extensions) {
+        results.insert(extension.extensionName);
+    }
+
+    return results;
+}
+
 void Engine::initWidow()
 {
+    // if (engineSettings.extremelyVerbose) {
+    //     std::cout << "Supported extensions:" << std::endl;
+    //     for(const auto& name : getSupportedExtensions()) {
+    //         std::cout << "\t" << name << std::endl;
+    //     }
+    // }
+
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -287,6 +311,8 @@ void Engine::initInstance() {
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
         populateDebugMessengerCreateInfo(debugCreateInfo);
         debugCreateInfo.pUserData = nullptr;
+        debugCreateInfo.pNext = nullptr;
+        debugCreateInfo.flags = 0;
 
         if (CreateDebugUtilsMessengerEXT(instance, &debugCreateInfo, nullptr, &debugMessenger) != VK_SUCCESS)
             throw std::runtime_error("Failed to create debug messenger.");
@@ -425,6 +451,13 @@ void Engine::pickPhysicalDevice() {
     maxSamplerAnisotropy = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.maxSamplerAnisotropy;
     minUniformBufferOffsetAlignment = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.minUniformBufferOffsetAlignment;
 
+    // TODO We should act on these values in case it doesn't support line width and make an error message rather than just try and initalize the device anyways
+    lineWidthRange = {
+        std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.lineWidthRange[0],
+        std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.lineWidthRange[1]
+    };
+    lineWidthGranularity = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.lineWidthGranularity;
+
     if (engineSettings.verbose) std::cout << physicalDeviceIndices.info();
 }
 
@@ -443,6 +476,13 @@ void Engine::setupLogicalDevice() {
 
     VkPhysicalDeviceFeatures deviceFeatures {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    // deviceFeatures.wideLines = VK_TRUE;
+    // Vulkan 1.2 feature that I might want to use
+
+    VkPhysicalDeviceVulkan12Features otherFeatures {};
+    otherFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    otherFeatures.pNext = nullptr;
+    otherFeatures.drawIndirectCount = VK_TRUE;
 
     VkDeviceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -457,6 +497,7 @@ void Engine::setupLogicalDevice() {
     } else {
         createInfo.enabledLayerCount = 0;
     }
+
 
     vulkanErrorGuard(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "Failed to create logical device.");
 
@@ -701,6 +742,8 @@ void Engine::createRenderPass() {
     subpasses[1].pResolveAttachments = nullptr;
     subpasses[1].inputAttachmentCount = 1;
     subpasses[1].pInputAttachments = subpass1inputs;
+    // Can we just reuse the depth attachment?
+    subpasses[0].pDepthStencilAttachment = &subpass0depth;
 
     std::array<VkAttachmentDescription, 3> attachments = { subpassAttachment, depthAttachment, colorAttachment };
     VkRenderPassCreateInfo renderPassInfo {};
@@ -720,10 +763,10 @@ void Engine::createRenderPass() {
 
     dependencies[1].srcSubpass = 0;
     dependencies[1].dstSubpass = 1;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     renderPassInfo.dependencyCount = dependencies.size();
     renderPassInfo.pDependencies = dependencies.data();
@@ -781,6 +824,9 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
     return shaderModule;
 }
 
+// REFACTOR ME (good time is when adding the next pipeline)
+// This is a mess, I shouldn't be building all the pipelines (and pipeline layouts) in one function and shoving them into a vector like this
+// It will just get confusing
 void Engine::createGraphicsPipelines() {
     graphicsPipelines.resize(2);
 
@@ -937,7 +983,7 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = nullptr; // Optional
+    pipelineInfo.pDynamicState = nullptr;
 
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
@@ -950,8 +996,22 @@ void Engine::createGraphicsPipelines() {
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
 
     // turn off depth stenciling for drawing the hud
-    pipelineInfo.pDepthStencilState = nullptr;
+    // I am going to try and reuse the depth resource
+    // pipelineInfo.pDepthStencilState = nullptr;
     pipelineInfo.subpass = 1;
+
+    VkPipelineVertexInputStateCreateInfo hudVertexInputInfo {};
+    hudVertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    auto hudBindingDescription = GuiVertex::getBindingDescription();
+    auto hudAttributeDescriptions = GuiVertex::getAttributeDescriptions();
+
+    hudVertexInputInfo.vertexBindingDescriptionCount = 1;
+    hudVertexInputInfo.vertexAttributeDescriptionCount = hudAttributeDescriptions.size();
+    hudVertexInputInfo.pVertexBindingDescriptions = &hudBindingDescription;
+    hudVertexInputInfo.pVertexAttributeDescriptions = hudAttributeDescriptions.data();
+
+    pipelineInfo.pVertexInputState = &hudVertexInputInfo;
 
     pipelineInfo.stageCount = 2;
     pipelineInfo.pStages = hudShaders;
@@ -960,11 +1020,30 @@ void Engine::createGraphicsPipelines() {
     hudLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     hudLayoutInfo.setLayoutCount = 1;
     hudLayoutInfo.pSetLayouts = &hudDescriptorLayout;
-    hudLayoutInfo.pushConstantRangeCount = 1;
-    hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     // This way I don't have to worry about which is the front side of the triangles for the hud, we wouldnt want anything culled anyways
     rasterizer.cullMode = VK_CULL_MODE_NONE;
+
+    // VkDynamicState dynamicStates[] = {
+    //     VK_DYNAMIC_STATE_LINE_WIDTH
+    // };
+
+    // VkPipelineDynamicStateCreateInfo dynamicState {};
+    // dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    // dynamicState.dynamicStateCount = 1;
+    // dynamicState.pDynamicStates = dynamicStates;
+
+    // pipelineInfo.pDynamicState = &dynamicState;
+
+    // VkPushConstantRange hudPushConstantRange;
+    // hudPushConstantRange.offset = 0;
+    // hudPushConstantRange.size = sizeof(HudPushConstants);
+    // hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // hudLayoutInfo.pushConstantRangeCount = 1;
+    // hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    hudLayoutInfo.pushConstantRangeCount = 0;
+    hudLayoutInfo.pPushConstantRanges = nullptr;
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &hudLayoutInfo, nullptr, &hudPipelineLayout), "Failed to create pipeline layout.");
 
@@ -1269,7 +1348,7 @@ void Engine::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, u
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
 
-    region.imageOffset = {0, 0, 0};
+    region.imageOffset = { 0, 0, 0 };
     region.imageExtent = { width, height, 1 };
 
     vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
@@ -1334,6 +1413,24 @@ void Engine::createModelBuffers() {
     vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+void Engine::createHudBuffers() {
+    hudBuffers.resize(concurrentFrames);
+    hudAllocations.resize(concurrentFrames);
+
+    for (int i = 0; i < concurrentFrames; i++) {
+        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufferInfo.size = 50 * sizeof(GuiVertex);
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo bufferAllocationInfo = {};
+        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, hudBuffers.data() + i, hudAllocations.data() + i, nullptr) !=VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for hud buffer.");
+    }
+}
+
 void Engine::initVulkan() {
     enableValidationLayers();
     initInstance();
@@ -1352,20 +1449,17 @@ void Engine::initVulkan() {
     createFramebuffers();
 
     std::cout << std::dec << "Skip: " << uniformSkip << " min alignment: " << minUniformBufferOffsetAlignment << std::endl;
-    // uniformSkip = sizeof(UniformBufferObject);
 
     // this sets the currentScene pointer
     loadDefaultScene();
+
+    createHudBuffers();
 }
 
 void Engine::init() {
     initWidow();
     initVulkan();
 }
-
-inline float fixBounds(float value) {
-    return value > 0 ? value : value + 360;
-};
 
 // TODO Name this better (What is this calculated value called anyways?)
 static float whichSideOfPlane(glm::vec3 n, float d, glm::vec3 x) {
@@ -1401,20 +1495,26 @@ static std::array<std::pair<glm::vec3, float>, 5> boundingPlanes(glm::vec3 pos, 
     return ret;
 }
 
-glm::vec3 Engine::raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView) {
-    float normedDeviceX = 1.0 - x / framebufferSize.width * 2.0f;
-    float normedDeviceY = 1.0f - y / framebufferSize.height * 2.0f;
-    return raycastDevice(normedDeviceX, normedDeviceY, inverseProjection, inverseView);
+inline std::pair<float, float> Engine::normedDevice(float x, float y) {
+    return { x / framebufferSize.width * 2.0f - 1.0, y / framebufferSize.height * 2.0f - 1.0f };
+}
+
+inline glm::vec3 Engine::raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView) {
+    return raycastDevice(normedDevice(x, y), inverseProjection, inverseView);
 }
 
 glm::vec3 Engine::raycastDevice(float normedDeviceX, float normedDeviceY, glm::mat4 inverseProjection, glm::mat4 inverseView) {
-    auto homogeneousRay = glm::vec4(normedDeviceX, normedDeviceY, 1.0f, 1.0f);
+    auto homogeneousRay = glm::vec4(-normedDeviceX, -normedDeviceY, 1.0f, 1.0f);
     auto eyeRay = inverseProjection * homogeneousRay;
     eyeRay.z = 1.0f;
     eyeRay.w = 0.0f;
     auto worldRay = inverseView * eyeRay;
     glm::vec3 ray = { worldRay.x, worldRay.y, worldRay.z };
     return ray;
+}
+
+inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm::mat4 inverseProjection, glm::mat4 inverseView) {
+    return raycastDevice(normedDevice.first, normedDevice.second, inverseProjection, inverseView);
 }
 
 void Engine::handleInput() {
@@ -1426,7 +1526,9 @@ void Engine::handleInput() {
     // I probably don't need this every frame, but for rigth now just calculate it every frame
     auto inverseProjection = glm::inverse(pushConstants.projection);
     auto inverseView = glm::inverse(pushConstants.view);
+    auto mouseNormed = normedDevice(x, y);
     auto mouseRay = raycast(x, y, inverseProjection, inverseView);
+    // hudConstants.dragBox[1] = { mouseNormed.first, mouseNormed.second };
 
     // Do I want this?
     for (int i = 0; i < 8; i++) {
@@ -1484,14 +1586,16 @@ void Engine::handleInput() {
         if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_DRAGGING;
             // Unless the framerate is crap this should be almost identical to the mouseRay
-            // dragStart = raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView);
-            dragStart = mouseRay;
+            // dragStartRay = raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView);
+            dragStartRay = mouseRay;
+            dragStartDevice = mouseNormed;
+            // hudConstants.dragBox[0] = { mouseNormed.first, mouseNormed.second };
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_NONE;
             std::cout << "Dragged box:" << std::endl;
-            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStart, mouseRay);
-            // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStart, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
+            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRay);
+            // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
             for(const auto& plane : planes) {
                 std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             }
@@ -1587,7 +1691,7 @@ void Engine::handleInput() {
 }
 
 // Here is the big graphics update function
-void Engine::updateScene(uint32_t currentBuffer) {
+void Engine::updateScene() {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1614,9 +1718,10 @@ void Engine::drawFrame() {
 
     // Wait for the previous fence
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
-    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame], hudDescriptorSets[currentFrame]);
-    updateScene(currentFrame);
+    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame], hudDescriptorSets[currentFrame], hudBuffers[currentFrame]);
+    updateScene();
     // update the next frames uniforms
+    gui.updateUniformBuffer(hudAllocations[(currentFrame + 1) % hudBuffers.size()]->GetMappedData(), 6);
     currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % commandBuffers.size()]->GetMappedData(), uniformSkip);
 
     VkSubmitInfo submitInfo {};
@@ -1680,7 +1785,7 @@ void Engine::allocateUniformBuffers(size_t instanceCount) {
         bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
         if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) !=VK_SUCCESS)
-            throw std::runtime_error("Unable to alloctate memory for uniform buffers.");
+            throw std::runtime_error("Unable to allocate memory for uniform buffers.");
     }
 }
 
@@ -1711,8 +1816,11 @@ void Engine::runCurrentScene() {
     cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
+    gui = Gui();
+
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
+    gui.updateUniformBuffer(hudAllocations[0]->GetMappedData(), 6);
     vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
@@ -1729,13 +1837,6 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
-
-    // currentScene->addInstance(0, glm::mat4({
-    //     { 0.5, 0, 0, 0 },
-    //     { 0, 0.5, 0, 0 },
-    //     { 0, 0, 0.5, 0 },
-    //     { 0, 0, 0, 1 }
-    // }));
 }
 
 // void Engine::allocateDescriptors() {
@@ -1802,7 +1903,6 @@ void Engine::loadDefaultScene() {
 //     descriptorDirty[index] = false;
 // }
 
-// TODO We need to update the hud descriptors here
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     std::array<VkDescriptorPoolSize, 2> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -1810,9 +1910,11 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = swapChainImages.size();
 
-    VkDescriptorPoolSize hudPool;
-    hudPool.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-    hudPool.descriptorCount = swapChainImages.size();
+    std::array<VkDescriptorPoolSize, 2> hudPoolSizes;
+    hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    hudPoolSizes[0].descriptorCount = swapChainImages.size();
+    hudPoolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    hudPoolSizes[1].descriptorCount = swapChainImages.size();
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1823,7 +1925,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     VkDescriptorPoolCreateInfo hudPoolInfo {};
     hudPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     hudPoolInfo.poolSizeCount = 1;
-    hudPoolInfo.pPoolSizes = &hudPool;
+    hudPoolInfo.pPoolSizes = hudPoolSizes.data();
     hudPoolInfo.maxSets = swapChainImages.size();
 
     vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool.");
@@ -1843,13 +1945,11 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     hudAllocInfo.descriptorSetCount = swapChainImages.size();
     hudAllocInfo.pSetLayouts = hudLayouts.data();
 
-
     descriptorSets.resize(swapChainImages.size());
     hudDescriptorSets.resize(swapChainImages.size());
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()), "Failed to allocate descriptor sets.");
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &hudAllocInfo, hudDescriptorSets.data()), "Failed to allocate hud descriptor sets.");
-
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         VkDescriptorBufferInfo bufferInfo {};
@@ -1928,7 +2028,8 @@ void Engine::allocateCommandBuffers() {
     }
 }
 
-void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebuffer, VkDescriptorSet& descriptorSet, VkDescriptorSet& hudDescriptorSet) {
+void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
+    const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0; // Optional
@@ -1975,8 +2076,15 @@ void Engine::recordCommandBuffer(VkCommandBuffer& buffer, VkFramebuffer& framebu
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+    vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
+    // if (mouseAction == MOUSE_DRAGGING) {
+        // vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(HudPushConstants), &hudConstants);
+    // }
+    // pixels?
+    // vkCmdSetLineWidth(buffer, 4.0f);
+    
     vkCmdDraw(buffer, 6, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
@@ -2071,6 +2179,9 @@ void Engine::cleanup() {
         vkDestroyFence(device, inFlightFences[i], nullptr);
     }
 
+    for (int i = 0; i < concurrentFrames; i++)
+        vmaDestroyBuffer(memoryAllocator, hudBuffers[i], hudAllocations[i]);
+
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
 
@@ -2114,7 +2225,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
     VmaAllocationInfo stagingBufferAllocationInfo = {};
     if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocationInfo) !=VK_SUCCESS)
-        throw std::runtime_error("Unable to alloctate memory for texture.");
+        throw std::runtime_error("Unable to allocate memory for texture.");
 
     memcpy(stagingBufferAllocationInfo.pMappedData, entity.texturePixels, imageSize);
 
