@@ -1,6 +1,7 @@
 #version 450
 
-layout(binding = 1) uniform sampler2D texSampler;
+// We can change this to a bigger number (I think vulkan doesn't allocate memory or anything based on this array size, opengl would have though)
+layout(binding = 1) uniform sampler2D texSampler[2];
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
@@ -10,7 +11,6 @@ layout(location = 4) in vec3 vertPos;
 
 layout(location = 0) out vec4 outColor;
 
-const vec3 lightPosWorld = vec3(5.0, 5.0, 5.0);
 const vec3 lightColor = vec3(1.0, 1.0, 1.0);
 const float lightPower = 10.0;
 // const vec3 ambientColor = vec3(0.1, 0.0, 0.0);
@@ -35,13 +35,16 @@ vec4 vectorMap(vec4 value, float min1, float max1, float min2, float max2) {
 layout( push_constant ) uniform constants {
     mat4 view;
     mat4 projection;
+    vec3 lightPosition;
+    int index;
 } pushConstants;
 
-const int mode = 1;
+const int mode = 2;
 
-vec3 lightPos = (pushConstants.view * vec4(lightPosWorld, 1.0)).xyz;
+// in view space
+vec3 lightPos = (pushConstants.view * vec4(pushConstants.lightPosition, 1.0)).xyz;
 void main() {
-    vec3 diffuseColor = texture(texSampler, fragTexCoord).rgb;
+    vec3 diffuseColor = texture(texSampler[pushConstants.index], fragTexCoord).rgb;
     vec3 ambientColor = diffuseColor / 5.0f;
 
     vec3 normal = normalize(normalInterp);

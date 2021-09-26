@@ -2,11 +2,13 @@
 
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <fstream>
 
 namespace po = boost::program_options;
 
-int main(int argc, char **argv) {
+void run(EngineSettings& settings);
 
+int main(int argc, char **argv) {
     po::options_description desc("Allowed options");
     desc.add_options()
         ("help", "Print help message")
@@ -41,17 +43,32 @@ int main(int argc, char **argv) {
     } else {
         settings.validationExtentions = { };
     }
+    settings.maxTextures = 1024;
 
-    Engine engine(settings);
+
+    std::ofstream log;
+    log.open("log");
+    log.close();
+
     try {
-        engine.init();
-        engine.runCurrentScene();
+        run(settings);
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
+        log << e.what() << std::endl;
+        log.close();    
         return EXIT_FAILURE;
     }
 
+    log << "exited normally" << std::endl;
+    log.close();
     return EXIT_SUCCESS;
+}
+
+// TODO I do horrible things by inspecting stack unwinding in destructors so I need raii pattern here before the catch
+void run(EngineSettings& settings) {
+    Engine engine(settings);
+    engine.init();
+    engine.runCurrentScene();
 }
 
 /*
@@ -71,9 +88,11 @@ Next steps
   threading (think how to tell the gui object to do things)
   fonts -  I will be uising a library of some sort for this (idk how I want to go about this yet)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
- lt - shadow render pass
+ shadow render pass
  there might still be a problem with selections
  there is a bug with resizing again
  hitboxes
  cursors (after hitboxes)
+ lighting in the fragment shader is wrong I think
+ get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
 */

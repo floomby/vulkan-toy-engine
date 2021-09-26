@@ -1,6 +1,7 @@
 #include "instance.hpp"
 
-Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo) noexcept {
+Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept {
+    this->entityIndex = entityIndex;
     this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;

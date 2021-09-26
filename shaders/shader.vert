@@ -20,6 +20,8 @@ layout(location = 4) out vec3 vertPos;
 layout( push_constant ) uniform constants {
     mat4 view;
     mat4 projection;
+    vec3 lightPosition;
+    int index;
 } pushConstants;
 
 void main() {

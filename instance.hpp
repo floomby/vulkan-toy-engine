@@ -17,11 +17,12 @@ struct UniformBufferObject {
 
 class Instance {
 public:
-    Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo) noexcept;
+    Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept;
     // Instance& transform(glm::mat4 transformationMatrix) noexcept;
 
     UniformBufferObject *state(glm::mat4 view);
     SceneModelInfo* sceneModelInfo;
+    int entityIndex;
 
     glm::vec3 position, heading;
     bool& highlight();

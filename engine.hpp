@@ -32,6 +32,7 @@ struct EngineSettings {
     const char *applicationName;
     bool verbose;
     bool extremelyVerbose;
+    size_t maxTextures;
 };
 
 class Engine : Utilities {
@@ -74,11 +75,9 @@ private:
     struct PushConstants {
         glm::mat4 view;
         glm::mat4 projection;
+        glm::vec3 lightPosition;
+        glm::uint32_t textureIndex;
     } pushConstants;
-
-    // struct HudPushConstants {
-    //     glm::vec2 dragBox[2];
-    // } hudConstants;
 
     Gui *gui;
 
@@ -97,6 +96,11 @@ private:
     size_t minUniformBufferOffsetAlignment;
     std::array<float, 2> lineWidthRange;
     float lineWidthGranularity;
+
+    // Some device querying stuff
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+    VkFormat findDepthFormat();
+    VkBool32 formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling);
 
     void initWidow();
     void initVulkan();
@@ -198,11 +202,14 @@ private:
     void destroyImageViews();
 
     VkRenderPass renderPass;
-    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-    VkFormat findDepthFormat();
     void createRenderPass();
 
-    VkDescriptorSetLayout descriptorSetLayout;
+    struct {
+        VkDescriptorSetLayout descriptorSetLayout;
+        VkDescriptorPool descriptorPool;
+        std::vector<VkDescriptorSet> descriptorSets;
+    } mainPass;
+
     VkDescriptorSetLayout hudDescriptorLayout;
     void createDescriptorSetLayout();
 
@@ -258,9 +265,7 @@ private:
     void reallocateUniformBuffers(size_t instanceCount);
     void destroyUniformBuffers();
 
-    VkDescriptorPool descriptorPool;
     VkDescriptorPool hudDescriptorPool;
-    std::vector<VkDescriptorSet> descriptorSets;
     std::vector<VkDescriptorSet> hudDescriptorSets;
     std::vector<bool> descriptorDirty; // I think I am not actually using this
     // void allocateDescriptors();
@@ -293,6 +298,36 @@ private:
 
     void cleanupSwapChain();
     void cleanup();
+
+    // I think we dont need to worry about this for a single run of the application, only if we want to reload them when we restart the appliction
+    // VkPipelineCache pipelineCache;
+
+    // TODO I should follow this orginization for the main render pass as well
+    // shadow render pass stuff
+    struct ShadowPushConstansts {
+        glm::mat4 projection;
+        glm::mat4 view;
+        glm::vec3 lightPos;
+    };
+
+    struct {
+        const uint32_t width = 2048, height = 2048;
+        VkRenderPass renderPass;
+        VkPipelineLayout pipelineLayout;
+        VkPipeline pipeline;
+        std::vector<VkImageView> imageViews;
+        std::vector<VkImage> images;
+        std::vector<VmaAllocation> allocations;
+        std::vector<VkSampler> samplers;
+        std::vector<VkFramebuffer> framebuffers;
+        ShadowPushConstansts constants;
+        VkDescriptorSetLayout descriptorLayout;
+        int index, size;
+    } shadow;
+
+    void createShadowResources(size_t concurrentFrames);
+    void destroyShadowResources();
+    void runShadowPass(const VkCommandBuffer& commandBuffer);
 };
 
 class Scene {

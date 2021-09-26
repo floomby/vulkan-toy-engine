@@ -16,6 +16,7 @@
 #include <iostream>
 #include <map>
 #include <sstream>
+#include <thread>
 
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
@@ -417,11 +418,12 @@ static inline int invalidateScore(int score) { return score < 0 ? score : -score
 
 void Engine::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+    vulkanErrorGuard(vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr), "Unable to enemerate physical devices");
     if (deviceCount == 0) throw std::runtime_error("Unable to find GPU with vulkan support.");
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+    vulkanErrorGuard(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()), "Unable to enemerate physical devices");
 
     // Do we really need the device features?
     std::multimap<int, std::tuple<VkPhysicalDevice, VkPhysicalDeviceProperties, VkPhysicalDeviceFeatures, QueueFamilyIndices>> deviceInfos;
@@ -497,7 +499,6 @@ void Engine::setupLogicalDevice() {
     } else {
         createInfo.enabledLayerCount = 0;
     }
-
 
     vulkanErrorGuard(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "Failed to create logical device.");
 
@@ -781,11 +782,11 @@ void Engine::createDescriptorSetLayout() {
     uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     uboLayoutBinding.descriptorCount = 1;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+    uboLayoutBinding.pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding {};
     samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 1;
+    samplerLayoutBinding.descriptorCount = 2;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -796,7 +797,7 @@ void Engine::createDescriptorSetLayout() {
     layoutInfo.bindingCount = bindings.size();
     layoutInfo.pBindings = bindings.data();
 
-    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout), "Failed to create descriptor set layout.");
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mainPass.descriptorSetLayout), "Failed to create descriptor set layout.");
 
     VkDescriptorSetLayoutBinding hudColorInput {};
     hudColorInput.binding = 0;
@@ -911,51 +912,50 @@ void Engine::createGraphicsPipelines() {
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
-    rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-    rasterizer.depthBiasClamp = 0.0f; // Optional
-    rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+    rasterizer.depthBiasConstantFactor = 0.0f;
+    rasterizer.depthBiasClamp = 0.0f;
+    rasterizer.depthBiasSlopeFactor = 0.0f;
 
     VkPipelineMultisampleStateCreateInfo multisampling {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisampling.minSampleShading = 1.0f; // Optional
-    multisampling.pSampleMask = nullptr; // Optional
-    multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-    multisampling.alphaToOneEnable = VK_FALSE; // Optional
+    multisampling.minSampleShading = 1.0f;
+    multisampling.pSampleMask = nullptr;
+    multisampling.alphaToCoverageEnable = VK_FALSE;
+    multisampling.alphaToOneEnable = VK_FALSE;
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_FALSE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
     VkPipelineColorBlendStateCreateInfo colorBlending {};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    // the validation is complaining about this, but I can't see why (as far as I can see the validation is just reporting something which is incorrect)
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
-    colorBlending.blendConstants[0] = 0.0f; // Optional
-    colorBlending.blendConstants[1] = 0.0f; // Optional
-    colorBlending.blendConstants[2] = 0.0f; // Optional
-    colorBlending.blendConstants[3] = 0.0f; // Optional
+    colorBlending.blendConstants[0] = 0.0f;
+    colorBlending.blendConstants[1] = 0.0f;
+    colorBlending.blendConstants[2] = 0.0f;
+    colorBlending.blendConstants[3] = 0.0f;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &mainPass.descriptorSetLayout;
 
     VkPushConstantRange pushConstantRange;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstants);
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    // Seems suspicious
-    // pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
 
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -968,11 +968,11 @@ void Engine::createGraphicsPipelines() {
     depthStencil.depthWriteEnable = VK_TRUE;
     depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
     depthStencil.depthBoundsTestEnable = VK_FALSE;
-    depthStencil.minDepthBounds = 0.0f; // Optional
-    depthStencil.maxDepthBounds = 1.0f; // Optional
+    depthStencil.minDepthBounds = 0.0f;
+    depthStencil.maxDepthBounds = 1.0f;
     depthStencil.stencilTestEnable = VK_FALSE;
-    depthStencil.front = {}; // Optional
-    depthStencil.back = {}; // Optional
+    depthStencil.front = {};
+    depthStencil.back = {};
 
     VkGraphicsPipelineCreateInfo pipelineInfo {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -990,11 +990,12 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-    pipelineInfo.basePipelineIndex = -1; // Optional
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
+    // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
 
     // turn off depth stenciling for drawing the hud
@@ -1050,6 +1051,7 @@ void Engine::createGraphicsPipelines() {
 
     pipelineInfo.layout = hudPipelineLayout;
 
+    // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -1433,6 +1435,16 @@ void Engine::initVulkan() {
     pickPhysicalDevice();
     setupLogicalDevice();
 
+
+    // VkPipelineCacheCreateInfo pipelineCacheCI = {};
+    // pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    // pipelineCacheCI.flags = VK_PIPELINE_CACHE_CREATE_EXTERNALLY_SYNCHRONIZED_BIT_EXT;
+    // pipelineCacheCI.pNext = nullptr;
+    // pipelineCacheCI.pInitialData = nullptr;
+    // pipelineCacheCI.initialDataSize = 0;
+
+    // vulkanErrorGuard(vkCreatePipelineCache(device, &pipelineCacheCI, nullptr, &pipelineCache), "Unable to create pipeline cache.");
+
     createSwapChain();
     createImageViews();
     createRenderPass();
@@ -1440,6 +1452,8 @@ void Engine::initVulkan() {
     createDescriptorSetLayout();
     createGraphicsPipelines();
     createCommandPools();
+
+    createShadowResources(concurrentFrames);
 
     createDepthResources();
     createFramebuffers();
@@ -1620,7 +1634,7 @@ void Engine::handleInput() {
                 float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
                 auto intersection = cammera.position + mouseRay * dist;
 
-                currentScene->addInstance(0, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
+                currentScene->addInstance(1, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
             }
         }
     }
@@ -1703,6 +1717,7 @@ void Engine::updateScene() {
     // I think we can just leave the fov the same
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
+    pushConstants.lightPosition = { 0.0f, 0.0f, 5.0f };
 }
 
 // TODO The synchornization code is pretty much nonsence, it works but is bad
@@ -1723,7 +1738,7 @@ void Engine::drawFrame() {
     }
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
     // Wait for the previous fence
-    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], descriptorSets[currentFrame],
+    recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], mainPass.descriptorSets[currentFrame],
         hudDescriptorSets[currentFrame], hudBuffer);
     updateScene();
     // update the next frames uniforms
@@ -1761,7 +1776,7 @@ void Engine::drawFrame() {
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    presentInfo.pResults = nullptr; // Optional
+    presentInfo.pResults = nullptr;
 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
@@ -1838,10 +1853,12 @@ void Engine::runCurrentScene() {
 }
 
 void Engine::loadDefaultScene() {
-    // currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
-    currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
+    //currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
+    // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
+    currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}, {"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     currentScene->makeBuffers();
     currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
 }
 
@@ -1914,7 +1931,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = swapChainImages.size();
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = swapChainImages.size();
+    poolSizes[1].descriptorCount = 2 * swapChainImages.size();
 
     std::array<VkDescriptorPoolSize, 2> hudPoolSizes;
     hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -1934,13 +1951,13 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     hudPoolInfo.pPoolSizes = hudPoolSizes.data();
     hudPoolInfo.maxSets = swapChainImages.size();
 
-    vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool), "Failed to create descriptor pool.");
+    vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &mainPass.descriptorPool), "Failed to create descriptor pool.");
     vulkanErrorGuard(vkCreateDescriptorPool(device, &hudPoolInfo, nullptr, &hudDescriptorPool), "Failed to create hud descriptor pool.");
 
-    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), mainPass.descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorPool = mainPass.descriptorPool;
     allocInfo.descriptorSetCount = swapChainImages.size();
     allocInfo.pSetLayouts = layouts.data();
 
@@ -1951,10 +1968,10 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     hudAllocInfo.descriptorSetCount = swapChainImages.size();
     hudAllocInfo.pSetLayouts = hudLayouts.data();
 
-    descriptorSets.resize(swapChainImages.size());
+    mainPass.descriptorSets.resize(swapChainImages.size());
     hudDescriptorSets.resize(swapChainImages.size());
 
-    vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()), "Failed to allocate descriptor sets.");
+    vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, mainPass.descriptorSets.data()), "Failed to allocate descriptor sets.");
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &hudAllocInfo, hudDescriptorSets.data()), "Failed to allocate hud descriptor sets.");
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -1968,7 +1985,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
         descriptorWrites[0].dstBinding = 0;
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -1983,7 +2000,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         }
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = descriptorSets[i];
+        descriptorWrites[1].dstSet = mainPass.descriptorSets[i];
         descriptorWrites[1].dstBinding = 1;
         descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -2038,8 +2055,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = 0; // Optional
-    beginInfo.pInheritanceInfo = nullptr; // Optional
+    beginInfo.flags = 0;
+    beginInfo.pInheritanceInfo = nullptr;
 
     vulkanErrorGuard(vkBeginCommandBuffer(buffer, &beginInfo), "Failed to begin recording command buffer.");
 
@@ -2073,10 +2090,13 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     for(int j = 0; j < currentScene->currentUsed; j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        pushConstants.textureIndex = (currentScene->instances + j)->entityIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
+        // vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
+        //     (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
         vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->instances + j)->sceneModelInfo->indexOffset, (currentScene->instances + j)->sceneModelInfo->vertexOffset, 0);
+            (currentScene->instances + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -2161,7 +2181,7 @@ void Engine::cleanupSwapChain() {
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyDescriptorPool(device, mainPass.descriptorPool, nullptr);
     vkDestroyDescriptorPool(device, hudDescriptorPool, nullptr);
 }
 
@@ -2170,7 +2190,7 @@ void Engine::cleanup() {
 
     destroyUniformBuffers();
 
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, mainPass.descriptorSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(device, hudDescriptorLayout, nullptr);
 
     vkDestroyBuffer(device, indexBuffer, nullptr);
@@ -2189,6 +2209,8 @@ void Engine::cleanup() {
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
 
+    // vkDestroyPipelineCache(device, pipelineCache, nullptr);
+    destroyShadowResources();
     vmaDestroyAllocator(memoryAllocator);
 
     vkDestroyDevice(device, nullptr);
@@ -2208,6 +2230,315 @@ Engine::~Engine() {
     delete currentScene;
     delete gui;
     cleanup();
+}
+
+void Engine::createShadowResources(size_t concurrentFrames) {
+    shadow.index = 0;
+    shadow.size = concurrentFrames;
+    auto depthFormat = findDepthFormat();
+
+    VkAttachmentDescription attachmentDescription {};
+    attachmentDescription.format = depthFormat;
+    attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference depthReference = {};
+    depthReference.attachment = 0;
+    depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 0;
+    subpass.pDepthStencilAttachment = &depthReference;
+
+    // Use subpass dependencies for layout transitions
+    std::array<VkSubpassDependency, 2> dependencies;
+
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    VkRenderPassCreateInfo renderPassCreateInfo = {};
+    renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassCreateInfo.attachmentCount = 1;
+    renderPassCreateInfo.pAttachments = &attachmentDescription;
+    renderPassCreateInfo.subpassCount = 1;
+    renderPassCreateInfo.pSubpasses = &subpass;
+    renderPassCreateInfo.dependencyCount = dependencies.size();
+    renderPassCreateInfo.pDependencies = dependencies.data();
+
+    vulkanErrorGuard(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &shadow.renderPass), "Unable to create shadow render pass");
+
+    auto vertShaderCode = readFile("shaders/shadow_vert.spv");
+    
+    VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo {};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = vertShaderModule;
+    vertShaderStageInfo.pName = "main";
+
+    // VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo };
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    auto bindingDescription = Vertex::getBindingDescription();
+    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport {};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(shadow.width);
+    viewport.height = static_cast<float>(shadow.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor {};
+    scissor.offset = { 0, 0 };
+    scissor.extent = { shadow.width, shadow.height };
+
+    VkPipelineViewportStateCreateInfo viewportState {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer {};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+    rasterizer.depthBiasConstantFactor = 0.0f;
+    rasterizer.depthBiasClamp = 0.0f;
+    rasterizer.depthBiasSlopeFactor = 0.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisampling {};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.minSampleShading = 1.0f;
+    multisampling.pSampleMask = nullptr;
+    multisampling.alphaToCoverageEnable = VK_FALSE;
+    multisampling.alphaToOneEnable = VK_FALSE;
+
+    // Idk if this is set right or if it matters
+    VkPipelineColorBlendStateCreateInfo colorBlending {};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    colorBlending.attachmentCount = 0;
+    colorBlending.pAttachments = nullptr;
+
+    VkDescriptorSetLayoutBinding uboLayoutBinding {};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+
+    std::array<VkDescriptorSetLayoutBinding, 1> bindings = { uboLayoutBinding };
+    VkDescriptorSetLayoutCreateInfo layoutInfo {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = bindings.size();
+    layoutInfo.pBindings = bindings.data();
+
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &shadow.descriptorLayout), "Failed to create descriptor set layout.");
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &shadow.descriptorLayout;
+
+    VkPushConstantRange pushConstantRange;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(ShadowPushConstansts);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &shadow.pipelineLayout), "Failed to create shadow pipeline layout.");
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds = 0.0f;
+    depthStencil.maxDepthBounds = 1.0f;
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {};
+    depthStencil.back = {};
+
+    std::array<VkDynamicState, 3> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
+    VkPipelineDynamicStateCreateInfo dynamicStates = {};
+    dynamicStates.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicStates.dynamicStateCount = dynamicStateEnables.size();
+    dynamicStates.pDynamicStates = dynamicStateEnables.data();
+    dynamicStates.flags = 0;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 1;
+    pipelineInfo.pStages = &vertShaderStageInfo;
+
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = nullptr;
+
+    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
+
+    pipelineInfo.pDepthStencilState = &depthStencil;
+
+    // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
+
+    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+
+    shadow.imageViews.resize(shadow.size);
+    shadow.images.resize(shadow.size);
+    shadow.allocations.resize(shadow.size);
+    shadow.samplers.resize(shadow.size);
+    shadow.framebuffers.resize(shadow.size);
+
+    for (int i = 0; i < shadow.size; i++) {
+        // For shadow mapping we only need a depth attachment
+        VkImageCreateInfo imageInfo = {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = shadow.width;
+        imageInfo.extent.height = shadow.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.format = depthFormat;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+        VmaAllocationCreateInfo imageAllocCreateInfo = {};
+        imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &shadow.images[i], &shadow.allocations[i], nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to shadow framebuffer image");
+
+        VkImageViewCreateInfo depthStencilView = {};
+        depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depthStencilView.format = depthFormat;
+        depthStencilView.subresourceRange = {};
+        depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthStencilView.subresourceRange.baseMipLevel = 0;
+        depthStencilView.subresourceRange.levelCount = 1;
+        depthStencilView.subresourceRange.baseArrayLayer = 0;
+        depthStencilView.subresourceRange.layerCount = 1;
+        depthStencilView.image = shadow.images[i];
+        vulkanErrorGuard(vkCreateImageView(device, &depthStencilView, nullptr, &shadow.imageViews[i]), "Unable to create shadow framebuffer image view.");
+
+        // Create sampler to sample from to depth attachment
+        VkFilter shadowmapFilter = formatIsFilterable(physicalDevice, depthFormat, VK_IMAGE_TILING_OPTIMAL) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        VkSamplerCreateInfo sampler = {};
+        sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler.magFilter = shadowmapFilter;
+        sampler.minFilter = shadowmapFilter;
+        sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler.addressModeV = sampler.addressModeU;
+        sampler.addressModeW = sampler.addressModeU;
+        sampler.mipLodBias = 0.0f;
+        sampler.maxAnisotropy = 1.0f;
+        sampler.minLod = 0.0f;
+        sampler.maxLod = 1.0f;
+        sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        vulkanErrorGuard(vkCreateSampler(device, &sampler, nullptr, &shadow.samplers[i]), "Unable to create shadow sampler.");
+
+        // Create frame buffer
+        VkFramebufferCreateInfo fbufCreateInfo = {};
+        fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fbufCreateInfo.renderPass = shadow.renderPass;
+        fbufCreateInfo.attachmentCount = 1;
+        fbufCreateInfo.pAttachments = &shadow.imageViews[i];
+        fbufCreateInfo.width = shadow.width;
+        fbufCreateInfo.height = shadow.height;
+        fbufCreateInfo.layers = 1;
+
+        vulkanErrorGuard(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &shadow.framebuffers[i]), "Unable to create shadow framebuffer.");
+    }
+}
+
+void Engine::destroyShadowResources() {
+    vkDestroyRenderPass(device, shadow.renderPass, nullptr);
+    vkDestroyPipelineLayout(device, shadow.pipelineLayout, nullptr);
+    vkDestroyPipeline(device, shadow.pipeline, nullptr);
+
+    for (int i = 0; i < shadow.size; i++) {
+        vkDestroyFramebuffer(device, shadow.framebuffers[i], nullptr);
+        vkDestroySampler(device, shadow.samplers[i], nullptr);
+        vkDestroyImageView(device, shadow.imageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, shadow.images[i], shadow.allocations[i]);
+    }
+}
+
+void Engine::runShadowPass(const VkCommandBuffer& commandBuffer) {
+
+}
+
+// Just check for linear filtering support
+VkBool32 Engine::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling)
+{
+    VkFormatProperties formatProps;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+
+    if (tiling == VK_IMAGE_TILING_OPTIMAL)
+        return formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+    if (tiling == VK_IMAGE_TILING_LINEAR)
+        return formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+
+    return false;
 }
 
 namespace InternalTextures {
@@ -2350,7 +2681,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     samplerInfo.mipLodBias = 0.0f;
     // fix me
     samplerInfo.maxLod = static_cast<float>(1);
-    samplerInfo.mipLodBias = 0.0f; // Optional
+    samplerInfo.mipLodBias = 0.0f;
 
     vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
 }
@@ -2521,10 +2852,9 @@ Scene::~Scene() {
 
 void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
-    Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex);
+    Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex);
     tmp->position = std::move(position);
     tmp->heading = std::move(heading);
-    // tmp->transform(transformationMatrix);
 }
 
 void Scene::makeBuffers() {
