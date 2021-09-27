@@ -1,5 +1,7 @@
 #include "gui.hpp"
 
+#include <iostream>
+
 static std::vector<GuiVertex> background = {
     {{ -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
     {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
@@ -11,6 +13,8 @@ static std::vector<GuiVertex> background = {
 
 Gui::Gui() {
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
+
+    guiThread = std::thread(&Gui::pollChanges, this);
 }
 
 // Doing it this way wastes sizeof(GuiVertex) * 12 bytes of vram
@@ -55,4 +59,55 @@ void Gui::unlockPushConstant() {
 
 void Gui::rebuildBuffer() {
     rebuilt = true;
+}
+
+void Gui::pollChanges() {
+    bool terminate;
+    while(!terminate) {
+        GuiCommand command;
+        while(guiCommands.pop(command)) {
+            if(command.action == GUI_TERMINATE) {
+                terminate = true;
+                break;
+
+
+                delete command.data;
+            }
+        }
+        std::this_thread::sleep_for(pollInterval);
+    }
+}
+
+Gui::~Gui() {
+    guiCommands.push({ GUI_TERMINATE });
+    std::cout << "Waiting to join gui thread" << std::endl;
+    guiThread.join();
+}
+
+Gui::GuiComponent::~GuiComponent() {
+    for(auto& child : children)
+        delete child;
+}
+
+void Gui::GuiComponent::addComponent(std::queue<int> childIndices, GuiComponent *component) {
+    if (childIndices.empty()) {
+        children.push_back(component);
+        return;
+    }
+
+    int index = childIndices.front();
+    childIndices.pop();
+    children.at(index)->addComponent(childIndices, component);
+}
+
+void Gui::GuiComponent::removeComponent(std::queue<int> childIndices) {
+    if (childIndices.empty()) {
+        // ...and we have this line of code
+        delete this;
+        return;
+    }
+
+    int index = childIndices.front();
+    childIndices.pop();
+    children.at(index)->removeComponent(childIndices);
 }

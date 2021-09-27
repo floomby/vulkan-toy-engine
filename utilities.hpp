@@ -66,6 +66,13 @@ public:
             return attributeDescriptions;
         }
     };
+
+    // used for lighting and probably other things in the future
+    struct ViewProjPos {
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::vec3 pos;
+    };
 protected:
     static std::vector<char> readFile(const std::string& filename);
 };

@@ -93,6 +93,5 @@ Next steps
  there is a bug with resizing again
  hitboxes
  cursors (after hitboxes)
- lighting in the fragment shader is wrong I think
  get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
 */

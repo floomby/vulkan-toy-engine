@@ -75,9 +75,10 @@ private:
     struct PushConstants {
         glm::mat4 view;
         glm::mat4 projection;
-        glm::vec3 lightPosition;
         glm::uint32_t textureIndex;
     } pushConstants;
+
+    ViewProjPos lightingData;
 
     Gui *gui;
 
@@ -260,10 +261,13 @@ private:
 
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VmaAllocation> uniformBufferAllocations;
+    std::vector<VkBuffer> lightingBuffers;
+    std::vector<VmaAllocation> lightingBufferAllocations;
     size_t uniformSkip;
     void allocateUniformBuffers(size_t instanceCount);
     void reallocateUniformBuffers(size_t instanceCount);
     void destroyUniformBuffers();
+    void updateLightingDescriptors(int index, const ViewProjPos& data);
 
     VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> hudDescriptorSets;
@@ -277,7 +281,7 @@ private:
     void allocateCommandBuffers();
 
     void recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
-        const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer);
+        const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index);
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -291,7 +295,7 @@ private:
 
     void handleInput();
 
-    void updateScene();
+    void updateScene(int index);
 
     Scene *currentScene;
     void loadDefaultScene();
@@ -310,6 +314,8 @@ private:
         glm::vec3 lightPos;
     };
 
+    const char *shadowMapFile = "shadow_map.png";
+
     struct {
         const uint32_t width = 2048, height = 2048;
         VkRenderPass renderPass;
@@ -322,12 +328,25 @@ private:
         std::vector<VkFramebuffer> framebuffers;
         ShadowPushConstansts constants;
         VkDescriptorSetLayout descriptorLayout;
-        int index, size;
+        VkDescriptorPool descriptorPool;
+        std::vector<VkDescriptorSet> descriptorSets;
+        VkBuffer debugBuffer;
+        VmaAllocation debugAllocation;
+        VmaAllocationInfo debugAllocInfo;
+        int size;
+        bool debugging;
+        bool makeSnapshot;
+        bool debugWritePending;
+        std::string filename;
     } shadow;
 
-    void createShadowResources(size_t concurrentFrames);
+    void createShadowResources(size_t concurrentFrames, bool createDebugging);
     void destroyShadowResources();
-    void runShadowPass(const VkCommandBuffer& commandBuffer);
+    void createShadowDescriptorSets();
+    void runShadowPass(const VkCommandBuffer& buffer, int index);
+    // for debugging
+    void writeShadowBufferToFile(const VkCommandBuffer& buffer, int index, const char *filename);
+    void doShadowDebugWrite();
 };
 
 class Scene {

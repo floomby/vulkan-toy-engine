@@ -2,7 +2,11 @@
 
 #include "utilities.hpp"
 
+#include <boost/lockfree/spsc_queue.hpp>
+#include <chrono>
 #include <mutex>
+#include <thread>
+#include <queue>
 
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
@@ -43,18 +47,15 @@ struct GuiPushConstant {
     glm::vec2 dragBox[2];
 };
 
-class GuiComponent {
+class GuiCommandData {
 public:
-    std::vector<GuiComponent *> children;
-    GuiComponent *parent;
-    size_t vertexCount();
-    void appendVerticies(std::back_insert_iterator<std::vector<GuiVertex>> vertexIterator);
-    void signalDirty();
+
 };
 
 class Gui {
 public:
     Gui();
+    ~Gui();
 
     // These should be automatically deleted, but I want to be sure
     Gui(const Gui& other) = delete;
@@ -77,6 +78,45 @@ public:
     void lockPushConstant();
     void unlockPushConstant();
 private:
+    class GuiComponent {
+    public:
+        GuiComponent(bool layoutOnly, std::pair<float, float> c0, std::pair<float, float> c1);
+        ~GuiComponent();
+        GuiComponent(const GuiComponent& other) = delete;
+        GuiComponent(GuiComponent&& other) noexcept = delete;
+        GuiComponent& operator=(const GuiComponent& other) = delete;
+        GuiComponent& operator=(GuiComponent&& other) noexcept = delete;
+
+        std::vector<GuiComponent *> children;
+        GuiComponent *parent;
+        size_t vertexCount();
+        void appendVerticies(std::back_insert_iterator<std::vector<GuiVertex>> vertexIterator);
+        void signalDirty();
+        bool layoutOnly;
+
+        // indices to parent
+        void addComponent(std::queue<int> childIdices, GuiComponent *component);
+        // indices to child
+        void removeComponent(std::queue<int> childIndices);
+    };
+
+
+    GuiComponent *root;
+
+    enum GuiAction {
+        GUI_ADD,
+        GUI_REMOVE,
+        GUI_TERMINATE
+    };
+
+    struct GuiCommand {
+        GuiAction action;
+        GuiCommandData *data;
+    };
+
+    std::thread guiThread;
+    boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
+
     std::mutex constantMutex;
     GuiPushConstant _pushConstant;
     std::mutex dataMutex;
@@ -85,6 +125,9 @@ private:
 
     void rebuildBuffer();
 
+    void pollChanges();
+
+    static constexpr auto pollInterval = std::chrono::milliseconds(5);
     // This matches with a value in the hud vertex shader
     static constexpr float layerZOffset = 0.001f;
 };

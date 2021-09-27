@@ -6,6 +6,9 @@
 #define VMA_IMPLEMENTATION
 #include "libs/vk_mem_alloc.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "libs/stb_image_write.h"
+
 #include "engine.hpp"
 #include "entity.hpp"
 
@@ -156,7 +159,7 @@ void Engine::initWidow()
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    window = glfwCreateWindow(engineSettings.width, engineSettings.height, "Vulkan", nullptr, nullptr);
+    window = glfwCreateWindow(engineSettings.width, engineSettings.height, "Vulkan Toy", nullptr, nullptr);
     framebufferSize.width = engineSettings.width;
     framebufferSize.height = engineSettings.height;
     glfwSetWindowUserPointer(window, this);
@@ -779,19 +782,33 @@ void Engine::createRenderPass() {
 void Engine::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding {};
     uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     uboLayoutBinding.descriptorCount = 1;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     uboLayoutBinding.pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding {};
     samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 2;
+    samplerLayoutBinding.descriptorCount = 3;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+    VkDescriptorSetLayoutBinding shadowMapBinding {};
+    shadowMapBinding.binding = 2;
+    shadowMapBinding.descriptorCount = 1;
+    shadowMapBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadowMapBinding.pImmutableSamplers = nullptr;
+    shadowMapBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding lightingBinding {};
+    lightingBinding.binding = 3;
+    lightingBinding.descriptorCount = 1;
+    lightingBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    lightingBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    lightingBinding.pImmutableSamplers = nullptr;
+
+    std::array<VkDescriptorSetLayoutBinding, 4> bindings = { uboLayoutBinding, samplerLayoutBinding, shadowMapBinding, lightingBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = bindings.size();
@@ -1027,6 +1044,7 @@ void Engine::createGraphicsPipelines() {
     // This way I don't have to worry about which is the front side of the triangles for the hud, we wouldnt want anything culled anyways
     rasterizer.cullMode = VK_CULL_MODE_NONE;
 
+    // I am going to use this soon for drawing pathing lines and stuff in the world
     // VkDynamicState dynamicStates[] = {
     //     VK_DYNAMIC_STATE_LINE_WIDTH
     // };
@@ -1453,7 +1471,8 @@ void Engine::initVulkan() {
     createGraphicsPipelines();
     createCommandPools();
 
-    createShadowResources(concurrentFrames);
+    // this needs to match the size of the swapchain rather than the command buffer actually
+    createShadowResources(concurrentFrames, true);
 
     createDepthResources();
     createFramebuffers();
@@ -1552,12 +1571,7 @@ void Engine::handleInput() {
             keysPressed[keyEvent.key] = true;
 
             if (keyEvent.key == GLFW_KEY_T) {
-                // currentScene->addInstance(0, glm::mat4({
-                //     { .5, 0, 0, 0 },
-                //     { 0, .5, 0, 0 },
-                //     { 0, 0, .5, 0 },
-                //     { 0, 0, 0, .5 }
-                // }));
+                shadow.makeSnapshot = true;
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
@@ -1634,7 +1648,7 @@ void Engine::handleInput() {
                 float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
                 auto intersection = cammera.position + mouseRay * dist;
 
-                currentScene->addInstance(1, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
+                currentScene->addInstance(2, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
             }
         }
     }
@@ -1706,7 +1720,7 @@ void Engine::handleInput() {
 }
 
 // Here is the big graphics update function
-void Engine::updateScene() {
+void Engine::updateScene(int index) {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1717,7 +1731,16 @@ void Engine::updateScene() {
     // I think we can just leave the fov the same
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
-    pushConstants.lightPosition = { 0.0f, 0.0f, 5.0f };
+
+    lightingData.pos = { 0.0f, 5.0f, 0.0f };
+    lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), { 0.0f, 0.0f, 1.0f });
+    lightingData.proj = glm::perspective(glm::radians(180.0f), 1.0f, 0.1f, 40.0f);
+
+    shadow.constants.lightPos = lightingData.pos;
+    shadow.constants.view = lightingData.view;
+    shadow.constants.projection = lightingData.proj;
+
+    updateLightingDescriptors(index, lightingData);
 }
 
 // TODO The synchornization code is pretty much nonsence, it works but is bad
@@ -1737,10 +1760,12 @@ void Engine::drawFrame() {
         hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
     }
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+    // This relies on the fence to stay synchronized
+    doShadowDebugWrite();
     // Wait for the previous fence
     recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], mainPass.descriptorSets[currentFrame],
-        hudDescriptorSets[currentFrame], hudBuffer);
-    updateScene();
+        hudDescriptorSets[currentFrame], hudBuffer, currentFrame);
+    updateScene(currentFrame);
     // update the next frames uniforms
     currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % uniformBuffers.size()]->GetMappedData(), uniformSkip);
 
@@ -1790,10 +1815,13 @@ void Engine::drawFrame() {
 }
 
 void Engine::allocateUniformBuffers(size_t instanceCount) {
-    uniformBuffers.resize(concurrentFrames);
-    uniformBufferAllocations.resize(concurrentFrames);
+    uniformBuffers.resize(swapChainImages.size());
+    uniformBufferAllocations.resize(swapChainImages.size());
     uniformSkip = sizeof(UniformBufferObject) / minUniformBufferOffsetAlignment + 
         (sizeof(UniformBufferObject) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
+
+    lightingBuffers.resize(swapChainImages.size());
+    lightingBufferAllocations.resize(swapChainImages.size());    
 
     for (int i = 0; i < uniformBuffers.size(); i++) {
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -1804,8 +1832,17 @@ void Engine::allocateUniformBuffers(size_t instanceCount) {
         bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) !=VK_SUCCESS)
+        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to allocate memory for uniform buffers.");
+        
+        bufferInfo.size = sizeof(ViewProjPos);
+        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, &lightingBuffers[i], &lightingBufferAllocations[i], nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for uniform lighting buffers.");
     }
 }
 
@@ -1815,8 +1852,10 @@ void Engine::reallocateUniformBuffers(size_t instanceCount) {
 }
 
 void Engine::destroyUniformBuffers() {
-    for (int i = 0; i < uniformBuffers.size(); i++)
+    for (int i = 0; i < uniformBuffers.size(); i++) {
         vmaDestroyBuffer(memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+        vmaDestroyBuffer(memoryAllocator, lightingBuffers[i], lightingBufferAllocations[i]);
+    }
 }
 
 void Engine::runCurrentScene() {
@@ -1841,6 +1880,7 @@ void Engine::runCurrentScene() {
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
     hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+    updateScene(0);
     vkDeviceWaitIdle(device);
 
     while (!glfwWindowShouldClose(window)) {
@@ -1855,10 +1895,14 @@ void Engine::runCurrentScene() {
 void Engine::loadDefaultScene() {
     //currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
-    currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}, {"models/viking_room.obj", "textures/viking_room.png"}}, 50);
+    currentScene = new Scene(this, {
+        {"models/spaceship.obj", "textures/spaceship.png"},
+        {"models/viking_room.obj", "textures/viking_room.png"},
+        {"models/sphere.obj", "textures/sphere.png"}
+    }, 50);
     currentScene->makeBuffers();
-    currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
 }
 
@@ -1926,12 +1970,17 @@ void Engine::loadDefaultScene() {
 //     descriptorDirty[index] = false;
 // }
 
+// TODO this function has a crappy name that confuses me
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
-    std::array<VkDescriptorPoolSize, 2> poolSizes {};
+    std::array<VkDescriptorPoolSize, 4> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = swapChainImages.size();
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 2 * swapChainImages.size();
+    poolSizes[1].descriptorCount = 3 * swapChainImages.size();
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[2].descriptorCount = swapChainImages.size();
+    poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[3].descriptorCount = swapChainImages.size();
 
     std::array<VkDescriptorPoolSize, 2> hudPoolSizes;
     hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -1982,7 +2031,12 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         // It does save updating the descriptor set though, which means it could be faster this way (this would be my guess)
         bufferInfo.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites {};
+        VkDescriptorBufferInfo lightingBufferInfo {};
+        lightingBufferInfo.buffer = lightingBuffers[i];
+        lightingBufferInfo.offset = 0;
+        lightingBufferInfo.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 4> descriptorWrites {};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
@@ -2002,10 +2056,32 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet = mainPass.descriptorSets[i];
         descriptorWrites[1].dstBinding = 1;
+        // Hmm, can we use this for arraying our textures in a smarter way?
         descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[1].descriptorCount = imageInfos.size();
         descriptorWrites[1].pImageInfo = imageInfos.data();
+
+        VkDescriptorImageInfo shadowImageInfo = {};
+        shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        shadowImageInfo.imageView = shadow.imageViews[i];
+        shadowImageInfo.sampler = shadow.samplers[i];
+
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pImageInfo = &shadowImageInfo;
+
+        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[3].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[3].dstBinding = 3;
+        descriptorWrites[3].dstArrayElement = 0;
+        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[3].descriptorCount = 1;
+        descriptorWrites[3].pBufferInfo = &lightingBufferInfo;
 
         vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
@@ -2025,6 +2101,12 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
 
         vkUpdateDescriptorSets(device, 1, &hudWrite, 0, nullptr);
     }
+
+    createShadowDescriptorSets();
+}
+
+void Engine::updateLightingDescriptors(int index, const ViewProjPos& data) {
+    memcpy(lightingBufferAllocations[index]->GetMappedData(), &data, sizeof(ViewProjPos));
 }
 
 void Engine::allocateCommandBuffers() {
@@ -2052,7 +2134,7 @@ void Engine::allocateCommandBuffers() {
 }
 
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
-    const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer) {
+    const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
@@ -2076,6 +2158,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     renderPassInfo.clearValueCount = clearValues.size();
     renderPassInfo.pClearValues = clearValues.data();
 
+    runShadowPass(buffer, index);
+
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[0]);
@@ -2086,6 +2170,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+    // THERE IS ALMOST IDENTICAL CODE TO THIS IN THE SHADOW RENDER PASS THAT NEEDS TO BE CHANGED ALSO (TODO fix this bad design)
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->currentUsed; j++) {
         uint32_t dynamicOffset = j * uniformSkip;
@@ -2113,6 +2198,12 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdDraw(buffer, hudVertexCount, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
+
+    if (shadow.makeSnapshot && shadow.debugging) {
+        writeShadowBufferToFile(buffer, index, shadowMapFile);
+        shadow.makeSnapshot = false;
+    }
+
     vulkanErrorGuard(vkEndCommandBuffer(buffer), "Failed to record command buffer.");
 }
 
@@ -2232,10 +2323,12 @@ Engine::~Engine() {
     cleanup();
 }
 
-void Engine::createShadowResources(size_t concurrentFrames) {
-    shadow.index = 0;
+void Engine::createShadowResources(size_t concurrentFrames, bool createDebugging) {
     shadow.size = concurrentFrames;
     auto depthFormat = findDepthFormat();
+    shadow.debugging = createDebugging;
+    shadow.makeSnapshot = false;
+    shadow.debugWritePending = false;
 
     VkAttachmentDescription attachmentDescription {};
     attachmentDescription.format = depthFormat;
@@ -2245,7 +2338,7 @@ void Engine::createShadowResources(size_t concurrentFrames) {
     attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentReference depthReference = {};
     depthReference.attachment = 0;
@@ -2257,7 +2350,7 @@ void Engine::createShadowResources(size_t concurrentFrames) {
     subpass.pDepthStencilAttachment = &depthReference;
 
     // Use subpass dependencies for layout transitions
-    std::array<VkSubpassDependency, 2> dependencies;
+    std::array<VkSubpassDependency, 1> dependencies;
 
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
@@ -2266,14 +2359,6 @@ void Engine::createShadowResources(size_t concurrentFrames) {
     dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
-    dependencies[1].srcSubpass = 0;
-    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     VkRenderPassCreateInfo renderPassCreateInfo = {};
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -2339,7 +2424,7 @@ void Engine::createShadowResources(size_t concurrentFrames) {
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f;
@@ -2425,8 +2510,8 @@ void Engine::createShadowResources(size_t concurrentFrames) {
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = nullptr;
 
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.layout = shadow.pipelineLayout;
+    pipelineInfo.renderPass = shadow.renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     pipelineInfo.basePipelineIndex = -1;
@@ -2457,7 +2542,7 @@ void Engine::createShadowResources(size_t concurrentFrames) {
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.format = depthFormat;
-        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
         VmaAllocationCreateInfo imageAllocCreateInfo = {};
         imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -2507,6 +2592,24 @@ void Engine::createShadowResources(size_t concurrentFrames) {
 
         vulkanErrorGuard(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &shadow.framebuffers[i]), "Unable to create shadow framebuffer.");
     }
+
+    if (shadow.debugging) {
+        // TODO This code assumes that we are only using VK_FORMAT_D32_SFLOAT for the depth format
+
+        VkBufferCreateInfo debuggingBufferInfo = {};
+        debuggingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        debuggingBufferInfo.size = shadow.width * shadow.height * 4;
+        debuggingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo debuggingAllocationInfo = {};
+        debuggingAllocationInfo.usage = VMA_MEMORY_USAGE_GPU_TO_CPU;
+        debuggingAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaAllocationInfo debuggingBufferAl = {};
+
+        if (vmaCreateBuffer(memoryAllocator, &debuggingBufferInfo, &debuggingAllocationInfo, &shadow.debugBuffer, &shadow.debugAllocation, &shadow.debugAllocInfo) != VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for shadow debug buffer.");
+    }
 }
 
 void Engine::destroyShadowResources() {
@@ -2522,8 +2625,159 @@ void Engine::destroyShadowResources() {
     }
 }
 
-void Engine::runShadowPass(const VkCommandBuffer& commandBuffer) {
+void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, int index, const char *filename) {
+    assert(!shadow.debugWritePending);
 
+    // TODO Solve the transitioning
+    VkImageMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = shadow.images[index];
+
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    // not sure about src mask ????
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    // I do know that the dst access mask is right
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+    // also no clue about stage masks??? I am continually confused by these things
+    vkCmdPipelineBarrier(
+        buffer,
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+
+    VkBufferImageCopy region = {};
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    region.imageSubresource.layerCount = 1;
+    region.imageExtent.width = shadow.width;
+    region.imageExtent.height = shadow.height;
+    region.imageExtent.depth = 1;
+
+    vkCmdCopyImageToBuffer(buffer, shadow.images[index], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shadow.debugBuffer, 1, &region);
+
+    shadow.debugWritePending = true;
+    shadow.filename = std::string(filename);
+}
+
+static int histogram[256];
+
+void Engine::doShadowDebugWrite() {
+    memset(histogram, 0, 256);
+
+    if (!shadow.debugWritePending) return;
+
+    // idk about single channle png images?
+    unsigned char *buf = new unsigned char[shadow.width * shadow.height];
+    float *data = static_cast<float *>(shadow.debugAllocation->GetMappedData());
+
+    for (int y = 0; y < shadow.height; y++) {
+        for (int x = 0; x < shadow.width; x++) {
+            unsigned char value = static_cast<unsigned char>(data[y * shadow.width + x] * 255.0f);
+            buf[y * shadow.width + x] = value;
+            histogram[value] += 1;
+        }
+    }
+
+    stbi_write_png(shadow.filename.c_str(), shadow.width, shadow.height, 1, buf, shadow.width);
+
+    delete buf;
+
+    shadow.debugWritePending = false;
+}
+
+void Engine::createShadowDescriptorSets() {
+    std::array<VkDescriptorPoolSize, 1> poolSizes {};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    poolSizes[0].descriptorCount = shadow.size;
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = poolSizes.size();
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = shadow.size;
+
+    vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &shadow.descriptorPool), "Failed to create descriptor pool.");
+
+    std::vector<VkDescriptorSetLayout> layouts(shadow.size, shadow.descriptorLayout);
+    VkDescriptorSetAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = shadow.descriptorPool;
+    allocInfo.descriptorSetCount = shadow.size;
+    allocInfo.pSetLayouts = layouts.data();
+
+    shadow.descriptorSets.resize(shadow.size);
+
+    vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, shadow.descriptorSets.data()), "Failed to allocate descriptor sets.");
+
+    for (size_t i = 0; i < shadow.size; i++) {
+        VkDescriptorBufferInfo bufferInfo {};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
+
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = shadow.descriptorSets[i];
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+        vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+    }
+}
+
+void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
+    VkRenderPassBeginInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = shadow.renderPass;
+    renderPassInfo.framebuffer = shadow.framebuffers[index];
+
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = { shadow.width, shadow.height };
+
+    std::array<VkClearValue, 1> clearValues = {};
+    clearValues[0].depthStencil = { 1.0f, 0 };
+
+    renderPassInfo.clearValueCount = clearValues.size();
+    renderPassInfo.pClearValues = clearValues.data();
+
+    vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipeline);
+
+    VkBuffer vertexBuffers[] = { vertexBuffer };
+    VkDeviceSize offsets[] = { 0 };
+
+    vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    // This loop indexing will change once the instance allocator changes
+    for(int j = 0; j < currentScene->currentUsed; j++) {
+        uint32_t dynamicOffset = j * uniformSkip;
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
+        pushConstants.textureIndex = (currentScene->instances + j)->entityIndex;
+        vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
+        // TODO we can bundle draw commands the entities are the same (this includes the textures)
+        vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->instances + j)->sceneModelInfo->indexOffset, 0, 0);
+    }
+
+    vkCmdEndRenderPass(buffer);
 }
 
 // Just check for linear filtering support
