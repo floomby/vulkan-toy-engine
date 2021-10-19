@@ -1587,6 +1587,7 @@ void Engine::initVulkan() {
     createCommandPools();
 
     // this needs to match the size of the swapchain rather than the command buffer actually
+    // Lets try using the same descriptor layout as the main render pass to make the code more simple
     createShadowResources(true);
 
     createDepthResources();
@@ -1792,7 +1793,7 @@ void Engine::handleInput() {
         cammera.target += fowarding / 600.0f;
     }
 
-    // Panning needs to take into account zooming
+    // Panning needs to take into account zooming, zoom to currsor should be the way it works, and I think the cammera should be allowed below the world z = 0 plane
     if (mouseAction == MOUSE_PANNING) {
         cammera.position -= strafing * 4.0f * deltaX;
         cammera.target -= strafing * 4.0f * deltaX;
@@ -1803,7 +1804,7 @@ void Engine::handleInput() {
             auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, strafing);
             auto mouseTiltMatrix = glm::toMat3(mouseTilt);
             auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
-            if ((newPosition.z - cammera.target.z) > cammera.gimbleStop && (newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
+            if (/*(newPosition.z - cammera.target.z) > cammera.gimbleStop && */(newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
                 (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
                     cammera.position = newPosition;
             }
@@ -1854,9 +1855,10 @@ void Engine::updateScene(int index) {
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
 
-    lightingData.pos = { 0.0f, 5.0f, 0.0f };
-    lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), { 0.0f, 0.0f, 1.0f });
-    lightingData.proj = glm::perspective(glm::radians(180.0f), 1.0f, 0.1f, 40.0f);
+    lightingData.nearFar = { 0.7f, 13.0f };
+    lightingData.pos = { 0.0f, 10.0f, 0.0f };
+    lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    lightingData.proj = glm::perspective(glm::radians(90.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
     lightingData.proj[1][1] *= -1;
 
     shadow.constants.lightPos = lightingData.pos;
@@ -1970,7 +1972,7 @@ void Engine::allocateUniformBuffers(size_t instanceCount) {
         if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to allocate memory for uniform buffers.");
         
-        bufferInfo.size = sizeof(ViewProjPos);
+        bufferInfo.size = sizeof(ViewProjPosNearFar);
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
         bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
@@ -2240,8 +2242,8 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     createShadowDescriptorSets();
 }
 
-void Engine::updateLightingDescriptors(int index, const ViewProjPos& data) {
-    memcpy(lightingBufferAllocations[index]->GetMappedData(), &data, sizeof(ViewProjPos));
+void Engine::updateLightingDescriptors(int index, const ViewProjPosNearFar& data) {
+    memcpy(lightingBufferAllocations[index]->GetMappedData(), &data, sizeof(ViewProjPosNearFar));
 }
 
 void Engine::allocateCommandBuffers() {
@@ -2477,6 +2479,7 @@ void Engine::createShadowResources(bool createDebugging) {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 0;
     subpass.pDepthStencilAttachment = &depthReference;
+    subpass.pResolveAttachments = nullptr;
 
     // Use subpass dependencies for layout transitions
     std::array<VkSubpassDependency, 1> dependencies;
@@ -2549,17 +2552,16 @@ void Engine::createShadowResources(bool createDebugging) {
 
     VkPipelineRasterizationStateCreateInfo rasterizer {};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasEnable = VK_TRUE;
-    // magic values from a sample
-    rasterizer.depthBiasConstantFactor = 1.25f;
+    rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.depthBiasClamp = 0.0f;
-    rasterizer.depthBiasSlopeFactor = 1.75f;
+    rasterizer.depthBiasEnable = VK_TRUE;
+    // rasterizer.depthBiasConstantFactor = 9.25f;
+    // rasterizer.depthBiasSlopeFactor = 3.75f;
 
     VkPipelineMultisampleStateCreateInfo multisampling {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -2620,12 +2622,12 @@ void Engine::createShadowResources(bool createDebugging) {
     depthStencil.front = {};
     depthStencil.back = {};
 
-    // std::array<VkDynamicState, 3> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS };
-    // VkPipelineDynamicStateCreateInfo dynamicStates = {};
-    // dynamicStates.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    // dynamicStates.dynamicStateCount = dynamicStateEnables.size();
-    // dynamicStates.pDynamicStates = dynamicStateEnables.data();
-    // dynamicStates.flags = 0;
+    std::array<VkDynamicState, 1> dynamicStateEnables = { VK_DYNAMIC_STATE_DEPTH_BIAS };
+    VkPipelineDynamicStateCreateInfo dynamicStates = {};
+    dynamicStates.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicStates.dynamicStateCount = dynamicStateEnables.size();
+    dynamicStates.pDynamicStates = dynamicStateEnables.data();
+    dynamicStates.flags = 0;
 
     VkGraphicsPipelineCreateInfo pipelineInfo {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -2638,7 +2640,7 @@ void Engine::createShadowResources(bool createDebugging) {
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = nullptr;
+    pipelineInfo.pDynamicState = &dynamicStates;
 
     pipelineInfo.layout = shadow.pipelineLayout;
     pipelineInfo.renderPass = shadow.renderPass;
@@ -2652,12 +2654,6 @@ void Engine::createShadowResources(bool createDebugging) {
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
 
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
-
-    // shadow.imageViews.resize(shadow.size);
-    // shadow.images.resize(shadow.size);
-    // shadow.allocations.resize(shadow.size);
-    // shadow.samplers.resize(shadow.size);
-    // shadow.framebuffers.resize(shadow.size);
 
     // For shadow mapping we only need a depth attachment
     VkImageCreateInfo imageInfo {};
@@ -2700,15 +2696,17 @@ void Engine::createShadowResources(bool createDebugging) {
     sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler.magFilter = shadowmapFilter;
     sampler.minFilter = shadowmapFilter;
-    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.addressModeV = sampler.addressModeU;
-    sampler.addressModeW = sampler.addressModeU;
-    sampler.mipLodBias = 0.0f;
+    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler.unnormalizedCoordinates = false;
+    sampler.anisotropyEnable = false;
     sampler.maxAnisotropy = 1.0f;
+    sampler.mipLodBias = 0.0f;
     sampler.minLod = 0.0f;
-    sampler.maxLod = 1.0f;
-    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    sampler.maxLod = 100.0f;
+    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
     vulkanErrorGuard(vkCreateSampler(device, &sampler, nullptr, &shadow.sampler), "Unable to create shadow sampler.");
 
     // Create frame buffer
@@ -2756,7 +2754,6 @@ void Engine::destroyShadowResources() {
 void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename) {
     assert(!shadow.debugWritePending);
 
-    // TODO Solve the transitioning
     VkImageMemoryBarrier barrier {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2799,14 +2796,12 @@ void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *
     shadow.debugWritePending = true;
     shadow.filename = std::string(filename);
 
-    // TODO Solve the transitioning
     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
     barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-    // also no clue about stage masks??? I am continually confused by these things
     vkCmdPipelineBarrier(
         buffer,
         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -2818,6 +2813,7 @@ void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *
     );
 }
 
+// This can go away, but for right now it is convinient for checking things
 static int histogram[256];
 
 void Engine::doShadowDebugWrite() {
@@ -2902,6 +2898,8 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdSetDepthBias(buffer, 2.0f, 0.0f, 8.5f);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipeline);
 

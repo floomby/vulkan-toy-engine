@@ -40,17 +40,20 @@ vec4 vectorMap(vec4 value, float min1, float max1, float min2, float max2) {
 }
 
 float getShadow(vec3 ndc) {
+    // outside the device viewing region
     if (abs(ndc.x) > 1.0 ||
         abs(ndc.y) > 1.0 ||
         abs(ndc.z) > 1.0) return 0.0;
     
-    // Translate from NDC to shadow map space (Vulkan's Z is already in [0..1])
+    // Translate from normed device coords to shadow map space (z is already in [0..1])
     vec2 shadow_map_coord = ndc.xy * 0.5 + 0.5;
  
-    // Check if the sample is in the light or in the shadow
-    if (ndc.z > texture(shadowMap, shadow_map_coord.xy).x)
-        return 0.0; // In the shadow
- 
+    // return texture(shadowMap, shadow_map_coord.xy).x;
+
+    // I am having trouble with the depth bias
+    if (ndc.z > texture(shadowMap, shadow_map_coord.xy).x * 2)
+         return 0.0;
+
     // In the light
     return 1.0;
 }
@@ -108,5 +111,7 @@ void main() {
         outColor = vectorMap(outColor, 0.0, 1.0, 0.2, 1.0);
     }
 
-    outColor = outColor * getShadow(shadowCoord);
+    // float zVal = getShadow(shadowCoord);
+    // outColor = vec4(zVal, zVal, zVal, 1.0);
+    outColor = outColor * (getShadow(shadowCoord) * 0.9 + 0.1) ;
 }

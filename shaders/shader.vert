@@ -6,10 +6,11 @@ layout(binding = 0) uniform UniformBufferObject {
     float highlight;
 } ubo;
 
-layout(binding = 3) uniform ViewProjPos {
+layout(binding = 3) uniform ViewProjPosNearFar {
     mat4 view;
     mat4 proj;
     vec3 pos;
+    vec2 nearFar;
 } lighting;
 
 layout(location = 0) in vec3 inPosition;
@@ -31,13 +32,16 @@ layout( push_constant ) uniform constants {
 } pushConstants;
 
 void main() {
-    vec4 vertPos4 = pushConstants.view * ubo.model * vec4(inPosition, 1.0);
+    vec4 worldPos = ubo.model * vec4(inPosition, 1.0);
+    vec4 vertPos4 = pushConstants.view * worldPos;
     gl_Position = pushConstants.projection * vertPos4;
     vertPos = vec3(vertPos4) / vertPos4.w;
     normalInterp = vec3(ubo.normal * vec4(vertNormal, 0.0));
-    fragColor = inColor;
     fragTexCoord = inTexCoord;
     highlight = ubo.highlight;
-    vec4 lightingSpace = lighting.proj * lighting.view * vec4(inPosition, 1.0);
-    shadowCoord = (lightingSpace.xyz / lightingSpace.z);
+    // Leave this in for now for debugging stuff if we want
+    fragColor = inColor;
+
+    vec4 inLightingSpace = lighting.proj * lighting.view * worldPos;
+    shadowCoord = inLightingSpace.xyz / inLightingSpace.w;
 }

@@ -12,8 +12,8 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 vertNormal;
 
 layout( push_constant ) uniform constants {
-    mat4 view;
     mat4 projection;
+    mat4 view;
     vec3 lightPosition;
 } pushConstants;
 

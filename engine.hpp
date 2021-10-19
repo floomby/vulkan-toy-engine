@@ -78,7 +78,7 @@ private:
         glm::uint32_t textureIndex;
     } pushConstants;
 
-    ViewProjPos lightingData;
+    ViewProjPosNearFar lightingData;
 
     Gui *gui;
 
@@ -267,7 +267,7 @@ private:
     void allocateUniformBuffers(size_t instanceCount);
     void reallocateUniformBuffers(size_t instanceCount);
     void destroyUniformBuffers();
-    void updateLightingDescriptors(int index, const ViewProjPos& data);
+    void updateLightingDescriptors(int index, const ViewProjPosNearFar& data);
 
     VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> hudDescriptorSets;
