@@ -283,6 +283,16 @@ private:
     void recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
         const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index);
 
+    struct {
+        bool makeDump;
+        bool writePending;
+        VkBuffer buffer;
+        VmaAllocation allocation;
+        VmaAllocationInfo allocationInfo;
+    } depthDump;
+    void dumpDepthBuffer(const VkCommandBuffer& buffer, int index);
+    std::array<int, 256>& logDepthBufferToFile(std::array<int, 256>& depthHistogram, const char *filename);
+
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
@@ -321,11 +331,11 @@ private:
         VkRenderPass renderPass;
         VkPipelineLayout pipelineLayout;
         VkPipeline pipeline;
-        std::vector<VkImageView> imageViews;
-        std::vector<VkImage> images;
-        std::vector<VmaAllocation> allocations;
-        std::vector<VkSampler> samplers;
-        std::vector<VkFramebuffer> framebuffers;
+        VkImageView imageView;
+        VkImage image;
+        VmaAllocation allocation;
+        VkSampler sampler;
+        VkFramebuffer framebuffer;
         ShadowPushConstansts constants;
         VkDescriptorSetLayout descriptorLayout;
         VkDescriptorPool descriptorPool;
@@ -333,19 +343,18 @@ private:
         VkBuffer debugBuffer;
         VmaAllocation debugAllocation;
         VmaAllocationInfo debugAllocInfo;
-        int size;
         bool debugging;
         bool makeSnapshot;
         bool debugWritePending;
         std::string filename;
     } shadow;
 
-    void createShadowResources(size_t concurrentFrames, bool createDebugging);
+    void createShadowResources(bool createDebugging);
     void destroyShadowResources();
     void createShadowDescriptorSets();
     void runShadowPass(const VkCommandBuffer& buffer, int index);
     // for debugging
-    void writeShadowBufferToFile(const VkCommandBuffer& buffer, int index, const char *filename);
+    void writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename);
     void doShadowDebugWrite();
 };
 
