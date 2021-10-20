@@ -81,7 +81,6 @@ Next steps
  lt - emmisivity maps
  makefile build faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
  gui
-  threading (think how to tell the gui object to do things)
   fonts -  I will be uising a library of some sort for this (idk how I want to go about this yet)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  pcf filtering for shadows

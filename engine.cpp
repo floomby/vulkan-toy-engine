@@ -815,9 +815,14 @@ void Engine::createDescriptorSetLayout() {
     lightingBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     lightingBinding.pImmutableSamplers = nullptr;
 
+    VkDescriptorSetLayoutBinding skyboxSamplerBinding {};
+    skyboxSamplerBinding.binding = 4;
+    skyboxSamplerBinding.descriptorCount = 1;
+    skyboxSamplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    skyboxSamplerBinding.pImmutableSamplers = nullptr;
+    skyboxSamplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-
-    std::array<VkDescriptorSetLayoutBinding, 4> bindings = { uboLayoutBinding, samplerLayoutBinding, shadowMapBinding, lightingBinding };
+    std::array<VkDescriptorSetLayoutBinding, 5> bindings = { uboLayoutBinding, samplerLayoutBinding, shadowMapBinding, lightingBinding, skyboxSamplerBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = bindings.size();
@@ -1871,11 +1876,11 @@ void Engine::updateScene(int index) {
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    // pushConstants.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
-    // I think we can just leave the fov the same
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
+    // TODO I should just store this in the camera struct since I need it here and in the input handling
+    pushConstants.normedPointing = normalize(cammera.position - cammera.target);
 
     lightingData.nearFar = { 0.7f, 13.0f };
     lightingData.pos = { 0.0f, 10.0f, 0.0f };
@@ -1886,11 +1891,6 @@ void Engine::updateScene(int index) {
     shadow.constants.lightPos = lightingData.pos;
     shadow.constants.view = lightingData.view;
     shadow.constants.projection = lightingData.proj;
-
-    // shadow.constants.lightPos = cammera.position;
-    // shadow.constants.projection = glm::perspective(glm::radians(45.0f), 1.0f, cammera.minClip, cammera.maxClip);
-    // shadow.constants.projection[1][1] *= -1;
-    // shadow.constants.view = pushConstants.view;
 
     updateLightingDescriptors(index, lightingData);
 }
@@ -2133,7 +2133,7 @@ void Engine::loadDefaultScene() {
 
 // TODO this function has a crappy name that confuses me
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
-    std::array<VkDescriptorPoolSize, 4> poolSizes {};
+    std::array<VkDescriptorPoolSize, 5> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = swapChainImages.size();
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -2142,6 +2142,8 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
     poolSizes[2].descriptorCount = swapChainImages.size();
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[3].descriptorCount = swapChainImages.size();
+    poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[4].descriptorCount = swapChainImages.size();
 
     std::array<VkDescriptorPoolSize, 2> hudPoolSizes;
     hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -2197,7 +2199,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         lightingBufferInfo.offset = 0;
         lightingBufferInfo.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 4> descriptorWrites {};
+        std::array<VkWriteDescriptorSet, 5> descriptorWrites {};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
@@ -2243,6 +2245,19 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
         descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[3].descriptorCount = 1;
         descriptorWrites[3].pBufferInfo = &lightingBufferInfo;
+
+        VkDescriptorImageInfo skyboxInfo;
+        skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        skyboxInfo.imageView = currentScene->skybox.textureImageView;
+        skyboxInfo.sampler = currentScene->skybox.textureSampler;
+
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[4].dstBinding = 4;
+        descriptorWrites[4].dstArrayElement = 0;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pImageInfo = &skyboxInfo;
 
         vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 
@@ -2328,6 +2343,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    pushConstants.renderType = 1;
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->instances.size(); j++) {
@@ -3357,13 +3374,13 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
         throw std::runtime_error("Unable to allocate memory for texture.");
 
     for (int i = 0; i < 6; i++)
-        memcpy(stagingBufferAllocationInfo.pMappedData, pixelsBuffers[i], height * width *4);
+        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + height * width * 4 * i, pixelsBuffers[i], height * width * 4);
 
     for (const auto& buffer : pixelsBuffers)
         stbi_image_free(buffer);
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D ;
     imageInfo.extent.width = width;
     imageInfo.extent.height = height;
     imageInfo.extent.depth = 1;
@@ -3375,7 +3392,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.flags = 0;
+    imageInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -3395,7 +3412,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
     imageMemoryBarrier.subresourceRange.levelCount = 1;
     imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-    imageMemoryBarrier.subresourceRange.layerCount = 1;
+    imageMemoryBarrier.subresourceRange.layerCount = 6;
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     imageMemoryBarrier.image = textureImage;
@@ -3413,7 +3430,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
 
     VkBufferImageCopy region = {};
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.layerCount = 1;
+    region.imageSubresource.layerCount = 6;
     region.imageExtent.width = width;
     region.imageExtent.height = height;
     region.imageExtent.depth = 1;

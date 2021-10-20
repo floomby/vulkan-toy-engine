@@ -74,7 +74,9 @@ private:
     struct PushConstants {
         glm::mat4 view;
         glm::mat4 projection;
+        glm::vec3 normedPointing;
         glm::uint32_t textureIndex;
+        glm::uint32_t renderType;
     } pushConstants;
 
     ViewProjPosNearFar lightingData;
