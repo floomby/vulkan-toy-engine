@@ -4,8 +4,6 @@
 #error "Please include engine before/instead of GLFW headers"
 #endif
 
-// TODO Check that glm is not incleded already (it uses once though so figure out how to do this the right way)
-
 #include "utilities.hpp"
 #include "instance.hpp"
 #include "gui.hpp"
@@ -38,6 +36,7 @@ struct EngineSettings {
 class Engine : Utilities {
     // TODO add stuff to the engine class to be able to remove this friend declaration
     friend class InternalTexture;
+    friend class CubeMap;
     friend class Scene;
 public:
     Engine(EngineSettings engineSettings);
@@ -137,6 +136,18 @@ private:
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     float scrollAmount;
+
+    std::vector<GLFWcursor *> cursors;
+    void createCursors();
+    void destroyCursors();
+    const std::array<std::tuple<const char *, int, int>, 2> cursorData = {
+        std::make_tuple("cursors/default.png", 1, 1),
+        std::make_tuple("cursors/select.png", 1, 1)
+    };
+    enum CursorIndex {
+        CURSOR_DEFAULT = 0,
+        CURSOR_SELECT,
+    };
 
     inline std::pair<float, float> normedDevice(float x, float y);
     glm::vec3 raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView);
@@ -314,9 +325,9 @@ private:
     void cleanup();
 
     // I think we dont need to worry about this for a single run of the application, only if we want to reload them when we restart the appliction
+    // which could be nice in the future
     // VkPipelineCache pipelineCache;
 
-    // TODO I should follow this orginization for the main render pass as well
     // shadow render pass stuff
     struct ShadowPushConstansts {
         glm::mat4 projection;
@@ -358,16 +369,36 @@ private:
     void doShadowDebugWrite();
 };
 
+class CubeMap {
+public:
+    // front, back, up, down, right, left
+    CubeMap(Engine *context, std::array<const char *, 6> files);
+    CubeMap(const CubeMap&);
+    CubeMap& operator=(const CubeMap&);
+    CubeMap(CubeMap&& other) noexcept;
+    CubeMap& operator=(CubeMap&& other) noexcept;
+    ~CubeMap();
+
+    VkSampler textureSampler;
+    VkImageView textureImageView;
+private:
+    VkImage textureImage;
+    VmaAllocation textureAllocation;
+    Engine *context;
+};
+
 class Scene {
 public:
     // vertex and index offsets for the model
-    Scene(Engine* context, std::vector<std::pair<const char *, const char *>>, size_t initalSize);
+    Scene(Engine* context, std::vector<std::pair<const char *, const char *>>, size_t initalSize, std::array<const char *, 6> skyboxImages);
 
-    // ~Scene();
+    // I don't really want to accidentally be copying or moving the scene even though it is now safe to do so
     Scene(const Scene& other) = delete;
     Scene(Scene&& other) noexcept = delete;
     Scene& operator=(const Scene& other) = delete;
     Scene& operator=(Scene&& other) noexcept = delete;
+
+    CubeMap skybox;
 
     void addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading);
 
@@ -381,9 +412,6 @@ public:
     std::vector<Utilities::Vertex> vertexBuffer;
     std::vector<uint32_t> indexBuffer;
 
-    // TODO Make this use something real (ring maybe?)
-    // size_t currentSize, currentUsed;
-    // Instance *instances;
     std::vector<Instance> instances;
     
     void updateUniforms(void *buffer, size_t uniformSkip);

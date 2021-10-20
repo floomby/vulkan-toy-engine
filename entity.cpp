@@ -84,7 +84,7 @@ Entity::Entity(const Entity& other) {
 
 Entity::Entity(Entity&& other) noexcept
 : texturePixels(std::exchange(other.texturePixels, nullptr)), textureWidth(other.textureWidth), texureChannels(other.texureChannels),
-texureHeight(other.texureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices))
+texureHeight(other.texureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius)
 {}
 
 Entity& Entity::operator=(const Entity& other) {
@@ -98,6 +98,7 @@ Entity& Entity::operator=(Entity&& other) noexcept {
     texureChannels = other.texureChannels;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
+    boundingRadius = other.boundingRadius;
     return *this;
 }
 

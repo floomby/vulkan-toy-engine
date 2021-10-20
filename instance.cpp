@@ -2,6 +2,7 @@
 
 Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept {
     this->entityIndex = entityIndex;
+    // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
     this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
@@ -28,6 +29,6 @@ bool& Instance::highlight() {
 }
 
 // NOTE: direction has to be normalized
-bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) {
+bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const {
     return glm::intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }

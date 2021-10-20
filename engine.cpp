@@ -8,6 +8,7 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "libs/stb_image_write.h"
+#include "libs/stb_image.h"
 
 #include "engine.hpp"
 #include "entity.hpp"
@@ -24,8 +25,10 @@
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
 
+// The memory from the debugging is not cleaned up correctly
 // Debuging stuff
-#define DEPTH_DEBUG_IMAGE_USAGE VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+// #define DEPTH_DEBUG_IMAGE_USAGE VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+#define DEPTH_DEBUG_IMAGE_USAGE 0
 
 // TODO, do this same thing for vma errors as well
 static std::map<int, const char *> vulkanErrors = {
@@ -159,6 +162,7 @@ void Engine::initWidow()
     // }
 
     glfwInit();
+    createCursors();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
@@ -811,6 +815,8 @@ void Engine::createDescriptorSetLayout() {
     lightingBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     lightingBinding.pImmutableSamplers = nullptr;
 
+
+
     std::array<VkDescriptorSetLayoutBinding, 4> bindings = { uboLayoutBinding, samplerLayoutBinding, shadowMapBinding, lightingBinding };
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -845,9 +851,6 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
     return shaderModule;
 }
 
-// REFACTOR ME (good time is when adding the next pipeline)
-// This is a mess, I shouldn't be building all the pipelines (and pipeline layouts) in one function and shoving them into a vector like this
-// It will just get confusing
 void Engine::createGraphicsPipelines() {
     graphicsPipelines.resize(2);
 
@@ -1616,23 +1619,20 @@ static float distancePointToPlane(glm::vec3 n, float d, glm::vec3 x) {
     return (glm::dot(n, x) + d) / glm::l2Norm(n);
 }
 
-// creates the frustum, but not actually a frustum bounding planes (passing the straffing vector saves having to recalculate it)
+// creates the frustum, but not actually a frustum, bounding planes (passing the straffing vector saves having to recalculate it)
 static std::array<std::pair<glm::vec3, float>, 5> boundingPlanes(glm::vec3 pos, glm::vec3 strafing, glm::vec3 normedPointing, glm::vec3 r1, glm::vec3 r2) {
     std::array<std::pair<glm::vec3, float>, 5> ret;
     
-    auto n = glm::normalize(glm::cross(strafing, r1));
+    auto n = normalize(cross(strafing, r1));
     ret[0] = { n, -distancePointToPlane(n, 0, pos) };
 
-    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r1));
+    n = normalize(cross(cross(strafing, normedPointing), r1));
     ret[1] = { n, -distancePointToPlane(n, 0, pos) };
 
-    n = glm::normalize(glm::cross(strafing, r2));
+    n = normalize(cross(strafing, r2));
     ret[2] = { n, -distancePointToPlane(n, 0, pos) };
 
-    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r2));
-    ret[3] = { n, -distancePointToPlane(n, 0, pos) };
-
-    n = glm::normalize(glm::cross({ 0.0f, 0.0f, 1.0f }, r2));
+    n = normalize(cross(cross(strafing, normedPointing), r2));
     ret[3] = { n, -distancePointToPlane(n, 0, pos) };
 
     ret[4] = { normedPointing, -distancePointToPlane(normedPointing, 0, pos) };
@@ -1655,7 +1655,7 @@ glm::vec3 Engine::raycastDevice(float normedDeviceX, float normedDeviceY, glm::m
     eyeRay.w = 0.0f;
     auto worldRay = inverseView * eyeRay;
     glm::vec3 ray = { worldRay.x, worldRay.y, worldRay.z };
-    return ray;
+    return -ray;
 }
 
 inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm::mat4 inverseProjection, glm::mat4 inverseView) {
@@ -1668,11 +1668,11 @@ void Engine::handleInput() {
     float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
     float deltaY = (lastMousePosition.y - y) / framebufferSize.height;
 
-    // I probably don't need this every frame, but for rigth now just calculate it every frame
     auto inverseProjection = glm::inverse(pushConstants.projection);
     auto inverseView = glm::inverse(pushConstants.view);
     auto mouseNormed = normedDevice(x, y);
     auto mouseRay = raycast(x, y, inverseProjection, inverseView);
+    auto mouseRayNormed = normalize(mouseRay);
     // hudConstants.dragBox[1] = { mouseNormed.first, mouseNormed.second };
 
     // Do I want this?
@@ -1738,29 +1738,28 @@ void Engine::handleInput() {
             mouseAction = MOUSE_DRAGGING;
             // Unless the framerate is crap this should be almost identical to the mouseRay
             // dragStartRay = raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView);
-            dragStartRay = mouseRay;
+            dragStartRay = mouseRayNormed;
             dragStartDevice = mouseNormed;
             // hudConstants.dragBox[0] = { mouseNormed.first, mouseNormed.second };
         }
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             gui->setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
             mouseAction = MOUSE_NONE;
-            std::cout << "Dragged box:" << std::endl;
-            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRay);
+            std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - " 
+                << mouseNormed.first << ":" << mouseNormed.second << "):" << std::endl;
+            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRayNormed);
             // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
             for(const auto& plane : planes) {
                 std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             }
             for (int i = 0; i < currentScene->instances.size(); i++) {
                 (currentScene->instances.data() + i)->highlight() = 
-                    whichSideOfPlane(planes[4].first, planes[4].second, (currentScene->instances.data() + i)->position) < 0 &&
-                    (whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances.data() + i)->position) < 0 != 
-                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances.data() + i)->position) < 0) &&
-                    (whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances.data() + i)->position) < 0 !=
-                    whichSideOfPlane(planes[3].first, planes[3].second - cammera.minClip, (currentScene->instances.data() + i)->position) < 0
+                    whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances.data() + i)->position) < 0 != whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances.data() + i)->position) < 0 != whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->instances.data() + i)->position) < 0
                     // To only select things as far as the cammera drawing distance
-                    // && whichSideOfPlane(planes[3].first, planes[3].second - cammera.maxClip, (currentScene->instances + i)->position) > 0
-                    );
+                    // && whichSideOfPlane(planes[4].first, planes[4].second - cammera.maxClip, (currentScene->instances + i)->position) > 0
+                    ;
             }
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
@@ -1793,7 +1792,12 @@ void Engine::handleInput() {
         cammera.target += fowarding / 600.0f;
     }
 
-    // Panning needs to take into account zooming, zoom to currsor should be the way it works, and I think the cammera should be allowed below the world z = 0 plane
+    if (keysPressed[GLFW_KEY_U]) {
+        std::cout << "Mouse normed vector: " << mouseRayNormed << std::endl;
+        std::cout << "Cammera position: " << cammera.position << std::endl;
+    }
+
+    // Panning needs to take into account zooming and zoom to currsor should be the way it works
     if (mouseAction == MOUSE_PANNING) {
         cammera.position -= strafing * 4.0f * deltaX;
         cammera.target -= strafing * 4.0f * deltaX;
@@ -1837,6 +1841,24 @@ void Engine::handleInput() {
     //             cammera.position = newPosition;
     //     }
     // }
+
+    Instance *mousedOver = nullptr;
+    float minDistance = std::numeric_limits<float>::max();
+
+    for(auto& instance : currentScene->instances) {
+        float distance;
+        if(instance.intersects(cammera.position, mouseRayNormed, distance)) {
+            if (distance < minDistance) mousedOver = &instance;
+        }
+        // instance.highlight() = false;
+    }
+
+    if(mousedOver) {
+        // mousedOver->highlight() = true;
+        glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
+    } else {
+        glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
+    }
 
     lastMousePosition.x = x;
     lastMousePosition.y = y;
@@ -2006,11 +2028,12 @@ void Engine::runCurrentScene() {
     currentFrame = 0;
     framebufferResized = false;
     double x, y;
+    glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
     glfwGetCursorPos(window, &x, &y);
     lastMousePosition.x = x;
     lastMousePosition.y = y;
 
-    cammera.position = glm::vec3({ 2.0f, 2.0f, 2.0f });
+    cammera.position = glm::vec3({ 3.0f, 0.0f, 0.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
     gui = new Gui();
@@ -2037,7 +2060,7 @@ void Engine::loadDefaultScene() {
         {"models/spaceship.obj", "textures/spaceship.png"},
         {"models/viking_room.obj", "textures/viking_room.png"},
         {"models/sphere.obj", "textures/sphere.png"}
-    }, 50);
+    }, 50, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
@@ -2443,6 +2466,7 @@ void Engine::cleanup() {
     vkDestroyInstance(instance, nullptr);
 
     glfwDestroyWindow(window);
+    destroyCursors();
     glfwTerminate();
 }
 
@@ -2748,6 +2772,12 @@ void Engine::destroyShadowResources() {
     vkDestroySampler(device, shadow.sampler, nullptr);
     vkDestroyImageView(device, shadow.imageView, nullptr);
     vmaDestroyImage(memoryAllocator, shadow.image, shadow.allocation);
+
+    if(shadow.debugging)
+        vmaDestroyBuffer(memoryAllocator, shadow.debugBuffer, shadow.debugAllocation);
+
+    vkDestroyDescriptorPool(device, shadow.descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device, shadow.descriptorLayout, nullptr);
 }
 
 void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename) {
@@ -2939,6 +2969,25 @@ VkBool32 Engine::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat fo
         return formatProps.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 
     return false;
+}
+
+void Engine::createCursors() {
+    GLFWimage imageData;
+    int channels;
+    for(const auto& data : cursorData) {
+        imageData.pixels = stbi_load(get<0>(data), &imageData.width, &imageData.height, &channels, STBI_rgb_alpha);
+
+        auto ret = glfwCreateCursor(&imageData, get<1>(data), get<2>(data));
+        if (!ret) throw std::runtime_error("Unable to create cursor.");
+        cursors.push_back(ret);
+
+        stbi_image_free(imageData.pixels);
+    }
+}
+
+void Engine::destroyCursors() {
+    for(auto& cursor : cursors)
+        glfwDestroyCursor(cursor);
 }
 
 namespace InternalTextures {
@@ -3228,7 +3277,8 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
     return *this;
 }
 
-Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>> entities, size_t initialSize) {
+Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
+: skybox(context, skyboxImages) {
     this->context = context;
     // FIXME Crappy slowness
     for(const auto& entity : entities) {
@@ -3240,12 +3290,6 @@ Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>>
 
     instances.reserve(initialSize);
 }
-
-// Scene::~Scene() {
-//     for(int i = 0; i < currentUsed; i++)
-//         (instances + i)->~Instance();
-//     ::operator delete(instances);
-// }
 
 void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
@@ -3271,4 +3315,199 @@ void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
     for (int i = 0; i < instances.size(); i++) {
         memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances.data() + i)->state(context->pushConstants.view), sizeof(UniformBufferObject));
     }
+}
+
+namespace CubeMaps {
+    static std::map<VkImage, uint> references = {};
+};
+
+CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
+    this->context = context;
+    std::vector<uint8_t *> pixelsBuffers;
+
+    int height, width;
+    bool set = false;
+    int readHeight, readWidth, readChannles;
+    for (const auto& filename : files) {
+        pixelsBuffers.push_back(stbi_load(filename, &readHeight, &readWidth, &readChannles, STBI_rgb_alpha));
+        if (readChannles != 4) throw std::runtime_error("Cubemap resource format incorrect.");
+        // I know this is true for open gl shaders in glsl, idk about vulkan, but just to be safe for now
+        if (readHeight != readWidth) throw std::runtime_error("Cubemap textures need to be square.");
+        if (!set) {
+            height = readHeight;
+            width = readWidth;
+        } else {
+            if (readHeight != height || readWidth != width)
+                throw std::runtime_error("Cubemap resource mismatching sizes.");
+        }
+    }
+
+    VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    stagingBufInfo.size = height * width * 24;
+    stagingBufInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    VmaAllocationCreateInfo stagingBufAllocCreateInfo = {};
+    stagingBufAllocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+    stagingBufAllocCreateInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    VkBuffer stagingBuffer = VK_NULL_HANDLE;
+    VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
+    VmaAllocationInfo stagingBufferAllocationInfo = {};
+    if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocationInfo) != VK_SUCCESS)
+        throw std::runtime_error("Unable to allocate memory for texture.");
+
+    for (int i = 0; i < 6; i++)
+        memcpy(stagingBufferAllocationInfo.pMappedData, pixelsBuffers[i], height * width *4);
+
+    for (const auto& buffer : pixelsBuffers)
+        stbi_image_free(buffer);
+
+    VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 6;
+    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0;
+
+    VmaAllocationCreateInfo imageAllocCreateInfo = {};
+    imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Unable to create image");
+
+    // Hm, how to use the transfer queue for this?
+    // VkCommandBuffer commandBuffer = context->engineSettings.useConcurrentTransferQueue ?
+    //     context->beginSingleTimeCommands(context->transferCommandPool) : context->beginSingleTimeCommands();
+    VkCommandBuffer commandBuffer = context->beginSingleTimeCommands();
+
+    VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+    imageMemoryBarrier.subresourceRange.levelCount = 1;
+    imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+    imageMemoryBarrier.subresourceRange.layerCount = 1;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+
+    VkBufferImageCopy region = {};
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.layerCount = 1;
+    region.imageExtent.width = width;
+    region.imageExtent.height = height;
+    region.imageExtent.depth = 1;
+
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
+
+    context->endSingleTimeCommands(commandBuffer);
+
+    vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
+
+    VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    textureImageViewInfo.image = textureImage;
+    textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    textureImageViewInfo.subresourceRange.baseMipLevel = 0;
+    textureImageViewInfo.subresourceRange.levelCount = 1;
+    textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
+    textureImageViewInfo.subresourceRange.layerCount = 6;
+    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
+
+    CubeMaps::references.insert({ textureImage, 1 });
+
+    VkSamplerCreateInfo samplerInfo {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    // For right now we just use the max supported sampler anisotrpy
+    samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
+
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.maxLod = 1.0f;
+    samplerInfo.mipLodBias = 0.0f;
+
+    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
+}
+
+CubeMap::~CubeMap() {
+    if (--CubeMaps::references[textureImage] == 0) {
+        vkDestroySampler(context->device, textureSampler, nullptr);
+        vkDestroyImageView(context->device, textureImageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
+    }
+}
+
+CubeMap::CubeMap(const CubeMap& other) {
+    textureImageView = other.textureImageView;
+    textureImage = other.textureImage;
+    textureSampler = other.textureSampler;
+    textureAllocation = other.textureAllocation;
+    context = other.context;
+    CubeMaps::references[textureImage]++;
+}
+
+CubeMap& CubeMap::operator=(const CubeMap& other) {
+    return *this = CubeMap(other);
+}
+
+CubeMap::CubeMap(CubeMap&& other) noexcept
+: textureImageView(other.textureImageView), textureSampler(other.textureSampler),
+textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
+{ CubeMaps::references[textureImage]++; }
+
+CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
+    textureImageView = other.textureImageView;
+    textureImage = other.textureImage;
+    textureSampler = other.textureSampler;
+    textureAllocation = other.textureAllocation;
+    context = other.context;
+    return *this;
 }

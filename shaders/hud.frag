@@ -8,9 +8,4 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
     outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), 1.0);
-    // outColor = subpassLoad(inputColor);
 }
-
-// void main() {
-//     outColor = vec4(1.0, 0.0, 0.0, 1.0);
-// }
