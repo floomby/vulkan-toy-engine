@@ -363,7 +363,7 @@ public:
     // vertex and index offsets for the model
     Scene(Engine* context, std::vector<std::pair<const char *, const char *>>, size_t initalSize);
 
-    ~Scene();
+    // ~Scene();
     Scene(const Scene& other) = delete;
     Scene(Scene&& other) noexcept = delete;
     Scene& operator=(const Scene& other) = delete;
@@ -382,8 +382,9 @@ public:
     std::vector<uint32_t> indexBuffer;
 
     // TODO Make this use something real (ring maybe?)
-    size_t currentSize, currentUsed;
-    Instance *instances;
+    // size_t currentSize, currentUsed;
+    // Instance *instances;
+    std::vector<Instance> instances;
     
     void updateUniforms(void *buffer, size_t uniformSkip);
 private:

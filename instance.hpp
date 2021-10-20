@@ -26,6 +26,8 @@ public:
 
     glm::vec3 position, heading;
     bool& highlight();
+
+    bool intersects(glm::vec3 origin, glm::vec3 direction, float& distance);
 private:
     bool _highlight;
     UniformBufferObject _state;

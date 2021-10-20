@@ -1751,13 +1751,13 @@ void Engine::handleInput() {
             for(const auto& plane : planes) {
                 std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             }
-            for (int i = 0; i < currentScene->currentUsed; i++) {
-                (currentScene->instances + i)->highlight() = 
-                    whichSideOfPlane(planes[4].first, planes[4].second, (currentScene->instances + i)->position) < 0 &&
-                    (whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances + i)->position) < 0 != 
-                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances + i)->position) < 0) &&
-                    (whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances + i)->position) < 0 !=
-                    whichSideOfPlane(planes[3].first, planes[3].second - cammera.minClip, (currentScene->instances + i)->position) < 0
+            for (int i = 0; i < currentScene->instances.size(); i++) {
+                (currentScene->instances.data() + i)->highlight() = 
+                    whichSideOfPlane(planes[4].first, planes[4].second, (currentScene->instances.data() + i)->position) < 0 &&
+                    (whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances.data() + i)->position) < 0 != 
+                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances.data() + i)->position) < 0) &&
+                    (whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances.data() + i)->position) < 0 !=
+                    whichSideOfPlane(planes[3].first, planes[3].second - cammera.minClip, (currentScene->instances.data() + i)->position) < 0
                     // To only select things as far as the cammera drawing distance
                     // && whichSideOfPlane(planes[3].first, planes[3].second - cammera.maxClip, (currentScene->instances + i)->position) > 0
                     );
@@ -1962,7 +1962,7 @@ void Engine::allocateUniformBuffers(size_t instanceCount) {
 
     for (int i = 0; i < uniformBuffers.size(); i++) {
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = 50 * uniformSkip;
+        bufferInfo.size = instanceCount * uniformSkip;
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
         VmaAllocationCreateInfo bufferAllocationInfo = {};
@@ -1998,8 +1998,9 @@ void Engine::destroyUniformBuffers() {
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
-    allocateUniformBuffers(currentScene->currentUsed);
+    allocateUniformBuffers(50);
     createDescriptors(currentScene->textures);
+    createShadowDescriptorSets();
     allocateCommandBuffers();
     initSynchronization();
     currentFrame = 0;
@@ -2238,8 +2239,6 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures) {
 
         vkUpdateDescriptorSets(device, 1, &hudWrite, 0, nullptr);
     }
-
-    createShadowDescriptorSets();
 }
 
 void Engine::updateLightingDescriptors(int index, const ViewProjPosNearFar& data) {
@@ -2308,14 +2307,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->currentUsed; j++) {
+    for(int j = 0; j < currentScene->instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        pushConstants.textureIndex = (currentScene->instances + j)->entityIndex;
+        pushConstants.textureIndex = (currentScene->instances.data() + j)->entityIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->instances + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, (currentScene->instances.data() + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -2910,13 +2909,13 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->currentUsed; j++) {
+    for(int j = 0; j < currentScene->instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(buffer, (currentScene->instances + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->instances + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, (currentScene->instances.data() + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdEndRenderPass(buffer);
@@ -3239,23 +3238,20 @@ Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>>
         textures.push_back(InternalTexture(context, entity));
     }
 
-    // TODO not finished (but fine for now)
-    currentSize = initialSize;
-    currentUsed = 0;
-    instances = static_cast<Instance *>(::operator new(initialSize * sizeof(Instance)));
+    instances.reserve(initialSize);
 }
 
-Scene::~Scene() {
-    for(int i = 0; i < currentUsed; i++)
-        (instances + i)->~Instance();
-    ::operator delete(instances);
-}
+// Scene::~Scene() {
+//     for(int i = 0; i < currentUsed; i++)
+//         (instances + i)->~Instance();
+//     ::operator delete(instances);
+// }
 
 void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
-    Instance *tmp = new (instances + currentUsed++) Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex);
-    tmp->position = std::move(position);
-    tmp->heading = std::move(heading);
+    instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex));
+    instances.back().position = std::move(position);
+    instances.back().heading = std::move(heading);
 }
 
 void Scene::makeBuffers() {
@@ -3272,7 +3268,7 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
-    for (int i = 0; i < currentUsed; i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances + i)->state(context->pushConstants.view), sizeof(UniformBufferObject));
+    for (int i = 0; i < instances.size(); i++) {
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances.data() + i)->state(context->pushConstants.view), sizeof(UniformBufferObject));
     }
 }

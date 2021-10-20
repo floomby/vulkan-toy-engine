@@ -20,6 +20,7 @@ public:
     ~Entity();
     // temp stuff
     Entity translate(glm::vec3 delta);
+    float boundingRadius;
 protected:
     stbi_uc *texturePixels;
     int textureWidth, texureHeight, texureChannels;

@@ -80,7 +80,7 @@ void Gui::pollChanges() {
 
 Gui::~Gui() {
     guiCommands.push({ GUI_TERMINATE });
-    std::cout << "Waiting to join gui thread" << std::endl;
+    std::cout << "Waiting to join gui thread..." << std::endl;
     guiThread.join();
 }
 

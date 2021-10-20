@@ -26,3 +26,8 @@ UniformBufferObject *Instance::state(glm::mat4 view) {
 bool& Instance::highlight() {
     return _highlight;
 }
+
+// NOTE: direction has to be normalized
+bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) {
+    return glm::intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
+}

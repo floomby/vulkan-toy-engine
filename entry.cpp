@@ -74,11 +74,7 @@ void run(EngineSettings& settings) {
 /*
 Next steps
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
- get lod working
-  icons now that I have 2d?
-   maybe make an icon for the model
-  mipmaps (I still didn't figure this out)
- * game instance allocations (think how do I want to do this?)
+ game instance allocation synchronization with vulkan buffers
  game state (this involves concurrency stuff)
  ECS? (or something else as an organizational structure for the proccessing)
  lt - better model library (assimp?)
@@ -88,10 +84,15 @@ Next steps
   threading (think how to tell the gui object to do things)
   fonts -  I will be uising a library of some sort for this (idk how I want to go about this yet)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
- shadow render pass
- there might still be a problem with selections
- there is a bug with resizing again
- hitboxes
- cursors (after hitboxes)
+ pcf filtering for shadows
+ cursors
+ skybox
+ nlips?
+
+Bugfixxy stuff
+ get lod working
+ fix resizing
  get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
+ selection is busted
+ cleanup code
 */

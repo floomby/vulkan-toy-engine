@@ -24,6 +24,8 @@ Entity::Entity(const char *model, const char *texture) {
 
     std::unordered_map<Vertex, uint32_t> uniqueVertices {};
 
+    float d2max = 0;
+
     for(const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
             Vertex vertex {};
@@ -53,8 +55,13 @@ Entity::Entity(const char *model, const char *texture) {
             }
 
             indices.push_back(uniqueVertices[vertex]);
+
+            float d2 = dot(vertex.pos, vertex.pos);
+            if (d2 > d2max) d2max = d2;
         }
     }
+
+    boundingRadius = sqrtf(d2max);
 }
 
 std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {

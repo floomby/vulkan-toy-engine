@@ -12,6 +12,7 @@
 #include <glm/ext.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/intersect.hpp>
 #include <glm/common.hpp>
 
 #include <ostream>
