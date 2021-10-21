@@ -84,12 +84,13 @@ Next steps
   fonts -  I will be uising a library of some sort for this (idk how I want to go about this yet)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  pcf filtering for shadows
- skybox
+ dynamic backface culling or fix normals for skybox geometry
  nlips?
+ explosions - particles?
 
 Bugfixxy stuff
  get lod working
  fix resizing
  get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
- sometimes a memory allocation is failing on startup and causing a crash
+ sometimes a memory allocation is failing on startup and causing a crash <- this bug is getting annoying and time wasty
 */

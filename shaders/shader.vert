@@ -49,6 +49,7 @@ void main() {
     shadowCoord = inLightingSpace.xyz / inLightingSpace.w;
 
     vec4 inClipSpace = pushConstants.projection * vertPos4;
+    // draw behind everything even if in front
     if (pushConstants.type == 1) inClipSpace = inClipSpace.xyww;
     gl_Position = inClipSpace;
 }

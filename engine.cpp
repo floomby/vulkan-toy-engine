@@ -937,7 +937,7 @@ void Engine::createGraphicsPipelines() {
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f;
@@ -1850,10 +1850,11 @@ void Engine::handleInput() {
     Instance *mousedOver = nullptr;
     float minDistance = std::numeric_limits<float>::max();
 
-    for(auto& instance : currentScene->instances) {
+    for(int i = 1; i < currentScene->instances.size(); i++) {
         float distance;
-        if(instance.intersects(cammera.position, mouseRayNormed, distance)) {
-            if (distance < minDistance) mousedOver = &instance;
+        if(currentScene->instances[i].intersects(cammera.position, mouseRayNormed, distance)) {
+            // !!!! potentially a pointer geting invalidated
+            if (distance < minDistance) mousedOver = &currentScene->instances[i];
         }
         // instance.highlight() = false;
     }
@@ -1893,6 +1894,8 @@ void Engine::updateScene(int index) {
     shadow.constants.projection = lightingData.proj;
 
     updateLightingDescriptors(index, lightingData);
+
+    currentScene->instances[0].position = cammera.position;
 }
 
 #if (DEPTH_DEBUG_IMAGE_USAGE == VK_IMAGE_USAGE_TRANSFER_SCR_BIT)
@@ -2062,6 +2065,8 @@ void Engine::loadDefaultScene() {
         {"models/sphere.obj", "textures/sphere.png"}
     }, 50, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();
+    // This first is the skybox (the position and heading do not matter)
+    currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
@@ -2344,12 +2349,13 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-    pushConstants.renderType = 1;
+
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        pushConstants.renderType = (int)!(bool)j;
         pushConstants.textureIndex = (currentScene->instances.data() + j)->entityIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
@@ -2956,7 +2962,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->instances.size(); j++) {
+    for(int j = 1; j < currentScene->instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
