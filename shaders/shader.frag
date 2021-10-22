@@ -116,7 +116,7 @@ void main() {
     outColor = vec4(colorGammaCorrected, 1.0);
 
     if (highlight > 0.5) {
-        outColor = vectorMap(outColor, 0.0, 1.0, 0.2, 1.0);
+        outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);
     }
 
     // float zVal = getShadow(shadowCoord);

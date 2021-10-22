@@ -17,7 +17,6 @@
     printf("\n"); \
 } while(false)
 
-
 #include "libs/vk_mem_alloc.h"
 class Scene;
 
@@ -415,6 +414,7 @@ public:
     std::vector<uint32_t> indexBuffer;
 
     std::vector<Instance> instances;
+    std::map<std::string, Panel> panels;
     
     void updateUniforms(void *buffer, size_t uniformSkip);
 private:

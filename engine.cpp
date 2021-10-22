@@ -1280,9 +1280,9 @@ void Engine::createDepthResources() {
 
     VkFormat depthFormat = findDepthFormat();
 
+    depthDump.makeDump = false;
+    depthDump.writePending = false;
     if (DEPTH_DEBUG_IMAGE_USAGE) {
-        depthDump.makeDump = false;
-        depthDump.writePending = false;
 
         VkBufferCreateInfo debuggingBufferInfo = {};
         debuggingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1700,6 +1700,16 @@ void Engine::handleInput() {
             if (keyEvent.key == GLFW_KEY_B) {
                 std::raise(SIGTRAP);
             }
+            if (keyEvent.key == GLFW_KEY_O) {
+                GuiCommandData *what = new GuiCommandData();
+                // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
+                what->component = new GuiComponent(0x0000ff40, { -0.5, -0.5 }, { 0.5, 0.5 }, 1);
+                gui->submitCommand({ Gui::GUI_ADD, what });
+                GuiCommandData *what2 = new GuiCommandData();
+                what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
+                what2->component = new GuiComponent(0xff000040, { -0.4, -0.4 }, { 0.8, 0.8 }, 2);
+                gui->submitCommand({ Gui::GUI_ADD, what2 });
+            }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
         }
@@ -1775,7 +1785,10 @@ void Engine::handleInput() {
                 float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
                 auto intersection = cammera.position + mouseRay * dist;
 
-                currentScene->addInstance(2, { intersection.x, intersection.y, intersection.z }, { 0, 0, 0 });
+                currentScene->addInstance(0, { intersection.x, intersection.y, intersection.z }, {
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)) });
             }
         }
     }
@@ -2036,7 +2049,7 @@ void Engine::runCurrentScene() {
     lastMousePosition.x = x;
     lastMousePosition.y = y;
 
-    cammera.position = glm::vec3({ 3.0f, 0.0f, 0.0f });
+    cammera.position = glm::vec3({ 3.0f, 3.0f, 3.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
     gui = new Gui();
@@ -2067,9 +2080,11 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
+
+    currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
 }
 
 // void Engine::allocateDescriptors() {
@@ -2348,8 +2363,6 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 0; j < currentScene->instances.size(); j++) {
@@ -2951,7 +2964,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdSetDepthBias(buffer, 2.0f, 0.0f, 8.5f);
+    vkCmdSetDepthBias(buffer, 2.0f, 0.0f, 1.5f);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipeline);
 
