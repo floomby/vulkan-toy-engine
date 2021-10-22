@@ -749,7 +749,7 @@ void Engine::createRenderPass() {
     subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[1].colorAttachmentCount = 1;
     subpasses[1].pColorAttachments = &subpass1color;
-    subpasses[1].pDepthStencilAttachment = VK_NULL_HANDLE;
+    subpasses[1].pDepthStencilAttachment = &subpass0depth;
     subpasses[1].pResolveAttachments = nullptr;
     subpasses[1].inputAttachmentCount = 1;
     subpasses[1].pInputAttachments = subpass1inputs;
@@ -2377,6 +2377,19 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkClearAttachment depthClear;
+    depthClear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depthClear.colorAttachment = 0;
+    depthClear.clearValue.depthStencil = { 1.0f, 0 };
+
+    VkClearRect depthClearRect;
+    depthClearRect.rect.offset = { 0, 0 };
+    depthClearRect.rect.extent = swapChainExtent;
+    depthClearRect.baseArrayLayer = 0;
+    depthClearRect.layerCount = 1;
+
+    vkCmdClearAttachments(buffer, 1, &depthClear, 1, &depthClearRect);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);

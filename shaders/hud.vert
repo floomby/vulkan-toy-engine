@@ -47,14 +47,15 @@ void main() {
 
     if (gl_VertexIndex < 6) {
         // draw the viewport
-        gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+        gl_Position = vec4(positions[gl_VertexIndex], 1.0, 1.0);
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (gl_VertexIndex < 12) {
         // having more than 99 layers of gui stuff seems unlikely
-        gl_Position = vec4(dragBox[gl_VertexIndex - 6], layerZOffset * 100, 1.0);
+        gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset * 100, 1.0);
         outColor = dragColor;
     } else {
-        gl_Position = vec4(inPosition, 1.0);
+        // move this to the program
+        gl_Position = vec4(inPosition.xy, 1.0 - inPosition.z, 1.0);
         outColor = inColor; 
     }
 }
