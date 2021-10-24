@@ -8,7 +8,7 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec4 inColor;
 layout(location = 2) in vec2 inTexCoord;
-layout(location = 3) in int inTexIndex;
+layout(location = 3) in uint inTexIndex;
 
 // I may need these, but I think I will just draw in normalized device coordinates
 // It would seem to be the easiest way to do things
@@ -55,18 +55,18 @@ void main() {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         // Idk if you need to set these or not?
         outTexCoord = vec2(0.0, 0.0);
-        outTexIndex = 5;
+        outTexIndex = -1;
     } else if (gl_VertexIndex < 12) {
         // having more than 99 layers of gui stuff seems unlikely
         gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset, 1.0);
         outColor = dragColor;
         outTexCoord = vec2(0.0, 0.0);
-        outTexIndex = 5;
+        outTexIndex = -1;
     } else {
         // move this to the program
         gl_Position = vec4(inPosition.xy, inPosition.z, 1.0);
         outColor = inColor;
-        outTexIndex = 5;
+        outTexIndex = int(inTexIndex);
         outTexCoord = inTexCoord;
     }
 }

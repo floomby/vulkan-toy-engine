@@ -28,9 +28,9 @@ public:
     bool& highlight();
 
     bool intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const;
+    InternalTexture* texture;
 private:
     bool _highlight;
     UniformBufferObject _state;
     Entity* entity;
-    InternalTexture* texture;
 };

@@ -788,7 +788,6 @@ void Engine::createRenderPass() {
     vulkanErrorGuard(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass), "Failed to create render pass.");
 }
 
-// This is for the default scene on engine loading
 void Engine::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding {};
     uboLayoutBinding.binding = 0;
@@ -841,7 +840,7 @@ void Engine::createDescriptorSetLayout() {
 
     VkDescriptorSetLayoutBinding hudTextures {};
     hudTextures.binding = 1;
-    hudTextures.descriptorCount = 2;
+    hudTextures.descriptorCount = engineSettings.maxHudTextures;
     hudTextures.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     hudTextures.pImmutableSamplers = nullptr;
     hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1718,11 +1717,11 @@ void Engine::handleInput() {
             if (keyEvent.key == GLFW_KEY_O) {
                 GuiCommandData *what = new GuiCommandData();
                 // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what->component = new GuiComponent(false, 0x0000ff40, { -0.5, -0.5 }, { 0.5, 0.5 }, 1);
+                what->component = new GuiComponent(false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
                 gui->submitCommand({ Gui::GUI_ADD, what });
                 GuiCommandData *what2 = new GuiCommandData();
                 // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what2->component = new GuiLabel("test", 0x101010ff, 0xff000040, { -0.4, -0.4 }, { 0.8, 0.8 }, 2);
+                what2->component = new GuiLabel("test", 0x101010ff, 0xff000040, { -0.4, 0.8 }, { 0.0, 0.9 }, 2);
                 gui->submitCommand({ Gui::GUI_ADD, what2 });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
@@ -2260,8 +2259,8 @@ void Engine::writeHudDescriptors() {
         hudDescriptorWrites[0].descriptorCount = 1;
         hudDescriptorWrites[0].pImageInfo = &descriptorImageInfo;
 
-        std::vector<VkDescriptorImageInfo> hudTextureInfos(4);
-        for (int i = 0; i < 4; i++) {
+        std::vector<VkDescriptorImageInfo> hudTextureInfos(engineSettings.maxHudTextures);
+        for (int i = 0; i < engineSettings.maxHudTextures; i++) {
             hudTextureInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             hudTextureInfos[i].imageView = GuiTextures::defaultTexture->textureImageView;
             hudTextureInfos[i].sampler = GuiTextures::defaultTexture->textureSampler;
@@ -2270,12 +2269,12 @@ void Engine::writeHudDescriptors() {
         hudDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         hudDescriptorWrites[1].dstSet = hudDescriptorSets[i];
         hudDescriptorWrites[1].dstBinding = 1;
-        // Hmm, can we use this for arraying our textures in a smarter way?
         hudDescriptorWrites[1].dstArrayElement = 0;
         hudDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         hudDescriptorWrites[1].descriptorCount = hudTextureInfos.size();
         hudDescriptorWrites[1].pImageInfo = hudTextureInfos.data();
 
+        // vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
         vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
     }
 }
@@ -2293,6 +2292,8 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
             hudTextureInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             hudTextureInfos[i].imageView = hudTextures[i]->textureImageView;
             hudTextureInfos[i].sampler = hudTextures[i]->textureSampler;
+            // hudTextureInfos[i].imageView = currentScene->instances[0].texture->textureImageView;
+            // hudTextureInfos[i].sampler = currentScene->instances[0].texture->textureSampler;
         }
 
         hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3587,8 +3588,7 @@ namespace GuiTextures {
 
 GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; };
 
-// stride in bytes
-GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int stride, VkFormat format) {
+GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format) {
     this->context = context;
 
     VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -3602,11 +3602,12 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     VkBuffer stagingBuffer = VK_NULL_HANDLE;
     VmaAllocation stagingBufferAllocation = VK_NULL_HANDLE;
     VmaAllocationInfo stagingBufferAllocationInfo = {};
-    if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocationInfo) != VK_SUCCESS)
-        throw std::runtime_error("Unable to allocate memory for texture.");
+    if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer,
+        &stagingBufferAllocation, &stagingBufferAllocationInfo) != VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for texture.");
 
     for (int i = 0; i < height; i++)
-        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * stride, pixels, width * 4);
+        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * 4);
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     imageInfo.imageType = VK_IMAGE_TYPE_2D ;

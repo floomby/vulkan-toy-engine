@@ -18,7 +18,7 @@ struct GuiVertex {
     glm::vec3 pos;
     glm::vec4 color;
     glm::vec2 texCoord;
-    glm::uint8 texIndex;
+    glm::uint32_t texIndex;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
@@ -48,7 +48,7 @@ struct GuiVertex {
         attributeDescriptions[2].offset = offsetof(GuiVertex, texCoord);
 
         attributeDescriptions[3].binding = 0;
-        attributeDescriptions[3].location = 4;
+        attributeDescriptions[3].location = 3;
         attributeDescriptions[3].format = VK_FORMAT_R8_UINT;
         attributeDescriptions[3].offset = offsetof(GuiVertex, texIndex);
 
@@ -64,7 +64,7 @@ class Engine;
 
 class GuiTexture {
 public:
-    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int stride, VkFormat format);
+    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format);
     GuiTexture(const GuiTexture&);
     GuiTexture& operator=(const GuiTexture&);
     GuiTexture(GuiTexture&& other) noexcept;

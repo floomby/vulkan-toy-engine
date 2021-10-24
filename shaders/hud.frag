@@ -14,5 +14,6 @@ void main() {
         outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), 1.0);
         return;
     }
-    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
+    // outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
+    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);;
 }
