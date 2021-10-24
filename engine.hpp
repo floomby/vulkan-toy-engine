@@ -17,7 +17,6 @@
     printf("\n"); \
 } while(false)
 
-#include "libs/vk_mem_alloc.h"
 class Scene;
 
 struct EngineSettings {
@@ -30,12 +29,15 @@ struct EngineSettings {
     bool verbose;
     bool extremelyVerbose;
     size_t maxTextures;
+    size_t maxHudTextures;
 };
 
 class Engine : Utilities {
     // TODO add stuff to the engine class to be able to remove this friend declaration
     friend class InternalTexture;
     friend class CubeMap;
+    // The big thing about these is they dont have mipmap levels
+    friend class GuiTexture;
     friend class Scene;
 public:
     Engine(EngineSettings engineSettings);
@@ -126,6 +128,7 @@ private:
 
     struct {
         float x, y;
+        float normedX, normedY;
     } lastMousePosition;
 
     bool mouseButtonsPressed[8];
@@ -234,6 +237,8 @@ private:
 
     VkCommandPool commandPool;
     VkCommandPool transferCommandPool;
+    // Saddly I believe this needs to be on the graphics queue since it is messing with textures, even though it is mostly moving stuff around
+    VkCommandPool guiCommandPool;
     void createCommandPools();
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -284,9 +289,10 @@ private:
     VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> hudDescriptorSets;
     std::vector<bool> descriptorDirty; // I think I am not actually using this
-    // void allocateDescriptors();
-    // void updateDescriptor(const std::vector<InternalTexture>& textures, int index);
-    void createDescriptors(const std::vector<InternalTexture>& textures);
+    // I do not like the way I am doing this
+    void createDescriptors(const std::vector<InternalTexture>& textures, const std::vector<GuiTexture>& hudTextures);
+    void writeHudDescriptors();
+    void rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures);
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
@@ -386,6 +392,12 @@ private:
     VkImage textureImage;
     VmaAllocation textureAllocation;
     Engine *context;
+};
+
+namespace GuiTextures {
+    void initFreetype2(Engine *context);
+    int makeTexture(const char *str);
+    void setDefaultTexture();
 };
 
 class Scene {

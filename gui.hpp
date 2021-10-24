@@ -14,10 +14,11 @@
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
 
-// For right now lets just draw triangles and get the rest right
 struct GuiVertex {
     glm::vec3 pos;
     glm::vec4 color;
+    glm::vec2 texCoord;
+    glm::uint8 texIndex;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
@@ -28,8 +29,8 @@ struct GuiVertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions {};
+    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions {};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -41,18 +42,59 @@ struct GuiVertex {
         attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributeDescriptions[1].offset = offsetof(GuiVertex, color);
 
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(GuiVertex, texCoord);
+
+        attributeDescriptions[3].binding = 0;
+        attributeDescriptions[3].location = 4;
+        attributeDescriptions[3].format = VK_FORMAT_R8_UINT;
+        attributeDescriptions[3].offset = offsetof(GuiVertex, texIndex);
+
         return attributeDescriptions;
     }
 };
 
-// for the quickly updating stuff in the gui (right now just the drag box)
-struct GuiPushConstant {
-    glm::vec2 dragBox[2];
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
+// bleh, this foward declaration, everything is bleeding together
+class Engine;
+
+class GuiTexture {
+public:
+    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int stride, VkFormat format);
+    GuiTexture(const GuiTexture&);
+    GuiTexture& operator=(const GuiTexture&);
+    GuiTexture(GuiTexture&& other) noexcept;
+    GuiTexture& operator=(GuiTexture&& other) noexcept;
+    ~GuiTexture();
+
+    ResourceID resourceID();
+    bool operator==(const GuiTexture& other) const;
+
+    VkSampler textureSampler;
+    VkImageView textureImageView;
+
+    void syncTexturesToGPU(const std::vector<GuiTexture *>& textures);
+    static GuiTexture *defaultTexture();
+private:
+    VkImage textureImage;
+    VmaAllocation textureAllocation;
+    Engine *context;
 };
 
+namespace GuiTextures {
+    GuiTexture makeGuiTexture(const char *str);
+};
+
+// important that this is non-movable
 class GuiComponent {
 public:
-    GuiComponent(uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    GuiComponent() = delete;
+    GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -68,11 +110,33 @@ public:
     std::vector<GuiVertex> vertices;
 
     // indices to parent
+    void addComponent(std::queue<int>& childIdices, GuiComponent *component);
     void addComponent(std::queue<int>& childIdices, GuiComponent *component, GuiComponent *parent);
     // indices to child
     void removeComponent(std::queue<int>& childIndices);
+
+    std::vector<GuiTexture *>& mapTextures(std::vector<GuiTexture *>& acm, int& idx);
+    GuiTexture texture;
+
+    void buildVertexBuffer(std::vector<GuiVertex>& acm);
 private:
     bool layoutOnly;
+
+    void mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx);
+    // I guess just one texture per component?
+    void setTextureIndex(int textureIndex);
+};
+
+class GuiLabel : public GuiComponent {
+public:
+    GuiLabel(const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    std::string message;
+};
+
+// for the quickly updating stuff in the gui (right now just the drag box) 
+// Does this even make sense or is it just needlessly complicating things?
+struct GuiPushConstant {
+    glm::vec2 dragBox[2];
 };
 
 class GuiCommandData {
@@ -83,7 +147,7 @@ public:
 
 class Gui {
 public:
-    Gui();
+    Gui(float *mouseNormX, float *mouseNormY);
     ~Gui();
 
     // These should be automatically deleted, but I want to be sure
@@ -100,6 +164,7 @@ public:
 
     // Takes normalized device coordinates
     // I think these are in the wrong place
+    // NOTE: layerZOffset needs to matches a constant in hud.vert
     static constexpr float layerZOffset = 0.001f;
     static std::vector<GuiVertex> rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
     
@@ -107,8 +172,8 @@ public:
 
     // Gui is going to be a seperate thread
     GuiPushConstant *pushConstant();
-    void lockPushConstant();
-    void unlockPushConstant();
+    // void lockPushConstant();
+    // void unlockPushConstant();
 
     enum GuiAction {
         GUI_ADD,
@@ -116,20 +181,33 @@ public:
         GUI_TERMINATE
     };
 
+    // messages passed to the gui
     struct GuiCommand {
         GuiAction action;
         GuiCommandData *data;
+    };
+
+    enum GuiSignal {
+        GUI_SOMETHING,
+    };
+
+    // messages passed from the gui
+    struct GuiMessage {
+        GuiSignal signal;
+        // GuiMessageData *data;
     };
 
     void submitCommand(GuiCommand command);
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
+    boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
-    std::mutex constantMutex;
+    // std::mutex constantMutex;
     GuiPushConstant _pushConstant;
     std::mutex dataMutex;
-    std::vector<GuiVertex> data;
+    std::vector<GuiVertex> vertices;
+    std::vector<GuiTexture *> textures;
     std::vector<GuiVertex> dragBox;
 
     void rebuildBuffer();
@@ -137,7 +215,8 @@ private:
     void pollChanges();
 
     static constexpr auto pollInterval = std::chrono::milliseconds(5);
-    // This matches with a value in the hud vertex shader
+
+    GuiComponent *root;
 };
 
 class Panel {

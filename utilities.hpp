@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "libs/vk_mem_alloc.h"
+
 class Utilities {
 public:
     struct Vertex {
@@ -107,3 +109,5 @@ namespace std {
         return os;
     }
 }
+
+typedef void* ResourceID;

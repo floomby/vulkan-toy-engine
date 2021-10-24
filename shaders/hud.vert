@@ -7,6 +7,8 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inTexCoord;
+layout(location = 3) in int inTexIndex;
 
 // I may need these, but I think I will just draw in normalized device coordinates
 // It would seem to be the easiest way to do things
@@ -33,6 +35,8 @@ float layerZOffset = 0.001f;
 vec4 dragColor = vec4(0.0, 1.0, 0.0, 0.2);
 
 layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec2 outTexCoord;
+layout(location = 2) out int outTexIndex;
 
 void main() {
     // Does every fragment need to compute this???
@@ -49,13 +53,20 @@ void main() {
         // draw the viewport
         gl_Position = vec4(positions[gl_VertexIndex], 1.0, 1.0);
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
+        // Idk if you need to set these or not?
+        outTexCoord = vec2(0.0, 0.0);
+        outTexIndex = 5;
     } else if (gl_VertexIndex < 12) {
         // having more than 99 layers of gui stuff seems unlikely
-        gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset * 100, 1.0);
+        gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset, 1.0);
         outColor = dragColor;
+        outTexCoord = vec2(0.0, 0.0);
+        outTexIndex = 5;
     } else {
         // move this to the program
-        gl_Position = vec4(inPosition.xy, 1.0 - inPosition.z, 1.0);
-        outColor = inColor; 
+        gl_Position = vec4(inPosition.xy, inPosition.z, 1.0);
+        outColor = inColor;
+        outTexIndex = 5;
+        outTexCoord = inTexCoord;
     }
 }

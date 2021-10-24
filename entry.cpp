@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
         settings.validationExtentions = { };
     }
     settings.maxTextures = 1024;
+    settings.maxHudTextures = 128;
 
 
     std::ofstream log;
@@ -72,6 +73,11 @@ void run(EngineSettings& settings) {
 }
 
 /*
+Random non-crital stuff:
+ I am linking to libpng now for freetype2, maybe I should stop using stbi
+ The makefile build should be made faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
+ make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
+
 Next steps
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
  game instance allocation synchronization with vulkan buffers
@@ -79,10 +85,12 @@ Next steps
  ECS? (or something else as an organizational structure for the proccessing)
  lt - better model library (assimp?)
  lt - emmisivity maps
- makefile build faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
  gui
-  messaging
-  fonts -  I will be uising a library of some sort for this (idk how I want to go about this yet)
+  finish syncronization (I need to protect the verticies buffer, if the gui thread triggers a write while we are already flagged as rebuilt it can get messed up)
+  messaging from the gui to the render thread (probably just use another spsc lockfree queue)
+  textures for gui elements (this does the text too basically)
+  yaml reader into layouts
+  pass the clicks to the gui from the render thread (this is easy, just give it the ndc in the gui input message queue)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  pcf filtering for shadows
  dynamic backface culling or fix normals for skybox geometry
