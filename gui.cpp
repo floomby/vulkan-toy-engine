@@ -13,8 +13,8 @@
 //     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
 // };
 
-Gui::Gui(float *mouseNormX, float *mouseNormY)
-: root(new GuiComponent(true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0)) {
+Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth)
+: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0)), height(screenHeight), width(screenWidth) {
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     guiThread = std::thread(&Gui::pollChanges, this);
@@ -31,15 +31,23 @@ size_t Gui::updateBuffer(void *buffer, size_t maxCount) {
     return std::min(maxCount, vertices.size() + 12);
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer) {
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer) {
+    return rectangle(tl, br, color, color, layer);
+}
+
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer) {
     return {
-        {{ c0.first, c0.second, 1.0f - layerZOffset * (layer + 1) }, color, { 0.0, 0.0 } },
-        {{ c1.first, c1.second, 1.0f - layerZOffset * (layer + 1) }, color, { 1.0, 1.0 } },
-        {{ c0.first, c1.second, 1.0f - layerZOffset * (layer + 1) }, color, { 0.0, 1.0 } },
-        {{ c0.first, c0.second, 1.0f - layerZOffset * (layer + 1) }, color, { 0.0, 0.0 } },
-        {{ c1.first, c1.second, 1.0f - layerZOffset * (layer + 1) }, color, { 1.0, 1.0 } },
-        {{ c1.first, c0.second, 1.0f - layerZOffset * (layer + 1) }, color, { 1.0, 0.0 } }
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 } },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 } },
+        {{ tl.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 1.0 } },
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 } },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 } },
+        {{ br.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 0.0 } }
     };
+}
+
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer) {
+    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer);
 }
 
 void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
@@ -95,7 +103,7 @@ void Gui::pollChanges() {
             } else if (command.action == GUI_ADD) {
                 changed = true;
                 // data.insert(data.end(), command.data->component->vertices.begin(), command.data->component->vertices.end());
-                root->addComponent(command.data->childIndices, command.data->component  );
+                root->addComponent(command.data->childIndices, command.data->component);
                 delete command.data;
             } else if (command.action == GUI_REMOVE) {
                 changed = true;
@@ -123,8 +131,8 @@ Gui::~Gui() {
 // Idk what I am doing with these components, This seems more complicated than it needs to be
 
 // RGBA
-GuiComponent::GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
-: texture(*GuiTexture::defaultTexture()) {
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
+: texture(*GuiTexture::defaultTexture()), context(context) {
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
     this->parent = parent;
 
@@ -143,8 +151,12 @@ GuiComponent::GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, flo
     }
 }
 
-GuiComponent::GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture)
-: texture(texture) {
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture)
+: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, texture) {}
+
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, 
+    float height, int layer, GuiTexture texture)
+: texture(texture), context(context) {
     this->layoutOnly = layoutOnly;
     this->parent = parent;
 
@@ -156,10 +168,42 @@ GuiComponent::GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, flo
             (float)(0x000000ff & color) / 0x000000ff,
         });
 
+        glm::vec4 secondaryColorVec({
+            (float)(0xff000000 & secondaryColor) / 0xff000000,
+            (float)(0x00ff0000 & secondaryColor) / 0x00ff0000,
+            (float)(0x0000ff00 & secondaryColor) / 0x0000ff00,
+            (float)(0x000000ff & secondaryColor) / 0x000000ff,
+        });
+
+        vertices = context->rectangle(tl, height, texture.widenessRatio, colorVec, secondaryColorVec, layer);
+    }
+}
+
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0,
+    std::pair<float, float> c1, int layer, GuiTexture texture)
+: texture(texture), context(context) {
+    this->layoutOnly = layoutOnly;
+    this->parent = parent;
+
+    if (!layoutOnly) {
+        glm::vec4 colorVec({
+            (float)(0xff000000 & color) / 0xff000000,
+            (float)(0x00ff0000 & color) / 0x00ff0000,
+            (float)(0x0000ff00 & color) / 0x0000ff00,
+            (float)(0x000000ff & color) / 0x000000ff,
+        });
+
+        glm::vec4 secondaryColorVec({
+            (float)(0xff000000 & secondaryColor) / 0xff000000,
+            (float)(0x00ff0000 & secondaryColor) / 0x00ff0000,
+            (float)(0x0000ff00 & secondaryColor) / 0x0000ff00,
+            (float)(0x000000ff & secondaryColor) / 0x000000ff,
+        });
+
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, layer);
+        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer);
     }
 }
 
@@ -234,10 +278,11 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm) {
         child->buildVertexBuffer(acm);
 }
 
-GuiLabel::GuiLabel(const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
-: GuiComponent(false, backgroundColor, c0, c1, layer, GuiTextures::makeGuiTexture(str)), message(str) {
+GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, GuiTextures::makeGuiTexture(str)), message(str) {}
 
-}
+GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer)
+: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, GuiTextures::makeGuiTexture(str)), message(str) {}
 
 Panel::Panel(const char *filename)
 : root(YAML::LoadFile(filename)) {

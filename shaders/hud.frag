@@ -4,10 +4,13 @@ layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput in
 layout(binding = 1) uniform sampler2D texSampler[128];
 
 layout(location = 0) in vec4 inColor;
-layout(location = 1) in vec2 inTexCoord;
-layout(location = 2) in flat int inTexIndex;
+layout(location = 1) in vec4 inSecondaryColor;
+layout(location = 2) in vec2 inTexCoord;
+layout(location = 3) in flat int inTexIndex;
 
 layout(location = 0) out vec4 outColor;
+
+const float smoothing = 0.5;
 
 void main() {
     if (inTexIndex < 0) {
@@ -15,5 +18,7 @@ void main() {
         return;
     }
     // outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
-    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);;
+    float distance = texture(texSampler[inTexIndex], inTexCoord).r;
+    float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, alpha), 1.0);;
 }

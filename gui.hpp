@@ -17,6 +17,7 @@
 struct GuiVertex {
     glm::vec3 pos;
     glm::vec4 color;
+    glm::vec4 secondaryColor;
     glm::vec2 texCoord;
     glm::uint32_t texIndex;
 
@@ -29,8 +30,8 @@ struct GuiVertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions {};
+    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions {};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -44,13 +45,18 @@ struct GuiVertex {
 
         attributeDescriptions[2].binding = 0;
         attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(GuiVertex, texCoord);
+        attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributeDescriptions[2].offset = offsetof(GuiVertex, secondaryColor);
 
         attributeDescriptions[3].binding = 0;
         attributeDescriptions[3].location = 3;
-        attributeDescriptions[3].format = VK_FORMAT_R8_UINT;
-        attributeDescriptions[3].offset = offsetof(GuiVertex, texIndex);
+        attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[3].offset = offsetof(GuiVertex, texCoord);
+
+        attributeDescriptions[4].binding = 0;
+        attributeDescriptions[4].location = 4;
+        attributeDescriptions[4].format = VK_FORMAT_R8_UINT;
+        attributeDescriptions[4].offset = offsetof(GuiVertex, texIndex);
 
         return attributeDescriptions;
     }
@@ -79,6 +85,7 @@ public:
 
     void syncTexturesToGPU(const std::vector<GuiTexture *>& textures);
     static GuiTexture *defaultTexture();
+    float widenessRatio;
 private:
     VkImage textureImage;
     VmaAllocation textureAllocation;
@@ -89,12 +96,16 @@ namespace GuiTextures {
     GuiTexture makeGuiTexture(const char *str);
 };
 
+class Gui;
+
 // important that this is non-movable
 class GuiComponent {
 public:
     GuiComponent() = delete;
-    GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
-    GuiComponent(bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, float height, int layer, GuiTexture texture);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -125,12 +136,18 @@ private:
     void mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx);
     // I guess just one texture per component?
     void setTextureIndex(int textureIndex);
+    Gui *context;
 };
 
 class GuiLabel : public GuiComponent {
 public:
-    GuiLabel(const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer);
     std::string message;
+};
+
+class GuiSprite : public GuiComponent {
+public:
 };
 
 // for the quickly updating stuff in the gui (right now just the drag box) 
@@ -143,11 +160,14 @@ class GuiCommandData {
 public:
     std::queue<int> childIndices;
     GuiComponent *component;
+    struct {
+        float x, y;
+    } position;
 };
 
 class Gui {
 public:
-    Gui(float *mouseNormX, float *mouseNormY);
+    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth);
     ~Gui();
 
     // These should be automatically deleted, but I want to be sure
@@ -166,7 +186,9 @@ public:
     // I think these are in the wrong place
     // NOTE: layerZOffset needs to matches a constant in hud.vert
     static constexpr float layerZOffset = 0.001f;
-    static std::vector<GuiVertex> rectangle(std::pair<float, float> c0, std::pair<float, float> c1, glm::vec4 color, int layer);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer);
+    std::vector<GuiVertex> rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer);
     
     void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
 
@@ -178,6 +200,7 @@ public:
     enum GuiAction {
         GUI_ADD,
         GUI_REMOVE,
+        GUI_RESIZE,
         GUI_TERMINATE
     };
 
@@ -217,6 +240,8 @@ private:
     static constexpr auto pollInterval = std::chrono::milliseconds(5);
 
     GuiComponent *root;
+
+    int width, height;
 };
 
 class Panel {

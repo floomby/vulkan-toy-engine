@@ -7,8 +7,9 @@
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec4 inColor;
-layout(location = 2) in vec2 inTexCoord;
-layout(location = 3) in uint inTexIndex;
+layout(location = 2) in vec4 inSecondaryColor;
+layout(location = 3) in vec2 inTexCoord;
+layout(location = 4) in uint inTexIndex;
 
 // I may need these, but I think I will just draw in normalized device coordinates
 // It would seem to be the easiest way to do things
@@ -35,8 +36,9 @@ float layerZOffset = 0.001f;
 vec4 dragColor = vec4(0.0, 1.0, 0.0, 0.2);
 
 layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec2 outTexCoord;
-layout(location = 2) out int outTexIndex;
+layout(location = 1) out vec4 outSecondaryColor;
+layout(location = 2) out vec2 outTexCoord;
+layout(location = 3) out int outTexIndex;
 
 void main() {
     // Does every fragment need to compute this???

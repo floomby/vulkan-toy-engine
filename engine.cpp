@@ -30,6 +30,11 @@
 // #define DEPTH_DEBUG_IMAGE_USAGE VK_IMAGE_USAGE_TRANSFER_SRC_BIT
 #define DEPTH_DEBUG_IMAGE_USAGE 0
 
+#define LINUX_THREAD_DEBUGGING
+#ifdef LINUX_THREAD_DEBUGGING
+#include <sys/types.h>
+#endif
+
 // TODO, do this same thing for vma errors as well
 static std::map<int, const char *> vulkanErrors = {
     { 0, "VK_SUCCESS" },
@@ -128,7 +133,9 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 }
 
 static const std::vector<const char*> requiredDeviceExtensions = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    // My card does not support cubic filtering??? (I am in disbelief, but we can do it in the fragment shader anyways)
+    // VK_EXT_FILTER_CUBIC_EXTENSION_NAME
     // I really want to use this, but I can't because nvidia drivers don't support it
     // VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME
 };
@@ -188,6 +195,7 @@ void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height
     engine->framebufferResized = true;
     engine->framebufferSize.width = width;
     engine->framebufferSize.height = height;
+    std::cout << "Thread resize callback run on thred: " << gettid() << std::endl;
 }
 
 void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -219,6 +227,13 @@ std::vector<const char *> Engine::getUnsupportedLayers() {
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    // if (engineSettings.extremelyVerbose) {
+        std::cout << "Supported layers:" << std::endl;
+        for(const auto& layer : availableLayers) {
+            std::cout << "\t" << layer.layerName << std::endl;
+        }
+    // }
 
     for (const char* layerName: engineSettings.validationLayers) {
         bool foundLayer = false;
@@ -448,7 +463,7 @@ void Engine::pickPhysicalDevice() {
             vkGetPhysicalDeviceProperties(device, &deviceProperties);
             vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
             int score = deviceProperties.limits.maxImageDimension2D;
-            if (!indices.isSupported() || !deviceSupportsExtensions(device) ||
+            if (!indices.isSupported() /*|| !deviceSupportsExtensions(device)*/ ||
                 !deviceSupportsSwapChain(device) || !deviceFeatures.samplerAnisotropy) score = invalidateScore(score);
             return std::make_pair(score, std::make_tuple(device, deviceProperties, deviceFeatures, indices));
         });
@@ -642,6 +657,7 @@ void Engine::createImageViews() {
     subpassImageAllocations.resize(swapChainImages.size());
     subpassImageViews.resize(swapChainImages.size());
     swapChainImageViews.resize(swapChainImages.size());
+    static bool notFirstCall;
 
     for (int i = 0; i < swapChainImages.size(); i++) {
         VkImageCreateInfo imageInfo {};
@@ -668,6 +684,38 @@ void Engine::createImageViews() {
 
         // I cant even do this here because with have no commandbuffers yet
         // transitionImageLayout(subpassImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        if (notFirstCall) {
+            VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+            VkImageMemoryBarrier barrier {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+            barrier.image = subpassImages[i];
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barrier.subresourceRange.baseMipLevel = 0;
+            barrier.subresourceRange.levelCount = 1;
+            barrier.subresourceRange.baseArrayLayer = 0;
+            barrier.subresourceRange.layerCount = 1;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &barrier
+            );
+
+            endSingleTimeCommands(commandBuffer);
+        }
 
         VkImageViewCreateInfo imageViewInfo {};
 
@@ -675,6 +723,7 @@ void Engine::createImageViews() {
 
         swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
     }
+    notFirstCall = true;
 }
 
 void Engine::destroyImageViews() {
@@ -732,7 +781,7 @@ void Engine::createRenderPass() {
     subpassAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     subpassAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     subpassAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    subpassAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    subpassAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentReference subpass0color = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
     VkAttachmentReference subpass0depth = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
@@ -1597,6 +1646,7 @@ void Engine::initVulkan() {
     // vulkanErrorGuard(vkCreatePipelineCache(device, &pipelineCacheCI, nullptr, &pipelineCache), "Unable to create pipeline cache.");
 
     createSwapChain();
+    framebufferResized = false;
     createImageViews();
     createRenderPass();
 
@@ -1717,11 +1767,11 @@ void Engine::handleInput() {
             if (keyEvent.key == GLFW_KEY_O) {
                 GuiCommandData *what = new GuiCommandData();
                 // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what->component = new GuiComponent(false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
+                what->component = new GuiComponent(gui, false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
                 gui->submitCommand({ Gui::GUI_ADD, what });
                 GuiCommandData *what2 = new GuiCommandData();
                 // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what2->component = new GuiLabel("test", 0x101010ff, 0xff000040, { -0.4, 0.8 }, { 0.0, 0.9 }, 2);
+                what2->component = new GuiLabel(gui, "test", 0x101010ff, 0xff000040, { -0.4, 0.8 }, 0.1, 2);
                 gui->submitCommand({ Gui::GUI_ADD, what2 });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
@@ -1940,8 +1990,8 @@ void Engine::drawFrame() {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
-
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
         hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
@@ -1995,8 +2045,8 @@ void Engine::drawFrame() {
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-        framebufferResized = false;
         recreateSwapChain();
+        framebufferResized = false;
     } else if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to present swap chain image.");
 
@@ -2056,7 +2106,6 @@ void Engine::runCurrentScene() {
     allocateCommandBuffers();
     initSynchronization();
     currentFrame = 0;
-    framebufferResized = false;
     double x, y;
     glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
     glfwGetCursorPos(window, &x, &y);
@@ -2071,7 +2120,7 @@ void Engine::runCurrentScene() {
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
-    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY);
+    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width);
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
@@ -2446,6 +2495,8 @@ void Engine::initSynchronization() {
 }
 
 void Engine::recreateSwapChain() {
+    std::cout << "Recreating swapchain with thread: " << gettid() << std::endl;
+
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
     while (width == 0 || height == 0) {
@@ -2463,7 +2514,8 @@ void Engine::recreateSwapChain() {
     createGraphicsPipelines();
     createDepthResources();
     createFramebuffers();
-    // createDescriptors(currentScene->textures, {});
+    createDescriptors(currentScene->textures, {});
+    writeHudDescriptors();
     // allocateCommandBuffers();
 }
 
@@ -2473,9 +2525,9 @@ void Engine::cleanupSwapChain() {
     for (auto framebuffer : swapChainFramebuffers)
         vkDestroyFramebuffer(device, framebuffer, nullptr);
 
-    vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
-    if (engineSettings.useConcurrentTransferQueue)
-        vkFreeCommandBuffers(device, transferCommandPool, transferCommandBuffers.size(), transferCommandBuffers.data());
+    // vkFreeCommandBuffers(device, commandPool, commandBuffers.size(), commandBuffers.data());
+    // if (engineSettings.useConcurrentTransferQueue)
+    //     vkFreeCommandBuffers(device, transferCommandPool, transferCommandBuffers.size(), transferCommandBuffers.data());
 
     for (auto pipeline : graphicsPipelines)
         vkDestroyPipeline(device, pipeline, nullptr);
@@ -3590,6 +3642,7 @@ GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format) {
     this->context = context;
+    widenessRatio = (float)width / height;
 
     VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     stagingBufInfo.size = height * width * channels;
@@ -3607,7 +3660,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
             throw std::runtime_error("Unable to allocate memory for texture.");
 
     for (int i = 0; i < height; i++)
-        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * 4);
+        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * 4 * channels);
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     imageInfo.imageType = VK_IMAGE_TYPE_2D ;
@@ -3698,6 +3751,8 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    // samplerInfo.magFilter = VK_FILTER_CUBIC_IMG;
+    // samplerInfo.minFilter = VK_FILTER_CUBIC_IMG;
     samplerInfo.magFilter = VK_FILTER_LINEAR;
     samplerInfo.minFilter = VK_FILTER_LINEAR;
 
@@ -3735,6 +3790,7 @@ GuiTexture::GuiTexture(const GuiTexture& other) {
     textureSampler = other.textureSampler;
     textureAllocation = other.textureAllocation;
     context = other.context;
+    widenessRatio = other.widenessRatio;
     GuiTextures::references[textureImage]++;
 }
 
@@ -3743,7 +3799,7 @@ GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
 }
 
 GuiTexture::GuiTexture(GuiTexture&& other) noexcept
-: textureImageView(other.textureImageView), textureSampler(other.textureSampler),
+: textureImageView(other.textureImageView), textureSampler(other.textureSampler), widenessRatio(other.widenessRatio),
 textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
 { GuiTextures::references[textureImage]++; }
 
@@ -3753,6 +3809,7 @@ GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     textureSampler = other.textureSampler;
     textureAllocation = other.textureAllocation;
     context = other.context;
+    widenessRatio = other.widenessRatio;
     return *this;
 }
 
@@ -3844,8 +3901,7 @@ namespace GuiTextures {
     }
 
     void setDefaultTexture() {
-        int width = makeTexture("");
-
-        defaultTexture = new GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_SRGB);
+        unsigned char value = 0xff;
+        defaultTexture = new GuiTexture(context, &value, 1, 1, 1, maxTextWidth, VK_FORMAT_R8_SRGB);
     }
 };
