@@ -1,5 +1,7 @@
 #version 450
 
+#include "render_modes.h"
+
 layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput inputColor;
 layout(binding = 1) uniform sampler2D texSampler[128];
 
@@ -9,6 +11,8 @@ layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in flat int inTexIndex;
 layout(location = 4) in flat uint inGuiID;
 layout(location = 5) in flat uint inCursorID;
+layout(location = 6) in flat uint inRenderMode;
+layout(location = 7) in flat uint inFlags;
 
 layout(location = 0) out vec4 outColor;
 

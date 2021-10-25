@@ -15,6 +15,9 @@
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth)
 : root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0)), height(screenHeight), width(screenWidth) {
+    // idLookup.erase(0);
+    // root->id = UINT32_MAX;
+    // idLookup.insert({ root->id, root });
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     guiThread = std::thread(&Gui::pollChanges, this);
@@ -46,23 +49,26 @@ uint32_t Gui::idUnderPoint(GuiVertex *buffer, size_t count, float x, float y) {
     return ret;
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id) {
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br,
+    glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id, uint32_t renderMode) {
     return {
-        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id },
-        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id },
-        {{ tl.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 1.0 }, 0, id },
-        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id },
-        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id },
-        {{ br.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 0.0 }, 0, id }
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id, renderMode, 0 },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id, renderMode, 0 },
+        {{ tl.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 1.0 }, 0, id, renderMode, 0 },
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id, renderMode, 0 },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id, renderMode, 0 },
+        {{ br.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 0.0 }, 0, id, renderMode, 0 }
     };
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer, uint32_t id) {
-    return rectangle(tl, br, color, color, layer, id);
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br,
+    glm::vec4 color, int layer, uint32_t id, uint32_t renderMode) {
+    return rectangle(tl, br, color, color, layer, id, renderMode);
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id) {
-    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer, id);
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio,
+    glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id, uint32_t renderMode) {
+    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer, id, renderMode);
 }
 
 void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
@@ -118,8 +124,6 @@ void Gui::pollChanges() {
             if(command.action == GUI_TERMINATE) {
                 terminate = true;
                 break;
-
-                delete command.data;
             } else if (command.action == GUI_ADD) {
                 changed = true;
                 // data.insert(data.end(), command.data->component->vertices.begin(), command.data->component->vertices.end());
@@ -127,12 +131,15 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_REMOVE) {
                 changed = true;
-
+                root->removeComponent(command.data->childIndices);
                 delete command.data;
             } else if (command.action == GUI_RESIZE) {
                 changed = true; // really this is rarely false so just treat it like it is always true
                 height = command.data->size.height.asInt;
                 width = command.data->size.width.asInt;
+                delete command.data;
+            } else if (command.action == GUI_CLICK) {
+                idLookup.at(command.data->id)->click(command.data->position.x.asFloat, command.data->position.y.asFloat);
                 delete command.data;
             }
         }
@@ -142,7 +149,6 @@ void Gui::pollChanges() {
         std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
         std::this_thread::sleep_for(pollInterval - (done - started));
     }
-    // TODO delete all components
 }
 
 Gui::~Gui() {
@@ -150,17 +156,21 @@ Gui::~Gui() {
     guiCommands.push({ GUI_TERMINATE });
     std::cout << "Waiting to join gui thread..." << std::endl;
     guiThread.join();
+    assert(idLookup.empty());
 }
 
 // RGBA is the order
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
+// TODO Fix this
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, uint32_t renderMode)
 : texture(*GuiTexture::defaultTexture()), context(context) {
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
     this->parent = parent;
     id = context->idCounter++;
     this->layer = layer;
+    this->renderMode = renderMode;
+    context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -173,17 +183,19 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::p
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, layer, id);
+        vertices = Gui::rectangle(tl, br, colorVec, layer, id, renderMode);
     }
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, 
-    float height, int layer, GuiTexture texture)
+    float height, int layer, GuiTexture texture, uint32_t renderMode)
 : texture(texture), context(context) {
     this->layoutOnly = layoutOnly;
     this->parent = parent;
     id = context->idCounter++;
     this->layer = layer;
+    this->renderMode = renderMode;
+    context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -200,17 +212,19 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
             (float)(0x000000ff & secondaryColor) / 0x000000ff,
         });
 
-        vertices = context->rectangle(tl, height, texture.widenessRatio, colorVec, secondaryColorVec, layer, id);
+        vertices = context->rectangle(tl, height, texture.widenessRatio, colorVec, secondaryColorVec, layer, id, renderMode);
     }
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, GuiTexture texture)
+    std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode)
 : texture(texture), context(context) {
     this->layoutOnly = layoutOnly;
     this->parent = parent;
     id = context->idCounter++;
     this->layer = layer;
+    this->renderMode = renderMode;
+    context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -230,23 +244,26 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer, id);
+        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer, id, renderMode);
     }
 }
 
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture)
-: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, texture) {}
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
+    std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode)
+: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, texture, renderMode) {}
 
 GuiComponent::~GuiComponent() {
+    context->idLookup.erase(id);
+
     for(auto& child : children)
         delete child;
 }
 
-void GuiComponent::addComponent(std::queue<int>& childIndices, GuiComponent *component) {
+void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *component) {
     addComponent(childIndices, component, this);
 }
 
-void GuiComponent::addComponent(std::queue<int>& childIndices, GuiComponent *component, GuiComponent *parent) {
+void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *component, GuiComponent *parent) {
     if (childIndices.empty()) {
         children.push_back(component);
         component->parent = parent;
@@ -258,11 +275,12 @@ void GuiComponent::addComponent(std::queue<int>& childIndices, GuiComponent *com
     children.at(index)->addComponent(childIndices, component, this);
 }
 
-void GuiComponent::removeComponent(std::queue<int>& childIndices) {
+void GuiComponent::removeComponent(std::queue<uint>& childIndices) {
     int index = childIndices.front();
     childIndices.pop();
 
     if (childIndices.empty()) {
+        if (index >= children.size()) return;
         delete children.at(index);
         children.erase(children.begin() + index);
         return;
@@ -330,6 +348,10 @@ void GuiComponent::resizeVertices() {
     assert(!"Dynamic ndc not enabled for this gui component");
 }
 
+void GuiComponent::click(float x, float y) {
+    std::cout << "Clicked me: " << id << std::endl;
+}
+
 // Arguably I should just do this at the same time as maping the textures
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm) {
     if (dynamicNDC) resizeVertices();
@@ -341,12 +363,12 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm) {
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, GuiTextures::makeGuiTexture(str)), message(str) {
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, GuiTextures::makeGuiTexture(str), RMODE_TEXT), message(str) {
     dynamicNDC = true;
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, GuiTextures::makeGuiTexture(str)), message(str) {
+: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, GuiTextures::makeGuiTexture(str), RMODE_TEXT), message(str) {
     dynamicNDC = true;
 }
 

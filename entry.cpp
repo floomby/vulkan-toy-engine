@@ -78,15 +78,16 @@ Random non-crital stuff:
  The makefile build should be made faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
  Make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
  In the gui code for the ndc coords are in x = <> and y = ^v (nvm, I am just going insane cause I thought I was mixing my x and y in the input code)
-Next steps
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
+ I think I read the glfw docs wrong and dont need spsc lockfree queues for the input handling threads (afaict the linux tids are the same as the engine thread, this
+ could be not guarenteed though)
+Next steps
  game instance allocation synchronization with vulkan buffers
  game state (this involves concurrency stuff)
  ECS? (or something else as an organizational structure for the proccessing)
  lt - better model library (assimp?)
- lt - emmisivity maps
+ lt - emmisivity maps would be cool
  gui
-  finish syncronization (I need to protect the verticies buffer, if the gui thread triggers a write while we are already flagged as rebuilt it can get messed up)
   messaging from the gui to the render thread (probably just use another spsc lockfree queue)
   yaml reader into layouts
   pass the clicks to the gui from the render thread (this is easy, just give it the ndc in the gui input message queue)

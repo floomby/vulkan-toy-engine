@@ -142,6 +142,7 @@ static const std::vector<const char*> requiredDeviceExtensions = {
 
 Engine::Engine(EngineSettings engineSettings) {
     this->engineSettings = engineSettings;
+    std::cout << "Engine main thread is " << gettid() << std::endl;
 }
 
 // This function is badly named since it only gets *intstance* extensions
@@ -212,6 +213,14 @@ void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int
     double x, y;
     glfwGetCursorPos(engine->window, &x, &y);
     engine->mouseInput.push({ action, button, mods, (float)x, (float)y });
+    // I guess the tids are the same as the engine main thread and we can just do this???
+    // Glfw docs have me confoozzled in this reguard (entirely possible I just can't read)
+    // std::cout << "Mouse handler tid: " << gettid() << std::endl;
+    auto what = new GuiCommandData();
+    what->id = engine->gui->pushConstant()->guiID;
+    what->position.x.asFloat = engine->lastMousePosition.normedX;
+    what->position.y.asFloat = engine->lastMousePosition.normedY;
+    engine->gui->submitCommand({ Gui::GUI_CLICK, what });
 }
 
 void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -1766,7 +1775,10 @@ void Engine::handleInput() {
                 std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
             }
             if (keyEvent.key == GLFW_KEY_Y) {
-                depthDump.makeDump = true;
+                GuiCommandData *what3 = new GuiCommandData();
+                what3->childIndices.push(1);
+                // what3->childIndices.push(1);
+                gui->submitCommand({ Gui::GUI_REMOVE, what3 });
             }
             if (keyEvent.key == GLFW_KEY_B) {
                 std::raise(SIGTRAP);
@@ -2338,9 +2350,11 @@ void Engine::writeHudDescriptors() {
     }
 }
 
+// This is a stupid and ugly hack
+static std::vector<GuiTexture> textureRefs;
+
 void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
-    static std::vector<GuiTexture> refs;
-    refs.clear();
+    textureRefs.clear();
     if (hudTextures.empty()) return;
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -2367,8 +2381,13 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
     }
 
     // Now we leverage the reference counting to keep the textures from disapearing on us
-    refs.reserve(hudTextures.size());
-    transform(hudTextures.begin(), hudTextures.end(), back_inserter(refs), [](GuiTexture *x)-> GuiTexture { return *x; } );
+    // textureRefs.reserve(hudTextures.size());
+    // transform(hudTextures.begin(), hudTextures.end(), refs.begin(), [](GuiTexture *x)-> GuiTexture { return GuiTexture(*x); } );
+    for(const auto textPtr : hudTextures) {
+        // force the copy constructor to be called rather than the move constructor
+        std::raise(SIGTRAP);
+        textureRefs.push_back(GuiTexture(*textPtr));
+    }
 }
 
 void Engine::updateLightingDescriptors(int index, const ViewProjPosNearFar& data) {

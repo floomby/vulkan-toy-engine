@@ -1,5 +1,6 @@
 #pragma once
 
+#include "shaders/render_modes.h"
 #include "utilities.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
@@ -21,6 +22,8 @@ struct GuiVertex {
     glm::vec2 texCoord;
     glm::uint32_t texIndex;
     glm::uint32_t guiID;
+    glm::uint32_t renderMode;
+    glm::uint32_t flags;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
@@ -31,8 +34,15 @@ struct GuiVertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions {};
+    // I feel like all this duplicated data in the vertex buffer is wastefull where I could have a dynamic ubo, but this makes the
+    // drawing have extra steps as well as needing more an additional descriptor and buffer for the ubos as well as the added task
+    // of making the reallocations of that buffer just like the dynamic ubos for instances.
+    // I am not sure when using a dynamic ubo buffer being better is. I may have crossed into that territory already.
+    // Although the non interpolated is actually only 96 bytes per component
+    // Alternatively I could just use a static ubo and do a lookup with an id I put here (this somehow seems antithetical to what you are
+    // meant to do)
+    static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 7> attributeDescriptions {};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -56,13 +66,23 @@ struct GuiVertex {
 
         attributeDescriptions[4].binding = 0;
         attributeDescriptions[4].location = 4;
-        attributeDescriptions[4].format = VK_FORMAT_R8_UINT;
+        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;
         attributeDescriptions[4].offset = offsetof(GuiVertex, texIndex);
 
         attributeDescriptions[5].binding = 0;
         attributeDescriptions[5].location = 5;
-        attributeDescriptions[5].format = VK_FORMAT_R8_UINT;
+        attributeDescriptions[5].format = VK_FORMAT_R32_UINT;
         attributeDescriptions[5].offset = offsetof(GuiVertex, guiID);
+
+        attributeDescriptions[6].binding = 0;
+        attributeDescriptions[6].location = 6;
+        attributeDescriptions[6].format = VK_FORMAT_R32_UINT;
+        attributeDescriptions[6].offset = offsetof(GuiVertex, renderMode);
+
+        attributeDescriptions[7].binding = 0;
+        attributeDescriptions[7].location = 7;
+        attributeDescriptions[7].format = VK_FORMAT_R32_UINT;
+        attributeDescriptions[7].offset = offsetof(GuiVertex, flags);
 
         return attributeDescriptions;
     }
@@ -110,10 +130,14 @@ class Gui;
 class GuiComponent {
 public:
     GuiComponent() = delete;
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, float height, int layer, GuiTexture texture);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
+        std::pair<float, float> c1, int layer, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
+         std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
+        std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
+        std::pair<float, float> tl, float height, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -129,10 +153,10 @@ public:
     std::vector<GuiVertex> vertices;
 
     // indices to parent
-    void addComponent(std::queue<int>& childIdices, GuiComponent *component);
-    void addComponent(std::queue<int>& childIdices, GuiComponent *component, GuiComponent *parent);
+    void addComponent(std::queue<uint>& childIdices, GuiComponent *component);
+    void addComponent(std::queue<uint>& childIdices, GuiComponent *component, GuiComponent *parent);
     // indices to child
-    void removeComponent(std::queue<int>& childIndices);
+    void removeComponent(std::queue<uint>& childIndices);
 
     std::vector<GuiTexture *>& mapTextures(std::vector<GuiTexture *>& acm, int& idx);
     GuiTexture texture;
@@ -143,8 +167,11 @@ public:
     uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y);
     uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y, std::pair<int, int>& idMaxLayer);
     int layer;
-protected:
+    uint32_t renderMode;
+
+    virtual void click(float x, float y);
     uint32_t id;
+protected:
     bool dynamicNDC = false;
     virtual void resizeVertices();
     Gui *context;
@@ -178,7 +205,7 @@ struct GuiPushConstant {
 
 class GuiCommandData {
 public:
-    std::queue<int> childIndices;
+    std::queue<uint> childIndices;
     GuiComponent *component;
     struct {
         union {
@@ -200,6 +227,8 @@ public:
             int asInt;
         } height;
     } size;
+    // the gui object already knows this via the push constants, but that technically creates a synchronization error even if it is maybe just a frame off
+    uint32_t id;
 };
 
 class Gui {
@@ -214,24 +243,25 @@ public:
     Gui& operator=(Gui&& other) noexcept = delete;
 
     size_t updateBuffer(void *buffer, size_t max);
-    // Lets not reinvent the wheel here even if stl is sometimes slow
 
     // set this to true to indicate the need to update the buffers in vram
     bool rebuilt;
 
     // Takes normalized device coordinates
     // I think these are in the wrong place
-    // NOTE: layerZOffset needs to matches a constant in hud.vert
-    static constexpr float layerZOffset = 0.001f;
-    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer, uint32_t id);
-    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id);
-    std::vector<GuiVertex> rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color,
+        int layer, uint32_t id, uint32_t renderMode);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color,
+        glm::vec4 secondaryColor, int layer, uint32_t id, uint32_t renderMode);
+    std::vector<GuiVertex> rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color,
+        glm::vec4 secondaryColor, int layer, uint32_t id, uint32_t renderMode);
     
     void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
     void setCursorID(uint32_t id);
 
-    // Gui is going to be a seperate thread
     GuiPushConstant *pushConstant();
+    // I see no reason to need to lock the constants since the worst we can do is create a slight obliqueness which last 1 frame
+    // in the drag box and that is even pretty unlikely
     // void lockPushConstant();
     // void unlockPushConstant();
 
@@ -239,6 +269,7 @@ public:
         GUI_ADD,
         GUI_REMOVE,
         GUI_RESIZE,
+        GUI_CLICK,
         GUI_TERMINATE
     };
 
@@ -265,6 +296,7 @@ public:
     int idCounter = 0;
 
     uint32_t idUnderPoint(GuiVertex *buffer, size_t count, float x, float y);
+    std::map<uint32_t, GuiComponent *> idLookup;
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
