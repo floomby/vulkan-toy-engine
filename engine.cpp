@@ -1173,8 +1173,6 @@ void Engine::createCommandPools() {
 
         vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &transferCommandPool), "Failed to create transfer command pool.");
     }
-
-
 }
 
 uint32_t Engine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
