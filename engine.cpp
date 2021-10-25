@@ -1762,7 +1762,8 @@ void Engine::handleInput() {
             keysPressed[keyEvent.key] = true;
 
             if (keyEvent.key == GLFW_KEY_T) {
-                shadow.makeSnapshot = true;
+                // shadow.makeSnapshot = true;
+                std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
             }
             if (keyEvent.key == GLFW_KEY_Y) {
                 depthDump.makeDump = true;
@@ -2003,6 +2004,8 @@ void Engine::drawFrame() {
         hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
         guiOutOfDate = false;
     }
+    gui->pushConstant()->guiID = gui->idUnderPoint((GuiVertex *)hudAllocation->GetMappedData(), hudVertexCount, lastMousePosition.normedX, lastMousePosition.normedY);
+
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
         doShadowDebugWrite();

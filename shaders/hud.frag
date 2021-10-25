@@ -7,6 +7,8 @@ layout(location = 0) in vec4 inColor;
 layout(location = 1) in vec4 inSecondaryColor;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in flat int inTexIndex;
+layout(location = 4) in flat uint inGuiID;
+layout(location = 5) in flat uint inCursorID;
 
 layout(location = 0) out vec4 outColor;
 
@@ -20,5 +22,8 @@ void main() {
     // outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
     float distance = texture(texSampler[inTexIndex], inTexCoord).r;
     float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
-    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, alpha), 1.0);;
+    outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, alpha), 1.0);
+    if (inGuiID == inCursorID) {
+        outColor = vec4(1, 1, 1, 1);
+    }
 }

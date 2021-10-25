@@ -20,6 +20,7 @@ struct GuiVertex {
     glm::vec4 secondaryColor;
     glm::vec2 texCoord;
     glm::uint32_t texIndex;
+    glm::uint32_t guiID;
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription {};
@@ -30,8 +31,8 @@ struct GuiVertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions {};
+    static std::array<VkVertexInputAttributeDescription, 6> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions {};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -57,6 +58,11 @@ struct GuiVertex {
         attributeDescriptions[4].location = 4;
         attributeDescriptions[4].format = VK_FORMAT_R8_UINT;
         attributeDescriptions[4].offset = offsetof(GuiVertex, texIndex);
+
+        attributeDescriptions[5].binding = 0;
+        attributeDescriptions[5].location = 5;
+        attributeDescriptions[5].format = VK_FORMAT_R8_UINT;
+        attributeDescriptions[5].offset = offsetof(GuiVertex, guiID);
 
         return attributeDescriptions;
     }
@@ -132,7 +138,13 @@ public:
     GuiTexture texture;
 
     void buildVertexBuffer(std::vector<GuiVertex>& acm);
+    inline bool containsNDCPoint(float x, float y)
+    { return x > vertices[0].pos.x && y > vertices[0].pos.y && x < vertices[1].pos.x && y < vertices[1].pos.y; }
+    uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y);
+    uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y, std::pair<int, int>& idMaxLayer);
+    int layer;
 protected:
+    uint32_t id;
     bool dynamicNDC = false;
     virtual void resizeVertices();
     Gui *context;
@@ -161,6 +173,7 @@ public:
 // Does this even make sense or is it just needlessly complicating things?
 struct GuiPushConstant {
     glm::vec2 dragBox[2];
+    glm::uint32_t guiID;
 };
 
 class GuiCommandData {
@@ -210,11 +223,12 @@ public:
     // I think these are in the wrong place
     // NOTE: layerZOffset needs to matches a constant in hud.vert
     static constexpr float layerZOffset = 0.001f;
-    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer);
-    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer);
-    std::vector<GuiVertex> rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer, uint32_t id);
+    static std::vector<GuiVertex> rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id);
+    std::vector<GuiVertex> rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id);
     
     void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
+    void setCursorID(uint32_t id);
 
     // Gui is going to be a seperate thread
     GuiPushConstant *pushConstant();
@@ -248,6 +262,9 @@ public:
 
     static const int dummyVertexCount = 12;
     int width, height;
+    int idCounter = 0;
+
+    uint32_t idUnderPoint(GuiVertex *buffer, size_t count, float x, float y);
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;

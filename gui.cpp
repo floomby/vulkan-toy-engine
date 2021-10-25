@@ -31,23 +31,38 @@ size_t Gui::updateBuffer(void *buffer, size_t maxCount) {
     return std::min(maxCount, vertices.size() + Gui::dummyVertexCount);
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer) {
-    return rectangle(tl, br, color, color, layer);
+// This one just searches the vertex buffer oblivious to the gui component tree, this means we can run it directly on the buffer
+// The name 
+uint32_t Gui::idUnderPoint(GuiVertex *buffer, size_t count, float x, float y) {
+    uint32_t ret = UINT32_MAX;
+    float maxLayer = 1.0;
+    for(int i = Gui::dummyVertexCount; i < count; i += 6){
+        if(buffer[i].pos.z < maxLayer && buffer[i].pos.x < x && buffer[i].pos.y < y && buffer[i + 1].pos.x > x && buffer[i + 1].pos.y > y) {
+            // std::cout << buffer[i].pos.z << std::endl;
+            ret = buffer[i].guiID;
+            maxLayer = buffer[i].pos.z;
+        }
+    }
+    return ret;
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer) {
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id) {
     return {
-        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 } },
-        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 } },
-        {{ tl.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 1.0 } },
-        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 } },
-        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 } },
-        {{ br.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 0.0 } }
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id },
+        {{ tl.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 1.0 }, 0, id },
+        {{ tl.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 0.0, 0.0 }, 0, id },
+        {{ br.first, br.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 1.0 }, 0, id },
+        {{ br.first, tl.second, 1.0f - layerZOffset * (layer + 1) }, color, secondaryColor, { 1.0, 0.0 }, 0, id }
     };
 }
 
-std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer) {
-    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer);
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer, uint32_t id) {
+    return rectangle(tl, br, color, color, layer, id);
+}
+
+std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio, glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id) {
+    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer, id);
 }
 
 void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
@@ -58,10 +73,15 @@ void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
     _pushConstant.dragBox[1].y = c1.second;
 }
 
+void Gui::setCursorID(uint32_t id) {
+    _pushConstant.guiID = id;
+}
+
 void Gui::submitCommand(GuiCommand command) {
     guiCommands.push(command);
 }
 
+// I had a reason for this silly looking thing, but it kind of went away I think
 GuiPushConstant *Gui::pushConstant() {
     return &_pushConstant;
 }
@@ -132,13 +152,15 @@ Gui::~Gui() {
     guiThread.join();
 }
 
-// Idk what I am doing with these components, This seems more complicated than it needs to be
+// RGBA is the order
 
-// RGBA
+// Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
 : texture(*GuiTexture::defaultTexture()), context(context) {
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
     this->parent = parent;
+    id = context->idCounter++;
+    this->layer = layer;
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -151,18 +173,17 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::p
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, layer);
+        vertices = Gui::rectangle(tl, br, colorVec, layer, id);
     }
 }
-
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture)
-: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, texture) {}
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, 
     float height, int layer, GuiTexture texture)
 : texture(texture), context(context) {
     this->layoutOnly = layoutOnly;
     this->parent = parent;
+    id = context->idCounter++;
+    this->layer = layer;
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -179,7 +200,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
             (float)(0x000000ff & secondaryColor) / 0x000000ff,
         });
 
-        vertices = context->rectangle(tl, height, texture.widenessRatio, colorVec, secondaryColorVec, layer);
+        vertices = context->rectangle(tl, height, texture.widenessRatio, colorVec, secondaryColorVec, layer, id);
     }
 }
 
@@ -188,6 +209,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
 : texture(texture), context(context) {
     this->layoutOnly = layoutOnly;
     this->parent = parent;
+    id = context->idCounter++;
+    this->layer = layer;
 
     if (!layoutOnly) {
         glm::vec4 colorVec({
@@ -207,9 +230,12 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer);
+        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer, id);
     }
 }
+
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture)
+: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, texture) {}
 
 GuiComponent::~GuiComponent() {
     for(auto& child : children)
@@ -272,6 +298,32 @@ void GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, std::map<Resource
 
     for(const auto child : children)
         child->mapTextures(acm, resources, idx);
+}
+
+// returns the id with the highest layer (if 2 or more have equal it only returns the one which comes first in the tree)
+uint32_t GuiComponent::allContaining(std::vector<GuiComponent *>& acm, float x, float y) {
+    std::pair<int, int> note = { id, layer };
+    allContaining(acm, x, y, note);
+    return note.first;
+}
+
+// Idk if I even want to use this to look for the mouse position because it relys on having the guicomponent pointers be valid
+// which means it has to run in the gui thread (or it could segfault) which means it will lag if the gui thread is busy rebuilding the gui.
+// This is nice to have around though, but probably better is the raw buffer searching method because it has no dependency on anything the
+// gui thread is doing and is pretty faster anyways.
+uint32_t GuiComponent::allContaining(std::vector<GuiComponent *>& acm, float x, float y, std::pair<int, int>& idMaxLayer) {
+    if (containsNDCPoint(x, y)) {
+        acm.push_back(this);
+        if (layer > idMaxLayer.second) {
+            idMaxLayer.first = id;
+            idMaxLayer.second = layer;
+        }
+    }
+
+    for(const auto child : children)
+        child->allContaining(acm, x, y);
+
+    return UINT32_MAX; // just need an always invalid id here
 }
 
 void GuiComponent::resizeVertices() {
