@@ -98,6 +98,8 @@ namespace GuiTextures {
 
 class Gui;
 
+#include <iostream>
+
 // important that this is non-movable
 class GuiComponent {
 public:
@@ -130,13 +132,16 @@ public:
     GuiTexture texture;
 
     void buildVertexBuffer(std::vector<GuiVertex>& acm);
+protected:
+    bool dynamicNDC = false;
+    virtual void resizeVertices();
+    Gui *context;
 private:
     bool layoutOnly;
 
     void mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx);
     // I guess just one texture per component?
     void setTextureIndex(int textureIndex);
-    Gui *context;
 };
 
 class GuiLabel : public GuiComponent {
@@ -144,6 +149,8 @@ public:
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer);
     std::string message;
+private:
+    virtual void resizeVertices();
 };
 
 class GuiSprite : public GuiComponent {
@@ -161,8 +168,25 @@ public:
     std::queue<int> childIndices;
     GuiComponent *component;
     struct {
-        float x, y;
+        union {
+            float asFloat;
+            int asInt;
+        } x;
+        union {
+            float asFloat;
+            int asInt;
+        } y;
     } position;
+    struct {
+        union {
+            float asFloat;
+            int asInt;
+        } width;
+        union {
+            float asFloat;
+            int asInt;
+        } height;
+    } size;
 };
 
 class Gui {
@@ -221,6 +245,9 @@ public:
     };
 
     void submitCommand(GuiCommand command);
+
+    static const int dummyVertexCount = 12;
+    int width, height;
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
@@ -240,8 +267,6 @@ private:
     static constexpr auto pollInterval = std::chrono::milliseconds(5);
 
     GuiComponent *root;
-
-    int width, height;
 };
 
 class Panel {

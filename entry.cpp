@@ -77,6 +77,7 @@ Random non-crital stuff:
  I am linking to libpng now for freetype2, maybe I should stop using stbi
  The makefile build should be made faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
  make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
+ I did something horrible in the gui code for the ndc coords are in x = <> and y = ^v
 
 Next steps
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
@@ -106,6 +107,7 @@ Bugfixxy stuff
     states: imageExtent must be between minImageExtent and maxImageExtent, inclusive, where minImageExtent and maxImageExtent are members of the
     VkSurfaceCapabilitiesKHR structure returned by vkGetPhysicalDeviceSurfaceCapabilitiesKHR for the surface
     (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-VkSwapchainCreateInfoKHR-imageExtent-01274)
+ also it can mess up the gui more frequently (I try and suspend drawing to the gui if I have resized, but not rebuilt the gui)
 
  get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
 */

@@ -195,7 +195,15 @@ void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height
     engine->framebufferResized = true;
     engine->framebufferSize.width = width;
     engine->framebufferSize.height = height;
-    std::cout << "Thread resize callback run on thred: " << gettid() << std::endl;
+    // std::cout << "Thread resize callback run on thred: " << gettid() << std::endl;
+    if (engine->gui) {
+        engine->guiOutOfDate = true; // dont draw the gui until after it has been rebuilt
+        GuiCommandData *what = new GuiCommandData();
+        // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
+        what->size.height.asInt = height;
+        what->size.width.asInt = width;
+        engine->gui->submitCommand({ Gui::GUI_RESIZE, what });
+    }
 }
 
 void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -1995,6 +2003,7 @@ void Engine::drawFrame() {
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
         hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+        guiOutOfDate = false;
     }
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2462,7 +2471,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), gui->pushConstant());
     // gui->unlockPushConstant();
 
-    vkCmdDraw(buffer, hudVertexCount, 1, 0, 0);
+    vkCmdDraw(buffer, guiOutOfDate ? Gui::dummyVertexCount : hudVertexCount, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
 

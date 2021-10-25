@@ -82,7 +82,8 @@ private:
 
     ViewProjPosNearFar lightingData;
 
-    Gui *gui;
+    bool guiOutOfDate = false;
+    Gui *gui = nullptr;
 
     struct Cammera {
         const float minZoom = 1.0f, maxZoom = 10.0f;

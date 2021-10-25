@@ -20,15 +20,15 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     guiThread = std::thread(&Gui::pollChanges, this);
 }
 
-// Doing it this way wastes sizeof(GuiVertex) * 12 bytes of vram where the imaginary drag box and background are (...idk what I doing...)
+// Doing it this way wastes sizeof(GuiVertex) * Gui::dummyVertexCount bytes of vram where the imaginary drag box and background are (...idk what I doing...)
 // maxCount is for the size of the buffer (maybe I should just feed in the alloction so I can know the size, but this breaks encapsulation)
 size_t Gui::updateBuffer(void *buffer, size_t maxCount) {
     std::scoped_lock lock(dataMutex);
-    assert(maxCount >= 12);
-    memcpy(static_cast<GuiVertex *>(buffer) + 12, vertices.data(), std::min(maxCount - 12, vertices.size())* sizeof(GuiVertex));
+    assert(maxCount >= Gui::dummyVertexCount);
+    memcpy(static_cast<GuiVertex *>(buffer) + Gui::dummyVertexCount, vertices.data(), std::min(maxCount - Gui::dummyVertexCount, vertices.size())* sizeof(GuiVertex));
     root->texture.syncTexturesToGPU(textures);
     rebuilt = false;
-    return std::min(maxCount, vertices.size() + 12);
+    return std::min(maxCount, vertices.size() + Gui::dummyVertexCount);
 }
 
 std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<float, float> br, glm::vec4 color, int layer) {
@@ -91,7 +91,7 @@ void Gui::rebuildBuffer() {
 void Gui::pollChanges() {
     bool terminate = false;
     while(!terminate) {
-        // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         bool changed = false;
         GuiCommand command;
         while(guiCommands.pop(command)) {
@@ -109,14 +109,18 @@ void Gui::pollChanges() {
                 changed = true;
 
                 delete command.data;
+            } else if (command.action == GUI_RESIZE) {
+                changed = true; // really this is rarely false so just treat it like it is always true
+                height = command.data->size.height.asInt;
+                width = command.data->size.width.asInt;
+                delete command.data;
             }
         }
         if (changed) {
             rebuildBuffer();
         }
-        // std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
-        // we should actually not sleep a fixed amount here, but instead see how much time elapsed and then decide to sleep for pollInterval - elapsed
-        // std::this_thread::sleep_for(pollInterval - (done - started));
+        std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
+        std::this_thread::sleep_for(pollInterval - (done - started));
     }
     // TODO delete all components
 }
@@ -270,8 +274,14 @@ void GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, std::map<Resource
         child->mapTextures(acm, resources, idx);
 }
 
+void GuiComponent::resizeVertices() {
+    assert(!"Dynamic ndc not enabled for this gui component");
+}
+
 // Arguably I should just do this at the same time as maping the textures
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm) {
+    if (dynamicNDC) resizeVertices();
+
     acm.insert(acm.end(), vertices.begin(), vertices.end());
 
     for(const auto child : children)
@@ -279,10 +289,25 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm) {
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, GuiTextures::makeGuiTexture(str)), message(str) {}
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, GuiTextures::makeGuiTexture(str)), message(str) {
+    dynamicNDC = true;
+}
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, GuiTextures::makeGuiTexture(str)), message(str) {}
+: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, GuiTextures::makeGuiTexture(str)), message(str) {
+    dynamicNDC = true;
+}
+
+void GuiLabel::resizeVertices() {
+    std::cout << "resizing vertices" << std::endl;
+
+    float height = vertices[2].pos.y - vertices[0].pos.y;
+    float right = vertices[2].pos.x + height * texture.widenessRatio * (float)context->height / context->width;
+
+    vertices[1].pos.x = right;
+    vertices[4].pos.x = right;
+    vertices[5].pos.x = right;
+}
 
 Panel::Panel(const char *filename)
 : root(YAML::LoadFile(filename)) {
