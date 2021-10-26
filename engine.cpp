@@ -1790,7 +1790,7 @@ void Engine::handleInput() {
                 gui->submitCommand({ Gui::GUI_ADD, what });
                 GuiCommandData *what2 = new GuiCommandData();
                 // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what2->component = new GuiLabel(gui, "test", 0x101010ff, 0xff000040, { -0.4, 0.8 }, 0.1, 2);
+                what2->component = new GuiLabel(gui, "test", 0x101010ff, 0x0000ff40, { -0.4, 0.8 }, 0.1, 2);
                 gui->submitCommand({ Gui::GUI_ADD, what2 });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
@@ -3802,7 +3802,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     // For right now we just use the max supported sampler anisotrpy
     samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
 
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -3886,7 +3886,7 @@ namespace GuiTextures {
         
         // std::cout << "Font contains glyph count: " << face->num_glyphs << std::endl;
 
-        error = FT_Set_Char_Size(face, 0, 16*64, 300, 300);
+        error = FT_Set_Char_Size(face, 0, 12*64, 300, 300);
         if (error) throw std::runtime_error("Unable to setup font.");
 
         error = FT_Load_Glyph(face, FT_Get_Char_Index(face, 'T'), 0);
@@ -3940,7 +3940,14 @@ namespace GuiTextures {
     }
 
     void setDefaultTexture() {
-        unsigned char value = 0xff;
-        defaultTexture = new GuiTexture(context, &value, 1, 1, 1, maxTextWidth, VK_FORMAT_R8_SRGB);
+        unsigned char value[] = {
+            0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0,
+            0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
+            0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0,
+        };
+        defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_SRGB);
     }
 };
