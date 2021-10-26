@@ -2350,23 +2350,31 @@ void Engine::writeHudDescriptors() {
     }
 }
 
-// This is a stupid and ugly hack
+// This is a hack to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
 static std::vector<GuiTexture> textureRefs;
 
 void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
+    size_t oldSize = textureRefs.size();
+    if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
     textureRefs.clear();
-    if (hudTextures.empty()) return;
 
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         std::array<VkWriteDescriptorSet, 1> hudDescriptorWrites {};
 
-        std::vector<VkDescriptorImageInfo> hudTextureInfos(hudTextures.size());
-        for (int i = 0; i < hudTextures.size(); i++) {
-            hudTextureInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            hudTextureInfos[i].imageView = hudTextures[i]->textureImageView;
-            hudTextureInfos[i].sampler = hudTextures[i]->textureSampler;
+        std::vector<VkDescriptorImageInfo> hudTextureInfos(std::max(hudTextures.size(), oldSize));
+        int j;
+
+        for (j = 0; j < hudTextures.size(); j++) {
+            hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            hudTextureInfos[j].imageView = hudTextures[j]->textureImageView;
+            hudTextureInfos[j].sampler = hudTextures[j]->textureSampler;
             // hudTextureInfos[i].imageView = currentScene->instances[0].texture->textureImageView;
             // hudTextureInfos[i].sampler = currentScene->instances[0].texture->textureSampler;
+        }
+        for (; j < oldSize; j++) {
+            hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            hudTextureInfos[j].imageView = GuiTextures::defaultTexture->textureImageView;
+            hudTextureInfos[j].sampler = GuiTextures::defaultTexture->textureSampler;
         }
 
         hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2384,8 +2392,6 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
     // textureRefs.reserve(hudTextures.size());
     // transform(hudTextures.begin(), hudTextures.end(), refs.begin(), [](GuiTexture *x)-> GuiTexture { return GuiTexture(*x); } );
     for(const auto textPtr : hudTextures) {
-        // force the copy constructor to be called rather than the move constructor
-        std::raise(SIGTRAP);
         textureRefs.push_back(GuiTexture(*textPtr));
     }
 }
@@ -2617,9 +2623,9 @@ void Engine::cleanup() {
 Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
+    textureRefs.clear();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
-    rewriteHudDescriptors({});
     delete GuiTextures::defaultTexture;
     delete gui;
     cleanup();
@@ -3387,6 +3393,7 @@ InternalTexture::~InternalTexture() {
         vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
+        InternalTextures::references.erase(textureImage);
     }
 }
 
@@ -3629,6 +3636,7 @@ CubeMap::~CubeMap() {
         vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
+        CubeMaps::references.erase(textureImage);
     }
 }
 
@@ -3660,6 +3668,7 @@ CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
 }
 
 namespace GuiTextures {
+    // I should have just used shared pointers from the start
     static std::map<VkImage, uint> references = {};
     static FT_Library library;
     static FT_Face face;
@@ -3810,6 +3819,7 @@ GuiTexture::~GuiTexture() {
         vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
+        GuiTextures::references.erase(textureImage);
     }
 }
 

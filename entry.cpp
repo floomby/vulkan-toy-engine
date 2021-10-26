@@ -81,7 +81,9 @@ Random non-crital stuff:
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
  I think I read the glfw docs wrong and dont need spsc lockfree queues for the input handling threads (afaict the linux tids are the same as the engine thread, this
  could be not guarenteed though)
+
 Next steps
+ uint icons for far away stuff (this should be either done in the main render pass subpass that makes the units, or more likely in a subpass of its own)
  game instance allocation synchronization with vulkan buffers
  game state (this involves concurrency stuff)
  ECS? (or something else as an organizational structure for the proccessing)
@@ -90,14 +92,16 @@ Next steps
  gui
   messaging from the gui to the render thread (probably just use another spsc lockfree queue)
   yaml reader into layouts
-  pass the clicks to the gui from the render thread (this is easy, just give it the ndc in the gui input message queue)
   either bilinear or ->bicubic<- shader in hud.frag is needed for proper sdf rendering
+  also in general the hud.frag needs much work
+  a button component
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
  pcf filtering for shadows
- dynamic backface culling or fix normals for skybox geometry
- nlips?
+ dynamic backface culling (Idk if this is a thing, the hardware supports it, but vulkan may not) or fix normals for skybox geometry
+ nlips is cool, we can make BIG units
  dont ignore instance heading
  explosions - particles?
+ organized input handling (a new object and associated files to do this)
 
 Bugfixxy stuff
  get lod working

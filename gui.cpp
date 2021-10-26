@@ -37,7 +37,7 @@ size_t Gui::updateBuffer(void *buffer, size_t maxCount) {
 // This one just searches the vertex buffer oblivious to the gui component tree, this means we can run it directly on the buffer
 // The name 
 uint32_t Gui::idUnderPoint(GuiVertex *buffer, size_t count, float x, float y) {
-    uint32_t ret = UINT32_MAX;
+    uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
     float maxLayer = 1.0;
     for(int i = Gui::dummyVertexCount; i < count; i += 6){
         if(buffer[i].pos.z < maxLayer && buffer[i].pos.x < x && buffer[i].pos.y < y && buffer[i + 1].pos.x > x && buffer[i + 1].pos.y > y) {
@@ -276,6 +276,7 @@ void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *co
 }
 
 void GuiComponent::removeComponent(std::queue<uint>& childIndices) {
+    // This is fine, you should never delete the root
     int index = childIndices.front();
     childIndices.pop();
 
