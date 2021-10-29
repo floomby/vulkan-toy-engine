@@ -4,12 +4,17 @@
 
 typedef unsigned char stbi_uc;
 
+enum SpecialEntities {
+    ENT_ICON,
+};
+
 // TODO It would seem good to support empty entities (ie. no model)
 class Entity : Utilities {
     friend class InternalTexture;
     friend class Engine;
     friend class Scene;
 public:
+    Entity(SpecialEntities entityType);
     Entity(const char *model, const char *texture);
     std::vector<uint32_t> mapOffsetToIndices(size_t offset);
 
@@ -26,4 +31,6 @@ protected:
     int textureWidth, texureHeight, texureChannels;
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+private:
+    bool hasConstTexture;
 };

@@ -10,6 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/intersect.hpp>
@@ -25,7 +26,8 @@ class Utilities {
 public:
     struct Vertex {
         glm::vec3 pos;
-        // If I dont use this color I should just take it out (for right now I will leave it in in case I want it for something while testing shader stuff)
+        // I don't know if this color is worth having here, I can't bind it per instance, only per entity
+        // also right now I am not using it
         glm::vec3 color;
         glm::vec2 texCoord;
         glm::vec3 normal;
@@ -111,3 +113,7 @@ namespace std {
 }
 
 typedef void* ResourceID;
+
+template <typename T> int sgn(T x) {
+    return (T(0) < x) - (x < T(0));
+}

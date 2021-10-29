@@ -9,7 +9,46 @@
 #include <csignal>
 #include <iostream>
 
-// TODO Throwing errors in this constructor is the oppisite of graceful error handling
+namespace Entities {
+    const std::array<unsigned char, 4> dummyTexture = {
+        0x70, 0x50, 0xff, 0xff
+    };
+
+    // 0 1
+    // 3 2
+    // const std::array<Utilities::Vertex, 4> iconPrimativeVertices = {{
+    //     { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+    //     { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+    //     { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
+    //     { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
+    // }};
+
+    // const std::array<uint32_t, 6> iconPrimativeIndices = {
+    //     0, 1, 3, 3, 1, 2
+    // };
+};
+
+Entity::Entity(SpecialEntities entityType) {
+    textureWidth = texureHeight = 1;
+    texureChannels = Entities::dummyTexture.size();
+    texturePixels = (stbi_uc *)Entities::dummyTexture.data();
+
+    // 0 1
+    // 3 2
+    vertices = std::vector<Vertex>({{
+        { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+        { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+        { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
+        { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
+    }});
+    indices = std::vector<uint32_t>({
+        0, 1, 3, 3, 1, 2
+    });
+
+    boundingRadius = sqrtf(2);
+    hasConstTexture = true;
+}
+
 Entity::Entity(const char *model, const char *texture) {
     texturePixels = stbi_load(texture, &textureWidth, &texureHeight, &texureChannels, STBI_rgb_alpha);
 
@@ -62,6 +101,7 @@ Entity::Entity(const char *model, const char *texture) {
     }
 
     boundingRadius = sqrtf(d2max);
+    hasConstTexture = false;
 }
 
 std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
@@ -74,6 +114,7 @@ Entity::Entity(const Entity& other) {
     textureWidth = other.textureWidth;
     texureHeight = other.texureHeight;
     texureChannels = other.texureChannels;
+    hasConstTexture = other.hasConstTexture;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     // I am not sure about this code (we may need to check the image channle count)
@@ -84,7 +125,8 @@ Entity::Entity(const Entity& other) {
 
 Entity::Entity(Entity&& other) noexcept
 : texturePixels(std::exchange(other.texturePixels, nullptr)), textureWidth(other.textureWidth), texureChannels(other.texureChannels),
-texureHeight(other.texureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius)
+texureHeight(other.texureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius),
+hasConstTexture(other.hasConstTexture)
 {}
 
 Entity& Entity::operator=(const Entity& other) {
@@ -96,6 +138,7 @@ Entity& Entity::operator=(Entity&& other) noexcept {
     textureWidth = other.textureWidth;
     texureHeight = other.texureHeight;
     texureChannels = other.texureChannels;
+    hasConstTexture = other.hasConstTexture;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     boundingRadius = other.boundingRadius;
@@ -103,7 +146,7 @@ Entity& Entity::operator=(Entity&& other) noexcept {
 }
 
 Entity::~Entity() {
-    if (texturePixels) STBI_FREE(texturePixels);
+    if (!hasConstTexture && texturePixels) STBI_FREE(texturePixels);
 }
 
 // Temporary function to test something 

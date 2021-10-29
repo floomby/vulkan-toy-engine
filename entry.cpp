@@ -75,7 +75,6 @@ void run(EngineSettings& settings) {
 /*
 Random non-crital stuff:
  I am linking to libpng now for freetype2, maybe I should stop using stbi
- The makefile build should be made faster (probably some code changes needed though to not have to recomplile so much temlate code every time)
  Make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
  In the gui code for the ndc coords are in x = <> and y = ^v (nvm, I am just going insane cause I thought I was mixing my x and y in the input code)
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
@@ -83,25 +82,30 @@ Random non-crital stuff:
  could be not guarenteed though)
 
 Next steps
- uint icons for far away stuff (this should be either done in the main render pass subpass that makes the units, or more likely in a subpass of its own)
- game instance allocation synchronization with vulkan buffers
- game state (this involves concurrency stuff)
+ projectiles
+ organized input handling (a new object and associated files to do this)
+ game instance allocation synchronization with vulkan buffers       <- these two kind of go together
+ game state (this involves concurrency stuff)                       </
+ gui
+  the text is really bad, I tried bicubic interpolation and this is slightly better, but it is still blurry
+  messaging from the gui to the render thread (probably just use another spsc lockfree queue)
+  a button component (I might just blit the text alpha mask onto a button texture and call that good)
+  yaml reader into layouts - to get to here we still need much work
+ lt - networking
+ lt - lua
+
+ collider class so I can support aabb and sphere and importantly obb coliders
+ unit icons for far away stuff (this should be either done in the main render pass subpass that makes the units, or more likely in a subpass of its own)
+ culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb) (this should be done with the previous two
+  steps in place and should be easy)
  ECS? (or something else as an organizational structure for the proccessing)
  lt - better model library (assimp?)
  lt - emmisivity maps would be cool
- gui
-  messaging from the gui to the render thread (probably just use another spsc lockfree queue)
-  yaml reader into layouts
-  either bilinear or ->bicubic<- shader in hud.frag is needed for proper sdf rendering
-  also in general the hud.frag needs much work
-  a button component
- culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb)
- pcf filtering for shadows
- dynamic backface culling (Idk if this is a thing, the hardware supports it, but vulkan may not) or fix normals for skybox geometry
+ pcf filtering for shadows - I did this and it is better for sure, but still looks like crap
+ dynamic backface culling (Idk if this is a thing, the hardware supports it, but my prefunctory perusing through the vulkan docs did not show this was availible)
+   or fix normals for skybox geometry
  nlips is cool, we can make BIG units
- dont ignore instance heading
  explosions - particles?
- organized input handling (a new object and associated files to do this)
 
 Bugfixxy stuff
  get lod working
@@ -113,6 +117,9 @@ Bugfixxy stuff
     VkSurfaceCapabilitiesKHR structure returned by vkGetPhysicalDeviceSurfaceCapabilitiesKHR for the surface
     (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-VkSwapchainCreateInfoKHR-imageExtent-01274)
  also it can mess up the gui more frequently (I try and suspend drawing to the gui if I have resized, but not rebuilt the gui)
+ I actually think there are three seperate bugs... *sad walrus noises* (one with the framebuffer image extent, one where the gui buffer is used while it is still copying or 
+  something leading to the warning about the vertex shader not having the buffer completely filled, and one where the buffer gets corrupted leading to
+  inncorrect textures being used)
 
  get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
 */

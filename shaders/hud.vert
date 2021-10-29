@@ -85,4 +85,5 @@ void main() {
     outCursorID = pushConstants.cursorID;
     outRenderMode = inRenderMode;
     outFlags = inFlags;
+    outSecondaryColor = inSecondaryColor;
 }

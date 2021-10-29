@@ -17,6 +17,7 @@ layout(location = 7) in flat uint inFlags;
 layout(location = 0) out vec4 outColor;
 
 const float smoothing = 0.5;
+const float boldness = 0.5; 
 
 vec4 cubic(float v){
     vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
@@ -72,12 +73,12 @@ void main() {
             break;
         case RMODE_TEXT:
             float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
-            float alpha = smoothstep(0.5 - smoothing, 0.5 + smoothing, distance);
+            float alpha = smoothstep(boldness - smoothing, boldness + smoothing, distance);
             outColor = vec4(mix(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            if (inGuiID == inCursorID) {
+                outColor = smoothstep(0.0, 1.0, outColor);
+            }
             break;
     }
     // outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
-    if (inGuiID == inCursorID) {
-        outColor = vec4(1, 1, 1, 1);
-    }
 }

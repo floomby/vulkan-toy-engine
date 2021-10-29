@@ -96,7 +96,7 @@ class Engine;
 
 class GuiTexture {
 public:
-    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format);
+    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format, VkFilter = VK_FILTER_LINEAR);
     GuiTexture(const GuiTexture&);
     GuiTexture& operator=(const GuiTexture&);
     GuiTexture(GuiTexture&& other) noexcept;
@@ -188,6 +188,8 @@ public:
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer);
     std::string message;
+
+    virtual void click(float x, float y);
 private:
     virtual void resizeVertices();
 };
@@ -290,6 +292,7 @@ public:
     };
 
     void submitCommand(GuiCommand command);
+    boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
     static const int dummyVertexCount = 12;
     int width, height;
@@ -300,7 +303,6 @@ public:
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
-    boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
     // std::mutex constantMutex;
     GuiPushConstant _pushConstant;

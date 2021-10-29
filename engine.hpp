@@ -7,6 +7,7 @@
 #include "utilities.hpp"
 #include "instance.hpp"
 #include "gui.hpp"
+#include "state.hpp"
 
 // #include <map>
 #include <boost/lockfree/spsc_queue.hpp>
@@ -86,12 +87,16 @@ private:
     Gui *gui = nullptr;
 
     struct Cammera {
-        const float minZoom = 1.0f, maxZoom = 10.0f;
-        const float gimbleStop = 0.1f;
-        const float minClip = 0.1f, maxClip = 40.0f;
+        const float minZoom2 = 1.0, maxZoom2 = 400.0;
+        const float gimbleStop = 0.1;
+        const float minClip = 0.1, maxClip = 40.0;
+        const float renderAsIcon2 = 64.0;
         glm::vec3 position;
         glm::vec3 target;
+        glm::vec3 pointing, strafing, fowarding, heading;
+        uint32_t when;
     } cammera;
+    void stateObserver(ObservableState& state);
 
     EngineSettings engineSettings;
 
@@ -324,6 +329,13 @@ private:
 
     void handleInput();
 
+    std::array<Vertex, 4> iconPrimative;
+    struct ExtraPrimatives {
+        int vertexCount = 4;
+        int indexCount = 6;
+        int vertexStart, indexStart; 
+    } extraPrimatives;
+    std::vector<bool> lightingDirty;
     void updateScene(int index);
 
     Scene *currentScene;
@@ -426,7 +438,8 @@ public:
     std::vector<Utilities::Vertex> vertexBuffer;
     std::vector<uint32_t> indexBuffer;
 
-    std::vector<Instance> instances;
+    // std::vector<Instance> instances;
+    ObservableState state;
     std::map<std::string, Panel> panels;
     
     void updateUniforms(void *buffer, size_t uniformSkip);

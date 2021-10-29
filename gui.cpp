@@ -117,7 +117,7 @@ void Gui::rebuildBuffer() {
 void Gui::pollChanges() {
     bool terminate = false;
     while(!terminate) {
-        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         bool changed = false;
         GuiCommand command;
         while(guiCommands.pop(command)) {
@@ -146,8 +146,9 @@ void Gui::pollChanges() {
         if (changed) {
             rebuildBuffer();
         }
-        std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
-        std::this_thread::sleep_for(pollInterval - (done - started));
+        // std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
+        // std::this_thread::sleep_for(pollInterval - (done - started));
+        std::this_thread::yield();
     }
 }
 
@@ -382,6 +383,10 @@ void GuiLabel::resizeVertices() {
     vertices[1].pos.x = right;
     vertices[4].pos.x = right;
     vertices[5].pos.x = right;
+}
+
+void GuiLabel::click(float x, float y) {
+    context->guiMessages.push({ Gui::GUI_SOMETHING });
 }
 
 Panel::Panel(const char *filename)

@@ -12,6 +12,7 @@ struct SceneModelInfo {
 struct UniformBufferObject {
     glm::mat4 model;
     glm::mat4 normal;
+    // convert this to a uint32 for combining flags
     glm::f32 highlight;
 };
 
@@ -20,7 +21,7 @@ public:
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept;
     // Instance& transform(glm::mat4 transformationMatrix) noexcept;
 
-    UniformBufferObject *state(glm::mat4 view);
+    UniformBufferObject *state(glm::mat4 view, glm::vec3 cammeraPosition);
     SceneModelInfo* sceneModelInfo;
     int entityIndex;
 
@@ -29,6 +30,7 @@ public:
 
     bool intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const;
     InternalTexture* texture;
+    bool renderAsIcon = false;
 private:
     bool _highlight;
     UniformBufferObject _state;

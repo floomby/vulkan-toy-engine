@@ -1,7 +1,7 @@
 #version 450
 
 // We can change this to a bigger number (I think vulkan doesn't allocate memory or anything based on this array size, opengl would have though)
-layout(binding = 1) uniform sampler2D texSampler[3];
+layout(binding = 1) uniform sampler2D texSampler[4];
 layout(binding = 2) uniform sampler2D shadowMap;
 layout(binding = 3) uniform UniformBufferObject {
     mat4 view;
@@ -41,22 +41,42 @@ vec4 vectorMap(vec4 value, float min1, float max1, float min2, float max2) {
     );
 }
 
-float getShadow(vec3 ndc) {
+float getShadow(vec3 ndc, uint pcfSize) {
     // outside the device viewing region
     if (abs(ndc.x) > 1.0 ||
         abs(ndc.y) > 1.0 ||
         abs(ndc.z) > 1.0) return 0.0;
-    
+
     // Translate from normed device coords to shadow map space
-    vec2 shadow_map_coord = ndc.xy * 0.5 + 0.5;
+    vec2 shadowMapCoord = ndc.xy * 0.5 + 0.5;
+
+    int pcfSizeMinus1 = int(pcfSize - 1);
+    float kernelSize = 2.0 * pcfSizeMinus1 + 1.0;
+    float numSamples = kernelSize * kernelSize;
+
+    vec2 shadowMapTexelSize = 1.0 / textureSize(shadowMap, 0);
+    float litCount = 0.0;
+
+    for (int x = -pcfSizeMinus1; x <= pcfSizeMinus1; x++) {
+        for (int y = -pcfSizeMinus1; y <= pcfSizeMinus1; y++) {
+            vec2 pcfCoord = shadowMapCoord + vec2(x, y) * shadowMapTexelSize;
  
-    // return texture(shadowMap, shadow_map_coord.xy).x;
+            // Check if the sample is in light or in the shadow
+            if (ndc.z <= texture(shadowMap, pcfCoord.xy).x * 2)
+                litCount += 1.0;
+        }
+    }
+ 
+   return litCount / numSamples;
 
-    if (ndc.z > texture(shadowMap, shadow_map_coord.xy).x * 2)
-         return 0.0;
 
-    // lit
-    return 1.0;
+    // return texture(shadowMap, shadowMapCoord.xy).x;
+
+    // if (ndc.z > texture(shadowMap, shadowMapCoord.xy).x * 2)
+    //      return 0.0;
+
+    // // lit
+    // return 1.0;
 }
 
 layout( push_constant ) uniform constants {
@@ -121,5 +141,7 @@ void main() {
 
     // float zVal = getShadow(shadowCoord);
     // outColor = vec4(zVal, zVal, zVal, 1.0);
-    outColor = outColor * (getShadow(shadowCoord) * 0.9 + 0.1);
+    if (pushConstants.type != 2) {
+        outColor = outColor * (getShadow(shadowCoord, 4) * 0.9 + 0.1);
+    }
 }

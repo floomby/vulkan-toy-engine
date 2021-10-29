@@ -15,12 +15,27 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
 //     return *this;
 // };
 
-UniformBufferObject *Instance::state(glm::mat4 view) {
+#include <iostream>
+
+UniformBufferObject *Instance::state(glm::mat4 view, glm::vec3 cammeraPosition) {
     // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)
     // probably fine for right now, but probably should be changed to something else
+    if (renderAsIcon) {
+        auto pointing = position - cammeraPosition;
+        auto strafing = normalize(cross(pointing, { 0.0f, 0.0f, 1.0f }));
+        auto pointingLength = length(pointing);
+        // badly behaved when both are vanishing near the extremes (I can pass in cammera.heading and make it better at the extremes)
+        auto zRot = glm::angleAxis(atan2f(pointing.y, pointing.x), glm::vec3({ 0.0f, 0.0f, 1.0f }));
+        auto otherRot = glm::angleAxis(pointing.z / pointingLength - (float)M_PI_2, strafing);
+        // auto fowarding = normalize(cross(strafing, { 0.0f, 0.0f, 1.0f }));
+        // cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
+        _state.model = translate(position) * toMat4(-otherRot) * toMat4(zRot);
+    } else { 
+        _state.model = translate(position) * glm::eulerAngleYXZ(heading.y, heading.x, heading.z);
+    }
+    // position.z -= 0.01f;
+    _state.normal = transpose(inverse(view * _state.model));
     _state.highlight = _highlight ? 1.0 : 0.0;
-    _state.model = glm::translate(position);
-    _state.normal = glm::transpose(glm::inverse(view * _state.model));
     return &_state;
 }
 
@@ -30,5 +45,5 @@ bool& Instance::highlight() {
 
 // NOTE: direction has to be normalized
 bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const {
-    return glm::intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
+    return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }

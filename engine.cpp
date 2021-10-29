@@ -864,7 +864,7 @@ void Engine::createDescriptorSetLayout() {
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding {};
     samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 3;
+    samplerLayoutBinding.descriptorCount = 4;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1399,12 +1399,10 @@ void Engine::createDepthResources() {
     }
 }
 
-// TODO Despite this working the validation layer is comaplaining about it being wrong ()
 void Engine::dumpDepthBuffer(const VkCommandBuffer& buffer, int index) {
     // I really dont want to garble up the buffer (I should only ever hit this due to a programming error)
     assert(!depthDump.writePending);
 
-    // TODO Solve the transitioning
     VkImageMemoryBarrier barrier {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -1744,6 +1742,14 @@ inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm
 
 // So many silly lines of code in this function
 void Engine::handleInput() {
+    Gui::GuiMessage message;
+    while(gui->guiMessages.pop(message)) {
+        if(message.signal == Gui::GUI_SOMETHING) {
+            currentScene->state.instances.erase(currentScene->state.instances.begin() + 1, currentScene->state.instances.end());
+        }
+    }
+
+
     double x, y;
     glfwGetCursorPos(window, &x, &y);
     float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
@@ -1790,7 +1796,7 @@ void Engine::handleInput() {
                 gui->submitCommand({ Gui::GUI_ADD, what });
                 GuiCommandData *what2 = new GuiCommandData();
                 // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what2->component = new GuiLabel(gui, "test", 0x101010ff, 0x0000ff40, { -0.4, 0.8 }, 0.1, 2);
+                what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
                 gui->submitCommand({ Gui::GUI_ADD, what2 });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
@@ -1798,9 +1804,11 @@ void Engine::handleInput() {
         }
     }
     // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
-    auto pointing = normalize(cammera.position - cammera.target);
-    auto strafing = normalize(cross(pointing, { 0.0f, 0.0f, 1.0f }));
-    auto fowarding = normalize(cross(strafing, { 0.0f, 0.0f, 1.0f }));
+    cammera.pointing = normalize(cammera.position - cammera.target);
+    auto pointingLength = length(cammera.position - cammera.target);
+    cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
+    cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
+    cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
     // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto orbitMatrix = glm::toMat3(orbit);
@@ -1809,12 +1817,32 @@ void Engine::handleInput() {
     // auto reverseTilt = glm::angleAxis(glm::radians(359.9f), strafing);
     // auto tiltMatrix = glm::toMat3(tilt);
     // auto reverseTiltMatrix = glm::toMat3(reverseTilt);
-
-    // TODO I probably want this to be scroll to cursor
+    float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
+    float planeDist;
+    glm::vec3 planeIntersection;
+    if (planeIntersectionDenominator == 0) {
+        planeIntersection = glm::vec3(0.0);
+    } else {
+        planeDist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / planeIntersectionDenominator;
+        planeIntersection = cammera.position + mouseRay * planeDist;
+    }
     if (scrollAmount != 0.0f) {
-        cammera.position += scrollAmount / 5.0f * pointing;
-        if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom) cammera.position = pointing * cammera.maxZoom + cammera.target;
-        if (glm::distance(cammera.target, cammera.position) < cammera.minZoom) cammera.position = pointing * cammera.minZoom + cammera.target;
+        // Scroll to cammera target
+        // cammera.position += scrollAmount / 5.0f * pointing;
+        // if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom2) cammera.position = pointing * cammera.maxZoom2 + cammera.target;
+        // if (glm::distance(cammera.target, cammera.position) < cammera.minZoom2) cammera.position = pointing * cammera.minZoom2 + cammera.target;
+        // scrollAmount = 0.0f;
+        // scrollToCursor
+        auto deltaPos = -scrollAmount / 5.0f * mouseRayNormed;
+        auto deltaTarget = normalize(planeIntersection - cammera.target) * (length(deltaPos) * length(planeIntersection - cammera.target) / planeDist);
+        auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
+        auto newPos = cammera.position + deltaPos;
+        auto newDelta = length2(newTar - newPos);
+        if (newDelta > cammera.minZoom2 && newDelta < cammera.maxZoom2) {
+            cammera.target = newTar;
+            cammera.position = newPos;
+        }
+
         scrollAmount = 0.0f;
     }
 
@@ -1843,32 +1871,30 @@ void Engine::handleInput() {
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             gui->setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
             mouseAction = MOUSE_NONE;
-            std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - " 
-                << mouseNormed.first << ":" << mouseNormed.second << "):" << std::endl;
-            auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, mouseRayNormed);
+            // std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - " 
+            //     << mouseNormed.first << ":" << mouseNormed.second << "):" << std::endl;
+            auto planes = boundingPlanes(cammera.position, cammera.strafing, cammera.pointing, dragStartRay, mouseRayNormed);
             // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
-            for(const auto& plane : planes) {
-                std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
-            }
-            for (int i = 0; i < currentScene->instances.size(); i++) {
-                (currentScene->instances.data() + i)->highlight() = 
-                    whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->instances.data() + i)->position) < 0 != whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->instances.data() + i)->position) < 0 != whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->instances.data() + i)->position) < 0
+            // for(const auto& plane : planes) {
+            //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
+            // }
+            for (int i = 0; i < currentScene->state.instances.size(); i++) {
+                (currentScene->state.instances.data() + i)->highlight() = 
+                    whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
+                        whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->state.instances.data() + i)->position) < 0 !=
+                        whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->state.instances.data() + i)->position) < 0
                     // To only select things as far as the cammera drawing distance
-                    // && whichSideOfPlane(planes[4].first, planes[4].second - cammera.maxClip, (currentScene->instances + i)->position) > 0
+                    // && whichSideOfPlane(planes[4].first, planes[4].second - cammera.maxClip, (currentScene->state.instances + i)->position) > 0
                     ;
             }
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
-            float denom = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
-            if (denom == 0) {
+            if (planeIntersectionDenominator == 0) {
                 std::cout << "orthognal" << std::endl;
             } else {
-                float dist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / denom;
-                auto intersection = cammera.position + mouseRay * dist;
-
-                currentScene->addInstance(0, { intersection.x, intersection.y, intersection.z }, {
+                currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)) });
@@ -1877,20 +1903,20 @@ void Engine::handleInput() {
     }
 
     if (keysPressed[GLFW_KEY_RIGHT]) {
-        cammera.position -= strafing / 600.0f;
-        cammera.target -= strafing / 600.0f;
+        cammera.position -= cammera.strafing / 600.0f;
+        cammera.target -= cammera.strafing / 600.0f;
     }
     if (keysPressed[GLFW_KEY_LEFT]) {
-        cammera.position += strafing / 600.0f;
-        cammera.target += strafing / 600.0f;
+        cammera.position += cammera.strafing / 600.0f;
+        cammera.target += cammera.strafing / 600.0f;
     }
     if (keysPressed[GLFW_KEY_DOWN]) {
-        cammera.position -= fowarding / 600.0f;
-        cammera.target -= fowarding / 600.0f;
+        cammera.position -= cammera.fowarding / 600.0f;
+        cammera.target -= cammera.fowarding / 600.0f;
     }
     if (keysPressed[GLFW_KEY_UP]) {
-        cammera.position += fowarding / 600.0f;
-        cammera.target += fowarding / 600.0f;
+        cammera.position += cammera.fowarding / 600.0f;
+        cammera.target += cammera.fowarding / 600.0f;
     }
 
     if (keysPressed[GLFW_KEY_U]) {
@@ -1898,15 +1924,14 @@ void Engine::handleInput() {
         std::cout << "Cammera position: " << cammera.position << std::endl;
     }
 
-    // Panning needs to take into account zooming and zoom to currsor should be the way it works
     if (mouseAction == MOUSE_PANNING) {
-        cammera.position -= strafing * 4.0f * deltaX;
-        cammera.target -= strafing * 4.0f * deltaX;
-        cammera.position -= fowarding * 4.0f * deltaY;
-        cammera.target -= fowarding * 4.0f * deltaY;
+        cammera.position -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
+        cammera.target -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
+        cammera.position -= cammera.fowarding * 4.0f * deltaY / (cammera.position.z / pointingLength) * pointingLength / 5.2;
+        cammera.target -= cammera.fowarding * 4.0f * deltaY / (cammera.position.z / pointingLength) * pointingLength / 5.2;
     } else if (mouseAction == MOUSE_ROTATING) {
         if (deltaY != 0.0f) {
-            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, strafing);
+            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, cammera.strafing);
             auto mouseTiltMatrix = glm::toMat3(mouseTilt);
             auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
             if (/*(newPosition.z - cammera.target.z) > cammera.gimbleStop && */(newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
@@ -1946,11 +1971,11 @@ void Engine::handleInput() {
     Instance *mousedOver = nullptr;
     float minDistance = std::numeric_limits<float>::max();
 
-    for(int i = 1; i < currentScene->instances.size(); i++) {
+    for(int i = 1; i < currentScene->state.instances.size(); i++) {
         float distance;
-        if(currentScene->instances[i].intersects(cammera.position, mouseRayNormed, distance)) {
+        if(currentScene->state.instances[i].intersects(cammera.position, mouseRayNormed, distance)) {
             // !!!! potentially a pointer geting invalidated
-            if (distance < minDistance) mousedOver = &currentScene->instances[i];
+            if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
         }
         // instance.highlight() = false;
     }
@@ -1966,6 +1991,7 @@ void Engine::handleInput() {
     lastMousePosition.y = y;
 }
 
+// The index is for which descriptor index to put the lighting buffer information
 // Here is the big graphics update function
 void Engine::updateScene(int index) {
     static auto startTime = std::chrono::high_resolution_clock::now();
@@ -1979,19 +2005,37 @@ void Engine::updateScene(int index) {
     // TODO I should just store this in the camera struct since I need it here and in the input handling
     pushConstants.normedPointing = normalize(cammera.position - cammera.target);
 
-    lightingData.nearFar = { 0.7f, 13.0f };
-    lightingData.pos = { 0.0f, 10.0f, 0.0f };
-    lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    lightingData.proj = glm::perspective(glm::radians(90.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
-    lightingData.proj[1][1] *= -1;
+    if (lightingDirty[index]) {
+        lightingData.nearFar = { 0.7f, 13.0f };
+        lightingData.pos = { 0.0f, 10.0f, 0.0f };
+        lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        lightingData.proj = glm::perspective(glm::radians(90.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
+        lightingData.proj[1][1] *= -1;
 
-    shadow.constants.lightPos = lightingData.pos;
-    shadow.constants.view = lightingData.view;
-    shadow.constants.projection = lightingData.proj;
+        shadow.constants.lightPos = lightingData.pos;
+        shadow.constants.view = lightingData.view;
+        shadow.constants.projection = lightingData.proj;
 
-    updateLightingDescriptors(index, lightingData);
+        updateLightingDescriptors(index, lightingData);
 
-    currentScene->instances[0].position = cammera.position;
+        lightingDirty[index] = false;
+    }
+
+    // The 0th instance is the skybox (probably shouldnt be like this though)
+    currentScene->state.instances[0].position = cammera.position;
+
+    for(int i = 1; i < currentScene->state.instances.size(); i++) {
+        currentScene->state.instances[i].renderAsIcon = distance2(cammera.position, currentScene->state.instances[i].position) > cammera.renderAsIcon2;
+    }
+
+    // 0 1
+    // 3 2
+    iconPrimative = {{
+        { (-cammera.strafing + cammera.heading), { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, -cammera.pointing },
+        { ( cammera.strafing + cammera.heading), { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, -cammera.pointing },
+        { (-cammera.strafing - cammera.heading), { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, -cammera.pointing },
+        { (-cammera.strafing - cammera.heading), { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, -cammera.pointing }
+    }};
 }
 
 #if (DEPTH_DEBUG_IMAGE_USAGE == VK_IMAGE_USAGE_TRANSFER_SCR_BIT)
@@ -2009,6 +2053,7 @@ void Engine::drawFrame() {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
+    // TODO This fence is in the wrong spot, but to move it we need to make concurrentFrames numbers of shadow framebuffers first so we dont corrupt stuff
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
 
     // update the gui vram if the gui buffer has been rebuilt
@@ -2147,6 +2192,8 @@ void Engine::runCurrentScene() {
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
     hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+    lightingDirty.resize(concurrentFrames);
+    fill(lightingDirty.begin(), lightingDirty.end(), true);
     updateScene(0);
     vkDeviceWaitIdle(device);
 
@@ -2183,7 +2230,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = swapChainImages.size();
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 3 * swapChainImages.size();
+    poolSizes[1].descriptorCount = 4 * swapChainImages.size();
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[2].descriptorCount = swapChainImages.size();
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -2368,8 +2415,8 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
             hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             hudTextureInfos[j].imageView = hudTextures[j]->textureImageView;
             hudTextureInfos[j].sampler = hudTextures[j]->textureSampler;
-            // hudTextureInfos[i].imageView = currentScene->instances[0].texture->textureImageView;
-            // hudTextureInfos[i].sampler = currentScene->instances[0].texture->textureSampler;
+            // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
+            // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
         }
         for (; j < oldSize; j++) {
             hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2424,6 +2471,8 @@ void Engine::allocateCommandBuffers() {
     }
 }
 
+// I am sorry what I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
+// cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
     const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index) {
     VkCommandBufferBeginInfo beginInfo {};
@@ -2462,15 +2511,24 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->instances.size(); j++) {
+    for(int j = 0; j < currentScene->state.instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        if (currentScene->state.instances[j].renderAsIcon) {
+            pushConstants.renderType = 2;
+            // last texture is what we have as the placeholder texture for now
+            pushConstants.textureIndex = currentScene->textures.size() - 1;
+            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+            continue;
+        }
+        // 0th instance is always the skybox
         pushConstants.renderType = (int)!(bool)j;
-        pushConstants.textureIndex = (currentScene->instances.data() + j)->entityIndex;
+        pushConstants.textureIndex = (currentScene->state.instances.data() + j)->entityIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(buffer, (currentScene->instances.data() + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -3092,13 +3150,13 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 1; j < currentScene->instances.size(); j++) {
+    for(int j = 1; j < currentScene->state.instances.size(); j++) {
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(buffer, (currentScene->instances.data() + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
+            (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdEndRenderPass(buffer);
@@ -3434,6 +3492,7 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
 Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
 : skybox(context, skyboxImages) {
     this->context = context;
+    Entity icon(ENT_ICON);
     // FIXME Crappy slowness
     for(const auto& entity : entities) {
         this->entities.push_back(Entity(entity.first, entity.second));
@@ -3441,15 +3500,17 @@ Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>>
     for(const auto& entity : this->entities) {
         textures.push_back(InternalTexture(context, entity));
     }
+    this->entities.push_back(icon);
+    textures.push_back(InternalTexture(context, icon));
 
-    instances.reserve(initialSize);
+    state.instances.reserve(initialSize);
 }
 
 void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
-    instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex));
-    instances.back().position = std::move(position);
-    instances.back().heading = std::move(heading);
+    state.instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex));
+    state.instances.back().position = std::move(position);
+    state.instances.back().heading = std::move(heading);
 }
 
 void Scene::makeBuffers() {
@@ -3466,8 +3527,9 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
-    for (int i = 0; i < instances.size(); i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip, (instances.data() + i)->state(context->pushConstants.view), sizeof(UniformBufferObject));
+    for (int i = 0; i < state.instances.size(); i++) {
+        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
+            (state.instances.data() + i)->state(context->pushConstants.view, context->cammera.position), sizeof(UniformBufferObject));
     }
 }
 
@@ -3678,7 +3740,7 @@ namespace GuiTextures {
 
 GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; };
 
-GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format) {
+GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format, VkFilter filter) {
     this->context = context;
     widenessRatio = (float)width / height;
 
@@ -3791,8 +3853,8 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     // samplerInfo.magFilter = VK_FILTER_CUBIC_IMG;
     // samplerInfo.minFilter = VK_FILTER_CUBIC_IMG;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.magFilter = filter;
+    samplerInfo.minFilter = filter;
 
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -3880,7 +3942,7 @@ namespace GuiTextures {
         FT_Error error = FT_Init_FreeType(&library);
         if (error) throw std::runtime_error("Unable to initialize freetype.");
 
-        error = FT_New_Face(GuiTextures::library, "fonts/FreeSans.ttf", 0, &face);
+        error = FT_New_Face(GuiTextures::library, "fonts/FreeSansBold.ttf", 0, &face);
         if (error == FT_Err_Unknown_File_Format) throw std::runtime_error("Unsupported font format.");
         else if (error) throw std::runtime_error("Unable to read font file.");
         
@@ -3936,7 +3998,8 @@ namespace GuiTextures {
     GuiTexture makeGuiTexture(const char *str) {
         int width = makeTexture(str);
 
-        return GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_SRGB);
+        // tbh I have no idea how to sharpen the text correctly
+        return GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_SRGB, VK_FILTER_LINEAR);
     }
 
     void setDefaultTexture() {
