@@ -15,7 +15,7 @@ class Entity : Utilities {
     friend class Scene;
 public:
     Entity(SpecialEntities entityType);
-    Entity(const char *model, const char *texture);
+    Entity(const char *model, const char *texture = "", const char *icon = "");
     std::vector<uint32_t> mapOffsetToIndices(size_t offset);
 
     Entity(const Entity& other);
@@ -28,9 +28,12 @@ public:
     float boundingRadius;
 protected:
     stbi_uc *texturePixels;
-    int textureWidth, texureHeight, texureChannels;
+    stbi_uc *iconPixels;
+    int textureWidth, textureHeight, textureChannels;
+    int iconWidth, iconHeight, iconChannels;
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+    bool hasIcon, hasTexture;
 private:
     bool hasConstTexture;
 };

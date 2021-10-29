@@ -29,8 +29,8 @@ namespace Entities {
 };
 
 Entity::Entity(SpecialEntities entityType) {
-    textureWidth = texureHeight = 1;
-    texureChannels = Entities::dummyTexture.size();
+    textureWidth = textureHeight = 1;
+    textureChannels = Entities::dummyTexture.size();
     texturePixels = (stbi_uc *)Entities::dummyTexture.data();
 
     // 0 1
@@ -47,12 +47,16 @@ Entity::Entity(SpecialEntities entityType) {
 
     boundingRadius = sqrtf(2);
     hasConstTexture = true;
+    hasTexture = true;
+    hasIcon = false;
 }
 
-Entity::Entity(const char *model, const char *texture) {
-    texturePixels = stbi_load(texture, &textureWidth, &texureHeight, &texureChannels, STBI_rgb_alpha);
-
-    if (!texturePixels) throw std::runtime_error("Failed to load texture image.");
+Entity::Entity(const char *model, const char *texture, const char *icon) {
+    hasConstTexture = false;
+    if (hasTexture = strlen(texture)) {
+        texturePixels = stbi_load(texture, &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
+        if (!texturePixels) throw std::runtime_error("Failed to load texture image.");
+    }
 
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -101,7 +105,11 @@ Entity::Entity(const char *model, const char *texture) {
     }
 
     boundingRadius = sqrtf(d2max);
-    hasConstTexture = false;
+
+    if (hasIcon = strlen(icon)) {
+        iconPixels = stbi_load(icon, &iconWidth, &iconHeight, &iconChannels, STBI_rgb_alpha);
+        if (!iconPixels) throw std::runtime_error("Failed to load icon image.");
+    }
 }
 
 std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
@@ -110,23 +118,30 @@ std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
     return ret;
 }
 
+// such boilerplate
 Entity::Entity(const Entity& other) {
     textureWidth = other.textureWidth;
-    texureHeight = other.texureHeight;
-    texureChannels = other.texureChannels;
+    textureHeight = other.textureHeight;
+    textureChannels = other.textureChannels;
     hasConstTexture = other.hasConstTexture;
+    iconWidth = other.iconWidth;
+    iconHeight = other.iconHeight;
+    iconChannels = other.iconChannels;
+    hasIcon = other.hasIcon;
+    hasTexture = other.hasTexture;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     // I am not sure about this code (we may need to check the image channle count)
-    texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(texureHeight * textureWidth * 4));
+    texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * 4));
     if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-    memcpy(texturePixels, other.texturePixels, texureHeight * textureWidth * 4);
+    memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * 4);
 }
 
 Entity::Entity(Entity&& other) noexcept
-: texturePixels(std::exchange(other.texturePixels, nullptr)), textureWidth(other.textureWidth), texureChannels(other.texureChannels),
-texureHeight(other.texureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius),
-hasConstTexture(other.hasConstTexture)
+: texturePixels(std::exchange(other.texturePixels, nullptr)), textureWidth(other.textureWidth), textureChannels(other.textureChannels),
+textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius),
+hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight), iconWidth(other.iconWidth),
+hasIcon(other.hasIcon), hasTexture(other.hasTexture)
 {}
 
 Entity& Entity::operator=(const Entity& other) {
@@ -136,9 +151,14 @@ Entity& Entity::operator=(const Entity& other) {
 Entity& Entity::operator=(Entity&& other) noexcept {
     std::swap(texturePixels, other.texturePixels);
     textureWidth = other.textureWidth;
-    texureHeight = other.texureHeight;
-    texureChannels = other.texureChannels;
+    textureHeight = other.textureHeight;
+    textureChannels = other.textureChannels;
     hasConstTexture = other.hasConstTexture;
+    iconWidth = other.iconWidth;
+    iconHeight = other.iconHeight;
+    iconChannels = other.iconChannels;
+    hasIcon = other.hasIcon;
+    hasTexture = other.hasTexture;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     boundingRadius = other.boundingRadius;
@@ -146,7 +166,8 @@ Entity& Entity::operator=(Entity&& other) noexcept {
 }
 
 Entity::~Entity() {
-    if (!hasConstTexture && texturePixels) STBI_FREE(texturePixels);
+    if (hasTexture && !hasConstTexture && texturePixels) STBI_FREE(texturePixels);
+    if (hasIcon && iconPixels) STBI_FREE(iconPixels);
 }
 
 // Temporary function to test something 

@@ -1894,10 +1894,10 @@ void Engine::handleInput() {
             if (planeIntersectionDenominator == 0) {
                 std::cout << "orthognal" << std::endl;
             } else {
-                currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)),
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/M_2_PI)) });
+                currentScene->addInstance(1, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
+                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)) });
             }
         }
     }
@@ -2009,7 +2009,7 @@ void Engine::updateScene(int index) {
         lightingData.nearFar = { 0.7f, 13.0f };
         lightingData.pos = { 0.0f, 10.0f, 0.0f };
         lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        lightingData.proj = glm::perspective(glm::radians(90.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
+        lightingData.proj = glm::perspective(glm::radians(45.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
         lightingData.proj[1][1] *= -1;
 
         shadow.constants.lightPos = lightingData.pos;
@@ -3208,7 +3208,7 @@ namespace InternalTextures {
 InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     this->context = context;
     width = entity.textureWidth;
-    height = entity.texureHeight;
+    height = entity.textureHeight;
     VkDeviceSize imageSize = width * height * 4;
 
     VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -3527,9 +3527,12 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
+    auto zRot = toMat4(angleAxis(atan2f(context->cammera.target.y - context->cammera.position.y, context->cammera.target.x - context->cammera.position.x),
+         glm::vec3({ 0.0f, 0.0f, 1.0f })));
     for (int i = 0; i < state.instances.size(); i++) {
         memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
-            (state.instances.data() + i)->state(context->pushConstants.view, context->cammera.position), sizeof(UniformBufferObject));
+            (state.instances.data() + i)->state(context->pushConstants.view, context->cammera.position, context->cammera.strafing,
+            context->cammera.target, zRot), sizeof(UniformBufferObject));
     }
 }
 
