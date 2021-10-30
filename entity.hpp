@@ -26,6 +26,7 @@ public:
     // temp stuff
     Entity translate(glm::vec3 delta);
     float boundingRadius;
+    int textureIndex, iconIndex;
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;

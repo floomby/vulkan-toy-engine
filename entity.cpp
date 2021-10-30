@@ -36,10 +36,10 @@ Entity::Entity(SpecialEntities entityType) {
     // 0 1
     // 3 2
     vertices = std::vector<Vertex>({{
-        { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-        { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-        { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
-        { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
+        { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+        { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
+        { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
+        { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } }
     }});
     indices = std::vector<uint32_t>({
         0, 1, 3, 3, 1, 2
@@ -118,7 +118,7 @@ std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
     return ret;
 }
 
-// such boilerplate
+// such boilerplate (Yeah, I should have done it differently and managed the resources seperately with a shared_ptr or something)
 Entity::Entity(const Entity& other) {
     textureWidth = other.textureWidth;
     textureHeight = other.textureHeight;
@@ -129,19 +129,30 @@ Entity::Entity(const Entity& other) {
     iconChannels = other.iconChannels;
     hasIcon = other.hasIcon;
     hasTexture = other.hasTexture;
+    textureIndex = other.textureIndex;
+    iconIndex = other.iconIndex;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     // I am not sure about this code (we may need to check the image channle count)
-    texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * 4));
-    if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-    memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * 4);
+    if (hasConstTexture) {
+        texturePixels = other.texturePixels;
+    } else if (hasTexture) {
+        texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * textureChannels));
+        if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
+        memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * textureChannels);
+    }
+    if (hasIcon) {
+        iconPixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(iconHeight * iconWidth * iconChannels));
+        if (!iconPixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
+        memcpy(iconPixels, other.iconPixels, iconHeight * iconWidth * iconChannels);
+    }
 }
 
 Entity::Entity(Entity&& other) noexcept
-: texturePixels(std::exchange(other.texturePixels, nullptr)), textureWidth(other.textureWidth), textureChannels(other.textureChannels),
-textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)), boundingRadius(other.boundingRadius),
-hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight), iconWidth(other.iconWidth),
-hasIcon(other.hasIcon), hasTexture(other.hasTexture)
+: texturePixels(std::exchange(other.texturePixels, nullptr)), iconPixels(std::exchange(other.iconPixels, nullptr)), textureWidth(other.textureWidth),
+textureChannels(other.textureChannels), textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)),
+boundingRadius(other.boundingRadius), hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight),
+iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex)
 {}
 
 Entity& Entity::operator=(const Entity& other) {
@@ -150,6 +161,7 @@ Entity& Entity::operator=(const Entity& other) {
 
 Entity& Entity::operator=(Entity&& other) noexcept {
     std::swap(texturePixels, other.texturePixels);
+    std::swap(iconPixels, other.iconPixels);
     textureWidth = other.textureWidth;
     textureHeight = other.textureHeight;
     textureChannels = other.textureChannels;
@@ -159,6 +171,8 @@ Entity& Entity::operator=(Entity&& other) noexcept {
     iconChannels = other.iconChannels;
     hasIcon = other.hasIcon;
     hasTexture = other.hasTexture;
+    textureIndex = other.textureIndex;
+    iconIndex = other.iconIndex;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
     boundingRadius = other.boundingRadius;

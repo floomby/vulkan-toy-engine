@@ -18,7 +18,13 @@ engine: $(OBJ)
 shaders: shaders/shader.frag shaders/shader.vert shaders/hud.frag shaders/hud.vert
 	cd shaders && ./compile.sh
 
-.PHONY: clean
+.PHONY: clean check_formats
 
 clean:
 	rm -f result $(OBJ) $(DEP)
+
+# needs ImageMagik
+check_formats: $(wildcard textures/*.png)
+	$(foreach file, $^,  echo -n $(file) ":"; identify -format '%[channels]' $(file); echo '';)
+
+# @identify -format '%[channels]' $^

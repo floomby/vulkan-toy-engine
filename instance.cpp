@@ -49,11 +49,11 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::vec3& cam
         float axb_z = (cammeraPosition.z - cammeraTarget.z) * b2_xy - (cammeraPosition.z - position.z) * a2_xy;
         float phi = sgn(axb_z) * acosf((a2_z + b2_z - c2_z) / (2 * a_z * b_z));
 
-        // Getting real close to the cammera there is still a shear factor error, but this is for rendering icons of things far away
-        // so I don't know if fixing that is worth it
+        // There is still distortion from the top (or bottom) of the icon being closer to the cammera than the other side
+        // normally the icons would be far away and this would be minimal but maybe I should correct for it
 
         glm::mat4 shear = {
-            1.0f, asinf(phi * theta), 0.0f, 0.0f,
+            1.0f, phi * theta, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
             0.0f, 0.0f, 1.0f, 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f,

@@ -673,6 +673,9 @@ void Engine::createImageViews() {
     subpassImages.resize(swapChainImages.size());
     subpassImageAllocations.resize(swapChainImages.size());
     subpassImageViews.resize(swapChainImages.size());
+    iconSubpassImages.resize(swapChainImages.size());
+    iconSubpassImageAllocations.resize(swapChainImages.size());
+    iconSubpassImageViews.resize(swapChainImages.size());
     swapChainImageViews.resize(swapChainImages.size());
     static bool notFirstCall;
 
@@ -697,7 +700,12 @@ void Engine::createImageViews() {
         VmaAllocationCreateInfo imageAllocCreateInfo = {};
         imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-        vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &subpassImages[i], &subpassImageAllocations[i], nullptr);
+        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &subpassImages[i], &subpassImageAllocations[i], nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to create attachment images.");
+        
+        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &iconSubpassImages[i], &iconSubpassImageAllocations[i], nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to create attachment images.");
+
 
         // I cant even do this here because with have no commandbuffers yet
         // transitionImageLayout(subpassImages[i], swapChainImageFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -737,6 +745,7 @@ void Engine::createImageViews() {
         VkImageViewCreateInfo imageViewInfo {};
 
         subpassImageViews[i] = createImageView(subpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        iconSubpassImageViews[i] = createImageView(iconSubpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 
         swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
     }
@@ -744,9 +753,11 @@ void Engine::createImageViews() {
 }
 
 void Engine::destroyImageViews() {
-    for(int i = 0; i < subpassImages.size(); i++) {
+    for(int i = 0; i < concurrentFrames; i++) {
         vkDestroyImageView(device, subpassImageViews[i], nullptr);
-        vmaDestroyImage(memoryAllocator, subpassImages[i], subpassImageAllocations[i]);
+        vmaDestroyImage(memoryAllocator, subpassImages[i], iconSubpassImageAllocations[i]);
+        vkDestroyImageView(device, iconSubpassImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, iconSubpassImages[i], subpassImageAllocations[i]);
     }
     for (auto imageView : swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
@@ -800,32 +811,52 @@ void Engine::createRenderPass() {
     subpassAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     subpassAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+    VkAttachmentDescription iconAttachment {};
+    iconAttachment.format = swapChainImageFormat;
+    iconAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    iconAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    iconAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    iconAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    iconAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    iconAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    iconAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
     VkAttachmentReference subpass0color = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
     VkAttachmentReference subpass0depth = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
-    std::array<VkSubpassDescription, 2> subpasses {};
+    std::array<VkSubpassDescription, 3> subpasses {};
     subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[0].colorAttachmentCount = 1;
     subpasses[0].pColorAttachments = &subpass0color;
     subpasses[0].pDepthStencilAttachment = &subpass0depth;
     subpasses[0].pResolveAttachments = nullptr;
 
-    VkAttachmentReference subpass1color = { 2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-    VkAttachmentReference subpass1inputs[1] = {
-        { 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
-    };
+    VkAttachmentReference subpass1color = { 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
     subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[1].colorAttachmentCount = 1;
     subpasses[1].pColorAttachments = &subpass1color;
-    subpasses[1].pDepthStencilAttachment = &subpass0depth;
+    subpasses[1].pDepthStencilAttachment = nullptr;
     subpasses[1].pResolveAttachments = nullptr;
-    subpasses[1].inputAttachmentCount = 1;
-    subpasses[1].pInputAttachments = subpass1inputs;
-    // Can we just reuse the depth attachment?
-    subpasses[0].pDepthStencilAttachment = &subpass0depth;
+    subpasses[1].inputAttachmentCount = 0;
+    subpasses[1].pInputAttachments = nullptr;
 
-    std::array<VkAttachmentDescription, 3> attachments = { subpassAttachment, depthAttachment, colorAttachment };
+    VkAttachmentReference subpass2color = {2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference subpass2inputs[2] = {
+        { 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL },
+        { 3, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+    };
+
+    subpasses[2].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpasses[2].colorAttachmentCount = 1;
+    subpasses[2].pColorAttachments = &subpass2color;
+    subpasses[2].pDepthStencilAttachment = &subpass0depth;
+    subpasses[2].pResolveAttachments = nullptr;
+    subpasses[2].inputAttachmentCount = 2;
+    subpasses[2].pInputAttachments = subpass2inputs;
+    // Can we just reuse the depth attachment?
+
+    std::array<VkAttachmentDescription, 4> attachments = { subpassAttachment, depthAttachment, colorAttachment, iconAttachment };
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = attachments.size();
@@ -833,7 +864,7 @@ void Engine::createRenderPass() {
     renderPassInfo.subpassCount = subpasses.size();;
     renderPassInfo.pSubpasses = subpasses.data();
 
-    std::array<VkSubpassDependency, 2> dependencies {};
+    std::array<VkSubpassDependency, 4> dependencies {};
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
     dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -841,12 +872,26 @@ void Engine::createRenderPass() {
     dependencies[0].srcAccessMask = 0;
     dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    dependencies[1].srcSubpass = 0;
+    dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[1].dstSubpass = 1;
     dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].srcAccessMask = 0;
     dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    dependencies[2].srcSubpass = 0;
+    dependencies[2].dstSubpass = 2;
+    dependencies[2].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[2].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[2].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[2].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    dependencies[3].srcSubpass = 1;
+    dependencies[3].dstSubpass = 2;
+    dependencies[3].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[3].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[3].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[3].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     renderPassInfo.dependencyCount = dependencies.size();
     renderPassInfo.pDependencies = dependencies.data();
@@ -904,14 +949,20 @@ void Engine::createDescriptorSetLayout() {
     hudColorInput.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     hudColorInput.descriptorCount = 1;
 
+    VkDescriptorSetLayoutBinding hudIconInput {};
+    hudIconInput.binding = 1;
+    hudIconInput.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    hudIconInput.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    hudIconInput.descriptorCount = 1;
+
     VkDescriptorSetLayoutBinding hudTextures {};
-    hudTextures.binding = 1;
+    hudTextures.binding = 2;
     hudTextures.descriptorCount = engineSettings.maxHudTextures;
     hudTextures.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     hudTextures.pImmutableSamplers = nullptr;
     hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
-    std::array<VkDescriptorSetLayoutBinding, 2> hudBindings = { hudColorInput, hudTextures };
+    std::array<VkDescriptorSetLayoutBinding, 3> hudBindings = { hudColorInput, hudIconInput, hudTextures };
     VkDescriptorSetLayoutCreateInfo hudLayout {};
     hudLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     hudLayout.bindingCount = hudBindings.size();
@@ -933,7 +984,7 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
 }
 
 void Engine::createGraphicsPipelines() {
-    graphicsPipelines.resize(2);
+    graphicsPipelines.resize(3);
 
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
@@ -1102,10 +1153,14 @@ void Engine::createGraphicsPipelines() {
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
 
+    pipelineInfo.subpass = 1;
+
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
+
     // turn off depth stenciling for drawing the hud
     // I am going to try and reuse the depth resource
     // pipelineInfo.pDepthStencilState = nullptr;
-    pipelineInfo.subpass = 1;
+    pipelineInfo.subpass = 2;
 
     VkPipelineVertexInputStateCreateInfo hudVertexInputInfo {};
     hudVertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1157,7 +1212,7 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.layout = hudPipelineLayout;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[2]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -1501,10 +1556,11 @@ void Engine::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        std::array<VkImageView, 3> attachments = {
+        std::array<VkImageView, 4> attachments = {
             subpassImageViews[i],
             depthImageViews[i],
-            swapChainImageViews[i]
+            swapChainImageViews[i],
+            iconSubpassImageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo {};
@@ -2210,9 +2266,9 @@ void Engine::loadDefaultScene() {
     //currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
     currentScene = new Scene(this, {
-        {"models/spaceship.obj", "textures/spaceship.png"},
-        {"models/viking_room.obj", "textures/viking_room.png"},
-        {"models/sphere.obj", "textures/sphere.png"}
+        {"models/spaceship.obj", "textures/spaceship.png", "textures/spaceship_icon.png"},
+        {"models/viking_room.obj", "textures/viking_room.png", ""},
+        {"models/sphere.obj", "textures/sphere.png", ""}
     }, 50, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
@@ -2228,58 +2284,60 @@ void Engine::loadDefaultScene() {
 void Engine::createDescriptors(const std::vector<InternalTexture>& textures, const std::vector<GuiTexture>& hudTextures) {
     std::array<VkDescriptorPoolSize, 5> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    poolSizes[0].descriptorCount = swapChainImages.size();
+    poolSizes[0].descriptorCount = concurrentFrames;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 4 * swapChainImages.size();
+    poolSizes[1].descriptorCount = 4 * concurrentFrames;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[2].descriptorCount = swapChainImages.size();
+    poolSizes[2].descriptorCount = concurrentFrames;
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[3].descriptorCount = swapChainImages.size();
+    poolSizes[3].descriptorCount = concurrentFrames;
     poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[4].descriptorCount = swapChainImages.size();
+    poolSizes[4].descriptorCount = concurrentFrames;
 
-    std::array<VkDescriptorPoolSize, 2> hudPoolSizes;
+    std::array<VkDescriptorPoolSize, 3> hudPoolSizes;
     hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-    hudPoolSizes[0].descriptorCount = swapChainImages.size();
-    hudPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    hudPoolSizes[1].descriptorCount = engineSettings.maxHudTextures * swapChainImages.size();
+    hudPoolSizes[0].descriptorCount = concurrentFrames;
+    hudPoolSizes[1].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+    hudPoolSizes[1].descriptorCount = concurrentFrames;
+    hudPoolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    hudPoolSizes[2].descriptorCount = engineSettings.maxHudTextures * concurrentFrames;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = poolSizes.size();
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = swapChainImages.size();
+    poolInfo.maxSets = concurrentFrames;
 
     VkDescriptorPoolCreateInfo hudPoolInfo {};
     hudPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     hudPoolInfo.poolSizeCount = hudPoolSizes.size();
     hudPoolInfo.pPoolSizes = hudPoolSizes.data();
-    hudPoolInfo.maxSets = swapChainImages.size();
+    hudPoolInfo.maxSets = concurrentFrames;
 
     vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &mainPass.descriptorPool), "Failed to create descriptor pool.");
     vulkanErrorGuard(vkCreateDescriptorPool(device, &hudPoolInfo, nullptr, &hudDescriptorPool), "Failed to create hud descriptor pool.");
 
-    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), mainPass.descriptorSetLayout);
+    std::vector<VkDescriptorSetLayout> layouts(concurrentFrames, mainPass.descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = mainPass.descriptorPool;
-    allocInfo.descriptorSetCount = swapChainImages.size();
+    allocInfo.descriptorSetCount = concurrentFrames;
     allocInfo.pSetLayouts = layouts.data();
 
-    std::vector<VkDescriptorSetLayout> hudLayouts(swapChainImages.size(), hudDescriptorLayout);
+    std::vector<VkDescriptorSetLayout> hudLayouts(concurrentFrames, hudDescriptorLayout);
     VkDescriptorSetAllocateInfo hudAllocInfo {};
     hudAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     hudAllocInfo.descriptorPool = hudDescriptorPool;
-    hudAllocInfo.descriptorSetCount = swapChainImages.size();
+    hudAllocInfo.descriptorSetCount = concurrentFrames;
     hudAllocInfo.pSetLayouts = hudLayouts.data();
 
-    mainPass.descriptorSets.resize(swapChainImages.size());
-    hudDescriptorSets.resize(swapChainImages.size());
+    mainPass.descriptorSets.resize(concurrentFrames);
+    hudDescriptorSets.resize(concurrentFrames);
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, mainPass.descriptorSets.data()), "Failed to allocate descriptor sets.");
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &hudAllocInfo, hudDescriptorSets.data()), "Failed to allocate hud descriptor sets.");
 
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
+    for (size_t i = 0; i < concurrentFrames; i++) {
         VkDescriptorBufferInfo bufferInfo {};
         bufferInfo.buffer = uniformBuffers[i];
         bufferInfo.offset = 0;
@@ -2361,9 +2419,10 @@ namespace GuiTextures {
 };
 
 void Engine::writeHudDescriptors() {
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
-        std::array<VkWriteDescriptorSet, 2> hudDescriptorWrites {};
+    for (size_t i = 0; i < concurrentFrames; i++) {
+        std::array<VkWriteDescriptorSet, 3> hudDescriptorWrites {};
 
+        // I think maybe you can array input attachments
         VkDescriptorImageInfo descriptorImageInfo {};
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         descriptorImageInfo.imageView = subpassImageViews[i];
@@ -2377,6 +2436,19 @@ void Engine::writeHudDescriptors() {
         hudDescriptorWrites[0].descriptorCount = 1;
         hudDescriptorWrites[0].pImageInfo = &descriptorImageInfo;
 
+        VkDescriptorImageInfo iconDescriptorImageInfo {};
+        iconDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        iconDescriptorImageInfo.imageView = iconSubpassImageViews[i];
+        iconDescriptorImageInfo.sampler = VK_NULL_HANDLE;
+
+        hudDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        hudDescriptorWrites[1].dstSet = hudDescriptorSets[i];
+        hudDescriptorWrites[1].dstBinding = 1;
+        hudDescriptorWrites[1].dstArrayElement = 0;
+        hudDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        hudDescriptorWrites[1].descriptorCount = 1;
+        hudDescriptorWrites[1].pImageInfo = &iconDescriptorImageInfo;
+
         std::vector<VkDescriptorImageInfo> hudTextureInfos(engineSettings.maxHudTextures);
         for (int i = 0; i < engineSettings.maxHudTextures; i++) {
             hudTextureInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2384,13 +2456,13 @@ void Engine::writeHudDescriptors() {
             hudTextureInfos[i].sampler = GuiTextures::defaultTexture->textureSampler;
         }
 
-        hudDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        hudDescriptorWrites[1].dstSet = hudDescriptorSets[i];
-        hudDescriptorWrites[1].dstBinding = 1;
-        hudDescriptorWrites[1].dstArrayElement = 0;
-        hudDescriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        hudDescriptorWrites[1].descriptorCount = hudTextureInfos.size();
-        hudDescriptorWrites[1].pImageInfo = hudTextureInfos.data();
+        hudDescriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        hudDescriptorWrites[2].dstSet = hudDescriptorSets[i];
+        hudDescriptorWrites[2].dstBinding = 2;
+        hudDescriptorWrites[2].dstArrayElement = 0;
+        hudDescriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        hudDescriptorWrites[2].descriptorCount = hudTextureInfos.size();
+        hudDescriptorWrites[2].pImageInfo = hudTextureInfos.data();
 
         // vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
         vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
@@ -2426,7 +2498,7 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
 
         hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         hudDescriptorWrites[0].dstSet = hudDescriptorSets[i];
-        hudDescriptorWrites[0].dstBinding = 1;
+        hudDescriptorWrites[0].dstBinding = 2;
         hudDescriptorWrites[0].dstArrayElement = 0;
         hudDescriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         hudDescriptorWrites[0].descriptorCount = hudTextureInfos.size();
@@ -2492,10 +2564,11 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
 
-    std::array<VkClearValue, 3> clearValues = {};
+    std::array<VkClearValue, 4> clearValues = {};
     clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
     clearValues[1].depthStencil = { 1.0f, 0 };
     clearValues[2].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+    clearValues[3].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
 
     renderPassInfo.clearValueCount = clearValues.size();
     renderPassInfo.pClearValues = clearValues.data();
@@ -2515,20 +2588,42 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         if (currentScene->state.instances[j].renderAsIcon) {
-            pushConstants.renderType = 2;
-            // last texture is what we have as the placeholder texture for now
-            pushConstants.textureIndex = currentScene->textures.size() - 1;
-            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+            // pushConstants.renderType = 2;
+            // // last texture is what we have as the placeholder texture for now
+            // auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+            // pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+            // vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            // vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
             continue;
         }
         // 0th instance is always the skybox
         pushConstants.renderType = (int)!(bool)j;
-        pushConstants.textureIndex = (currentScene->state.instances.data() + j)->entityIndex;
+        pushConstants.textureIndex = currentScene->entities[currentScene->state.instances[j].entityIndex].textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
         vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+    }
+
+    vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+
+    vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+    // This loop indexing will change once the instance allocator changes
+    for(int j = 0; j < currentScene->state.instances.size(); j++) {
+        uint32_t dynamicOffset = j * uniformSkip;
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        if (currentScene->state.instances[j].renderAsIcon) {
+            pushConstants.renderType = 2;
+            // last texture is what we have as the placeholder texture for now
+            auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+        }
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -2546,7 +2641,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdClearAttachments(buffer, 1, &depthClear, 1, &depthClearRect);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[2]);
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
@@ -3205,11 +3300,14 @@ namespace InternalTextures {
     static std::map<VkImage, uint> references = {};
 };
 
-InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
+InternalTexture::InternalTexture(Engine *context, TextureCreationData creationData) {
     this->context = context;
-    width = entity.textureWidth;
-    height = entity.textureHeight;
-    VkDeviceSize imageSize = width * height * 4;
+    width = creationData.width;
+    height = creationData.height;
+    channels = creationData.channels;
+    VkDeviceSize imageSize = width * height * creationData.channels;
+
+    VkFormat format = Utilities::channelsToFormat(channels);
 
     VkBufferCreateInfo stagingBufInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     stagingBufInfo.size = imageSize;
@@ -3225,7 +3323,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     if (vmaCreateBuffer(context->memoryAllocator, &stagingBufInfo, &stagingBufAllocCreateInfo, &stagingBuffer, &stagingBufferAllocation, &stagingBufferAllocationInfo) !=VK_SUCCESS)
         throw std::runtime_error("Unable to allocate memory for texture.");
 
-    memcpy(stagingBufferAllocationInfo.pMappedData, entity.texturePixels, imageSize);
+    memcpy(stagingBufferAllocationInfo.pMappedData, creationData.pixels, imageSize);
 
     mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 
@@ -3236,7 +3334,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
-    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    imageInfo.format = format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -3309,7 +3407,7 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     textureImageViewInfo.image = textureImage;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    textureImageViewInfo.format = format;
     textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     // Fix this
     textureImageViewInfo.subresourceRange.baseMipLevel = 0;
@@ -3349,8 +3447,8 @@ InternalTexture::InternalTexture(Engine *context, const Entity& entity) {
 // MaxLoD is not working right cause something is wrong
 void InternalTexture::generateMipmaps() {
     // I will leave this in here in case we want to handle multiple image formats in the future
-    VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
-    // Check if image format supports linearstd::make_pair( blitting
+    VkFormat imageFormat = Utilities::channelsToFormat(channels);
+    // Check if image format supports linear blitting
     VkFormatProperties formatProperties;
     vkGetPhysicalDeviceFormatProperties(context->physicalDevice, imageFormat, &formatProperties);
 
@@ -3489,19 +3587,25 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
     return *this;
 }
 
-Scene::Scene(Engine* context, std::vector<std::pair<const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
+Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
 : skybox(context, skyboxImages) {
     this->context = context;
     Entity icon(ENT_ICON);
-    // FIXME Crappy slowness
     for(const auto& entity : entities) {
-        this->entities.push_back(Entity(entity.first, entity.second));
+        this->entities.push_back(Entity(get<0>(entity), get<1>(entity), get<2>(entity)));
     }
-    for(const auto& entity : this->entities) {
-        textures.push_back(InternalTexture(context, entity));
+    for(auto& entity : this->entities) {
+        if (entity.hasTexture) {
+            entity.textureIndex = textures.size();
+            textures.push_back(InternalTexture(context, { entity.textureHeight, entity.textureWidth, entity.textureChannels, entity.texturePixels }));
+        }
+        if (entity.hasIcon) {
+            entity.iconIndex = textures.size();
+            textures.push_back(InternalTexture(context, { entity.iconHeight, entity.iconWidth, entity.iconChannels, entity.iconPixels }));
+        }
     }
     this->entities.push_back(icon);
-    textures.push_back(InternalTexture(context, icon));
+    textures.push_back(InternalTexture(context, { icon.textureHeight, icon.textureWidth, icon.textureChannels, icon.texturePixels }));
 
     state.instances.reserve(initialSize);
 }

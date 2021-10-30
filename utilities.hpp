@@ -85,6 +85,20 @@ public:
         glm::vec3 pos;
         glm::vec2 nearFar;
     };
+    static inline VkFormat channelsToFormat(int channels) {
+        switch (channels) {
+            case 1:
+                return VK_FORMAT_R8_SRGB;
+            case 2:
+                return VK_FORMAT_R8G8_SRGB;
+            case 3:
+                return VK_FORMAT_R8G8B8_SRGB;
+            case 4:
+                return VK_FORMAT_R8G8B8A8_SRGB;
+            default:
+                throw std::logic_error("Bad channel count (something is programmed incorrectly)");
+        }
+    }
 protected:
     static std::vector<char> readFile(const std::string& filename);
 };

@@ -18,7 +18,7 @@ layout(location = 1) in vec3 inColor;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 vertNormal;
 
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) out vec3 outColor;
 layout(location = 1) out vec2 fragTexCoord;
 layout(location = 2) out float highlight;
 layout(location = 3) out vec3 normalInterp;
@@ -42,7 +42,7 @@ void main() {
     fragTexCoord = inTexCoord;
     highlight = ubo.highlight;
     // Leave this in for now for debugging stuff if we want
-    fragColor = inColor;
+    outColor = inColor;
     skyCoord = inPosition;
 
     vec4 inLightingSpace = lighting.proj * lighting.view * worldPos;

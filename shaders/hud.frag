@@ -3,7 +3,8 @@
 #include "render_modes.h"
 
 layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput inputColor;
-layout(binding = 1) uniform sampler2D texSampler[128];
+layout(input_attachment_index = 0, set = 0, binding = 1) uniform subpassInput iconColor;
+layout(binding = 2) uniform sampler2D texSampler[128];
 
 layout(location = 0) in vec4 inColor;
 layout(location = 1) in vec4 inSecondaryColor;
@@ -12,12 +13,12 @@ layout(location = 3) in flat int inTexIndex;
 layout(location = 4) in flat uint inGuiID;
 layout(location = 5) in flat uint inCursorID;
 layout(location = 6) in flat uint inRenderMode;
-layout(location = 7) in flat uint inFlags;
+// layout(location = 7) in flat uint inFlags;
 
 layout(location = 0) out vec4 outColor;
 
 const float smoothing = 0.5;
-const float boldness = 0.5; 
+const float boldness = 0.5;
 
 vec4 cubic(float v){
     vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
@@ -30,10 +31,10 @@ vec4 cubic(float v){
 }
 
 vec4 textureBicubic(sampler2D smplr, vec2 texCoords){
-   vec2 texSize = textureSize(smplr, 0);
-   vec2 invTexSize = 1.0 / texSize;
+    vec2 texSize = textureSize(smplr, 0);
+    vec2 invTexSize = 1.0 / texSize;
 
-   texCoords = texCoords * texSize - 0.5;
+    texCoords = texCoords * texSize - 0.5;
 
 
     vec2 fxy = fract(texCoords);
@@ -60,25 +61,26 @@ vec4 textureBicubic(sampler2D smplr, vec2 texCoords){
     return mix(mix(sample3, sample2, sx), mix(sample1, sample0, sx), sy);
 }
 
+vec4 getSubpassPixel() {
+    vec4 iconPixel = subpassLoad(iconColor);
+    return vec4(mix(subpassLoad(inputColor).rgb, iconPixel.rgb, iconPixel.a), 1.0);
+}
 
 void main() {
-    // just the main viewport
-    if (inTexIndex < 0) {
-        outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), 1.0);
-        return;
-    }
     switch (inRenderMode) {
+        case RMODE_NONE:
+            outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
+            break;
         case RMODE_FLAT:
-            outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), 1.0);
+            outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
             break;
         case RMODE_TEXT:
             float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             float alpha = smoothstep(boldness - smoothing, boldness + smoothing, distance);
-            outColor = vec4(mix(mix(subpassLoad(inputColor).rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
             if (inGuiID == inCursorID) {
                 outColor = smoothstep(0.0, 1.0, outColor);
             }
             break;
     }
-    // outColor = vec4(mix(subpassLoad(inputColor).rgb, inColor.rgb, texture(texSampler[inTexIndex], inTexCoord).r), 1.0);
 }

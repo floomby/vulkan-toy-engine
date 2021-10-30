@@ -14,7 +14,7 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) in uint inTexIndex;
 layout(location = 5) in uint inGuiID;
 layout(location = 6) in uint inRenderMode;
-layout(location = 7) in uint inFlags;
+// layout(location = 7) in uint inFlags;
 
 // I may need these, but I think I will just draw in normalized device coordinates
 // It would seem to be the easiest way to do things
@@ -46,7 +46,7 @@ layout(location = 3) out int outTexIndex;
 layout(location = 4) out uint outGuiID;
 layout(location = 5) out uint outCursorID;
 layout(location = 6) out uint outRenderMode;
-layout(location = 7) out uint outFlags;
+// layout(location = 7) out uint outFlags;
 
 void main() {
     // Does every fragment need to compute this???
@@ -84,6 +84,6 @@ void main() {
     }
     outCursorID = pushConstants.cursorID;
     outRenderMode = inRenderMode;
-    outFlags = inFlags;
+    // outFlags = inFlags;
     outSecondaryColor = inSecondaryColor;
 }

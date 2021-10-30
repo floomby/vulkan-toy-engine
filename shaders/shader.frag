@@ -93,6 +93,11 @@ const int mode = 1;
 vec3 lightPos = (pushConstants.view * vec4(lighting.pos, 1.0)).xyz;
 
 void main() {
+    if (pushConstants.type == 2) {
+        outColor = texture(texSampler[pushConstants.index], fragTexCoord);
+        return;
+    }
+
     // for skybox rendering
     if (pushConstants.type == 1) {
         outColor = texture(skyboxSampler, skyCoord);

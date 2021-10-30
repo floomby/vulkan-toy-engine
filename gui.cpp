@@ -14,7 +14,7 @@
 // };
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth)
-: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0)), height(screenHeight), width(screenWidth) {
+: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, RMODE_NONE)), height(screenHeight), width(screenWidth) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });

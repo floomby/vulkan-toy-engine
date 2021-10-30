@@ -218,6 +218,10 @@ private:
     std::vector<VkImage> subpassImages;
     std::vector<VmaAllocation> subpassImageAllocations;
     std::vector<VkImageView> subpassImageViews;
+    std::vector<VkImage> iconSubpassImages;
+    std::vector<VmaAllocation> iconSubpassImageAllocations;
+    std::vector<VkImageView> iconSubpassImageViews;
+    
     std::vector<VkImageView> swapChainImageViews;
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
     void createImageViews();
@@ -236,6 +240,7 @@ private:
     void createDescriptorSetLayout();
 
     VkPipelineLayout pipelineLayout;
+    // VkPipelineLayout iconPipelineLayout;
     VkPipelineLayout hudPipelineLayout;
     std::vector<VkPipeline> graphicsPipelines;
     VkShaderModule createShaderModule(const std::vector<char>& code);
@@ -416,7 +421,7 @@ namespace GuiTextures {
 class Scene {
 public:
     // vertex and index offsets for the model
-    Scene(Engine* context, std::vector<std::pair<const char *, const char *>>, size_t initalSize, std::array<const char *, 6> skyboxImages);
+    Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *>>, size_t initalSize, std::array<const char *, 6> skyboxImages);
 
     // I don't really want to accidentally be copying or moving the scene even though it is now safe to do so
     Scene(const Scene& other) = delete;
@@ -447,11 +452,16 @@ private:
     Engine* context;
 };
 
+struct TextureCreationData {
+    int height, width, channels;
+    unsigned char *pixels;
+};
+
 class InternalTexture {
 public:
-    int mipLevels, width, height;
+    int mipLevels, width, height, channels;
     
-    InternalTexture(Engine *context, const Entity& entity);
+    InternalTexture(Engine *context, TextureCreationData creationData);
 
     InternalTexture(const InternalTexture&);
     InternalTexture& operator=(const InternalTexture&);
