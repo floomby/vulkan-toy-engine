@@ -144,9 +144,5 @@ void main() {
         outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);
     }
 
-    // float zVal = getShadow(shadowCoord);
-    // outColor = vec4(zVal, zVal, zVal, 1.0);
-    if (pushConstants.type != 2) {
-        outColor = outColor * (getShadow(shadowCoord, 4) * 0.9 + 0.1);
-    }
+    outColor = vec4((outColor * (getShadow(shadowCoord, 4) * 0.9 + 0.1)).rgb, 1.0);
 }

@@ -1083,11 +1083,11 @@ void Engine::createGraphicsPipelines() {
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_FALSE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
     VkPipelineColorBlendStateCreateInfo colorBlending {};
@@ -1153,6 +1153,8 @@ void Engine::createGraphicsPipelines() {
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
 
+
+    colorBlendAttachment.blendEnable = VK_TRUE;
     pipelineInfo.subpass = 1;
 
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
@@ -1950,7 +1952,7 @@ void Engine::handleInput() {
             if (planeIntersectionDenominator == 0) {
                 std::cout << "orthognal" << std::endl;
             } else {
-                currentScene->addInstance(1, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
+                currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
                     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)) });
@@ -2047,6 +2049,13 @@ void Engine::handleInput() {
     lastMousePosition.y = y;
 }
 
+instanceZSorter::instanceZSorter(Scene *context)
+: context(context) {}
+
+bool instanceZSorter::operator() (int a, int b) {
+    return context->state.instances[a].cammeraDistance2 > context->state.instances[b].cammeraDistance2;
+}
+
 // The index is for which descriptor index to put the lighting buffer information
 // Here is the big graphics update function
 void Engine::updateScene(int index) {
@@ -2080,9 +2089,16 @@ void Engine::updateScene(int index) {
     // The 0th instance is the skybox (probably shouldnt be like this though)
     currentScene->state.instances[0].position = cammera.position;
 
+    zSortedIcons.clear();
+    // It is probably better just to reserve to avoid reallocations
+    zSortedIcons.reserve(currentScene->state.instances.size());
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
-        currentScene->state.instances[i].renderAsIcon = distance2(cammera.position, currentScene->state.instances[i].position) > cammera.renderAsIcon2;
+        currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
+        currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
+        if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
     }
+
+    std::sort(zSortedIcons.begin(), zSortedIcons.end(), currentScene->zSorter);
 
     // 0 1
     // 3 2
@@ -2565,7 +2581,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     renderPassInfo.renderArea.extent = swapChainExtent;
 
     std::array<VkClearValue, 4> clearValues = {};
-    clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
+    clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
     clearValues[1].depthStencil = { 1.0f, 0 };
     clearValues[2].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
     clearValues[3].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
@@ -2584,9 +2600,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->state.instances.size(); j++) {
-        uint32_t dynamicOffset = j * uniformSkip;
-        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+    pushConstants.renderType = 0;
+    for(int j = 1; j < currentScene->state.instances.size(); j++) {
         if (currentScene->state.instances[j].renderAsIcon) {
             // pushConstants.renderType = 2;
             // // last texture is what we have as the placeholder texture for now
@@ -2596,8 +2611,9 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             // vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
             continue;
         }
+        uint32_t dynamicOffset = j * uniformSkip;
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
-        pushConstants.renderType = (int)!(bool)j;
         pushConstants.textureIndex = currentScene->entities[currentScene->state.instances[j].entityIndex].textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
@@ -2612,18 +2628,24 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-    // This loop indexing will change once the instance allocator changes
-    for(int j = 0; j < currentScene->state.instances.size(); j++) {
-        uint32_t dynamicOffset = j * uniformSkip;
+    // render the skybox
+    pushConstants.renderType = 1;
+    uint32_t dynamicOffset = 0;
+    vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+    vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+    vkCmdDrawIndexed(buffer, currentScene->state.instances.data()->sceneModelInfo->indexCount, 1,
+            currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
+
+    pushConstants.renderType = 2;
+    // Render the icons back to front
+    for(const int j : zSortedIcons) {
+        dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        if (currentScene->state.instances[j].renderAsIcon) {
-            pushConstants.renderType = 2;
-            // last texture is what we have as the placeholder texture for now
-            auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
-            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
-            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
-        }
+        const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+        pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+        // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
+        vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -3588,7 +3610,7 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
 }
 
 Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
-: skybox(context, skyboxImages) {
+: skybox(context, skyboxImages), zSorter(instanceZSorter(this)) {
     this->context = context;
     Entity icon(ENT_ICON);
     for(const auto& entity : entities) {

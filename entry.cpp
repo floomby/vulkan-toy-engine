@@ -76,6 +76,8 @@ void run(EngineSettings& settings) {
 Random non-crital stuff:
  I am linking to libpng now for freetype2, maybe I should stop using stbi
  Make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
+   So I mostly did this, but now I have the problem of the input attachments being in the framebuffer and that size being depending on the swapchain,
+   I do not know the correct way around this
  In the gui code for the ndc coords are in x = <> and y = ^v (nvm, I am just going insane cause I thought I was mixing my x and y in the input code)
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
  I think I read the glfw docs wrong and dont need spsc lockfree queues for the input handling threads (afaict the linux tids are the same as the engine thread, this
@@ -91,11 +93,11 @@ Next steps
   messaging from the gui to the render thread (probably just use another spsc lockfree queue)
   a button component (I might just blit the text alpha mask onto a button texture and call that good)
   yaml reader into layouts - to get to here we still need much work
+ shadow pass needs to move to having the abillity to have multiple depth buffers so that the fence for rendering can be moved to the correct spot
  lt - networking
  lt - lua
 
  collider class so I can support aabb and sphere and importantly obb coliders
- unit icons for far away stuff (this should be either done in the main render pass subpass that makes the units, or more likely in a subpass of its own)
  culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb) (this should be done with the previous two
   steps in place and should be easy)
  ECS? (or something else as an organizational structure for the proccessing)
@@ -108,7 +110,7 @@ Next steps
  explosions - particles?
 
 Bugfixxy stuff
- Mipmad lod is not working, although I haven't looked at it in a while (I made a so question for this)
+ Mipmap lod is not working, although I haven't looked at it in a while (I made a so question for this)
  InternalTexture constructor fails if channels are 3 (and presumably 2 and possibly 1 as well) Vulkan doesnt like the format when creating the image via vmaCreateImage
  resizing rarly, but sometimes does this:
     Validation layer: Validation Error: [ VUID-VkSwapchainCreateInfoKHR-imageExtent-01274 ] Object 0: handle = 0x560cc52946a8, type = VK_OBJECT_TYPE_DEVICE;

@@ -221,6 +221,8 @@ private:
     std::vector<VkImage> iconSubpassImages;
     std::vector<VmaAllocation> iconSubpassImageAllocations;
     std::vector<VkImageView> iconSubpassImageViews;
+
+    std::vector<int> zSortedIcons;
     
     std::vector<VkImageView> swapChainImageViews;
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);
@@ -418,6 +420,13 @@ namespace GuiTextures {
     void setDefaultTexture();
 };
 
+struct instanceZSorter {
+    instanceZSorter(Scene *context);
+    bool operator() (int a, int b);
+private:
+    Scene *context;
+};
+
 class Scene {
 public:
     // vertex and index offsets for the model
@@ -448,6 +457,8 @@ public:
     std::map<std::string, Panel> panels;
     
     void updateUniforms(void *buffer, size_t uniformSkip);
+
+    instanceZSorter zSorter;
 private:
     Engine* context;
 };

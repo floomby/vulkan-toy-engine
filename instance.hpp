@@ -30,7 +30,9 @@ public:
 
     bool intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const;
     InternalTexture* texture;
+
     bool renderAsIcon = false;
+    float cammeraDistance2;
 private:
     bool _highlight;
     UniformBufferObject _state;

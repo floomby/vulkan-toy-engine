@@ -62,8 +62,9 @@ vec4 textureBicubic(sampler2D smplr, vec2 texCoords){
 }
 
 vec4 getSubpassPixel() {
-    vec4 iconPixel = subpassLoad(iconColor);
-    return vec4(mix(subpassLoad(inputColor).rgb, iconPixel.rgb, iconPixel.a), 1.0);
+    vec4 bgPixel = subpassLoad(iconColor);
+    vec4 fgPixel = subpassLoad(inputColor);
+    return vec4(mix(bgPixel.rgb, fgPixel.rgb, fgPixel.a), 1.0);
 }
 
 void main() {
