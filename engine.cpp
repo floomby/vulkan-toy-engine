@@ -1937,7 +1937,7 @@ void Engine::handleInput() {
             //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             // }
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
-                (currentScene->state.instances.data() + i)->highlight() = 
+                (currentScene->state.instances.data() + i)->highlight = 
                     whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
                         whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
@@ -2559,6 +2559,8 @@ void Engine::allocateCommandBuffers() {
     }
 }
 
+#include "shaders/render_modes.h"
+
 // I am sorry what I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
 // cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
@@ -2600,7 +2602,6 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    pushConstants.renderType = 0;
     for(int j = 1; j < currentScene->state.instances.size(); j++) {
         if (currentScene->state.instances[j].renderAsIcon) {
             // pushConstants.renderType = 2;
@@ -2611,6 +2612,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             // vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
             continue;
         }
+        pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
@@ -2629,19 +2631,19 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // render the skybox
-    pushConstants.renderType = 1;
+    pushConstants.renderType = RINT_SKYBOX;
     uint32_t dynamicOffset = 0;
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
     vkCmdDrawIndexed(buffer, currentScene->state.instances.data()->sceneModelInfo->indexCount, 1,
             currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
 
-    pushConstants.renderType = 2;
     // Render the icons back to front
     for(const int j : zSortedIcons) {
         dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+        pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
@@ -3655,10 +3657,11 @@ void Scene::makeBuffers() {
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
     auto zRot = toMat4(angleAxis(atan2f(context->cammera.target.y - context->cammera.position.y, context->cammera.target.x - context->cammera.position.x),
          glm::vec3({ 0.0f, 0.0f, 1.0f })));
+    float skewCorrectionFactor = length(cross(context->cammera.pointing, { 0.0f, 0.0f, 1.0f }));
     for (int i = 0; i < state.instances.size(); i++) {
         memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
             (state.instances.data() + i)->state(context->pushConstants.view, context->cammera.position, context->cammera.strafing,
-            context->cammera.target, zRot), sizeof(UniformBufferObject));
+            context->cammera.target, zRot, skewCorrectionFactor), sizeof(UniformBufferObject));
     }
 }
 

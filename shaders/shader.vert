@@ -1,9 +1,10 @@
 #version 450
 
+#include "render_modes.h"
+
 layout(binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 normal;
-    float highlight;
 } ubo;
 
 layout(binding = 3) uniform ViewProjPosNearFar {
@@ -20,11 +21,10 @@ layout(location = 3) in vec3 vertNormal;
 
 layout(location = 0) out vec3 outColor;
 layout(location = 1) out vec2 fragTexCoord;
-layout(location = 2) out float highlight;
-layout(location = 3) out vec3 normalInterp;
-layout(location = 4) out vec3 vertPos;
-layout(location = 5) out vec3 shadowCoord;
-layout(location = 6) out vec3 skyCoord;
+layout(location = 2) out vec3 normalInterp;
+layout(location = 3) out vec3 vertPos;
+layout(location = 4) out vec3 shadowCoord;
+layout(location = 5) out vec3 skyCoord;
 
 layout( push_constant ) uniform constants {
     mat4 view;
@@ -40,7 +40,6 @@ void main() {
     vertPos = vec3(vertPos4) / vertPos4.w;
     normalInterp = vec3(ubo.normal * vec4(vertNormal, 0.0));
     fragTexCoord = inTexCoord;
-    highlight = ubo.highlight;
     // Leave this in for now for debugging stuff if we want
     outColor = inColor;
     skyCoord = inPosition;
@@ -50,6 +49,6 @@ void main() {
 
     vec4 inClipSpace = pushConstants.projection * vertPos4;
     // draw behind everything even if in front
-    if (pushConstants.type == 1) inClipSpace = inClipSpace.xyww;
+    if (getRINT(pushConstants.type) == RINT_SKYBOX) inClipSpace = inClipSpace.xyww;
     gl_Position = inClipSpace;
 }

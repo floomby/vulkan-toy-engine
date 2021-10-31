@@ -1,13 +1,13 @@
 #include "instance.hpp"
 
-Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept {
+Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept
+: id(idCounter++) {
     this->entityIndex = entityIndex;
     // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
     this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
-    _state.highlight = 0.0;
-    _highlight = false;
+    highlight = false;
 };
 
 // Instance& Instance::transform(glm::mat4 transformationMatrix) noexcept {
@@ -18,7 +18,7 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
 #include <iostream>
 
 UniformBufferObject *Instance::state(const glm::mat4& view, const glm::vec3& cammeraPosition, const glm::vec3& cammeraStrafing,
-    const glm::vec3& cammeraTarget, const glm::mat4& zRot2) {
+    const glm::vec3& cammeraTarget, const glm::mat4& zRot2, const float skewCorrectionFactor) {
     // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)
     // probably fine for right now, but probably should be changed to something else
     if (renderAsIcon) {
@@ -52,6 +52,12 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::vec3& cam
         // There is still distortion from the top (or bottom) of the icon being closer to the cammera than the other side
         // normally the icons would be far away and this would be minimal but maybe I should correct for it
 
+        // theta *= std::clamp(9 - 11 * (1 - skewCorrectionFactor), 0.0f, 1.0f);
+
+        std::cout << "scf: " << skewCorrectionFactor << " theta: " << theta << " phi: " << phi << std::endl;
+
+        phi = theta = 0;
+
         glm::mat4 shear = {
             1.0f, phi * theta, 0.0f, 0.0f,
             0.0f, 1.0f, 0.0f, 0.0f,
@@ -67,12 +73,7 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::vec3& cam
     }
     // position.z -= 0.01f;
     _state.normal = transpose(inverse(view * _state.model));
-    _state.highlight = _highlight ? 1.0 : 0.0;
     return &_state;
-}
-
-bool& Instance::highlight() {
-    return _highlight;
 }
 
 // NOTE: direction has to be normalized

@@ -20,6 +20,7 @@ struct CommandData {
 
 struct Command {
     CommandKind kind;
+    InstanceID id;
     CommandData data;
 };
 

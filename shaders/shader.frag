@@ -1,5 +1,7 @@
 #version 450
 
+#include "render_modes.h"
+
 // We can change this to a bigger number (I think vulkan doesn't allocate memory or anything based on this array size, opengl would have though)
 layout(binding = 1) uniform sampler2D texSampler[4];
 layout(binding = 2) uniform sampler2D shadowMap;
@@ -12,11 +14,10 @@ layout(binding = 4) uniform samplerCube skyboxSampler;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
-layout(location = 2) in float highlight;
-layout(location = 3) in vec3 normalInterp;
-layout(location = 4) in vec3 vertPos;
-layout(location = 5) in vec3 shadowCoord;
-layout(location = 6) in vec3 skyCoord;
+layout(location = 2) in vec3 normalInterp;
+layout(location = 3) in vec3 vertPos;
+layout(location = 4) in vec3 shadowCoord;
+layout(location = 5) in vec3 skyCoord;
 
 layout(location = 0) out vec4 outColor;
 
@@ -38,6 +39,14 @@ vec4 vectorMap(vec4 value, float min1, float max1, float min2, float max2) {
         map(value.y, min1, max1, min2, max2),
         map(value.z, min1, max1, min2, max2),
         map(value.w, min1, max1, min2, max2)
+    );
+}
+
+vec3 vectorMap(vec3 value, float min1, float max1, float min2, float max2) {
+    return vec3(
+        map(value.x, min1, max1, min2, max2),
+        map(value.y, min1, max1, min2, max2),
+        map(value.z, min1, max1, min2, max2)
     );
 }
 
@@ -93,13 +102,19 @@ const int mode = 1;
 vec3 lightPos = (pushConstants.view * vec4(lighting.pos, 1.0)).xyz;
 
 void main() {
-    if (pushConstants.type == 2) {
+    uint rtype = getRINT(pushConstants.type);
+    uint rflags = getRFLAGS(pushConstants.type);
+
+    if (rtype == RINT_ICON) {
         outColor = texture(texSampler[pushConstants.index], fragTexCoord);
+        if (bool(rflags & RFLAG_HIGHLIGHT)) {
+            outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
+        }
         return;
     }
 
     // for skybox rendering
-    if (pushConstants.type == 1) {
+    if (rtype == RINT_SKYBOX) {
         outColor = texture(skyboxSampler, skyCoord);
         return;
     }
@@ -140,7 +155,7 @@ void main() {
     // use the gamma corrected color in the fragment
     outColor = vec4(colorGammaCorrected, 1.0);
 
-    if (highlight > 0.5) {
+    if (bool(rflags & RFLAG_HIGHLIGHT)) {
         outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);
     }
 
