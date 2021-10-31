@@ -22,8 +22,7 @@ public:
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept;
     // Instance& transform(glm::mat4 transformationMatrix) noexcept;
 
-    UniformBufferObject *state(const glm::mat4& view, const glm::vec3& cammeraPosition, const glm::vec3& cammeraStrafing,
-        const glm::vec3& cammeraTarget, const glm::mat4& zRot, const float skewCorrectionFactor);
+    UniformBufferObject *state(const glm::mat4& view, const glm::mat4& proj, const glm::mat4& view_1proj_1, float aspectRatio);
     SceneModelInfo* sceneModelInfo;
     int entityIndex;
 

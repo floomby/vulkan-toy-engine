@@ -3655,13 +3655,11 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
-    auto zRot = toMat4(angleAxis(atan2f(context->cammera.target.y - context->cammera.position.y, context->cammera.target.x - context->cammera.position.x),
-         glm::vec3({ 0.0f, 0.0f, 1.0f })));
-    float skewCorrectionFactor = length(cross(context->cammera.pointing, { 0.0f, 0.0f, 1.0f }));
+    auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
+    float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
     for (int i = 0; i < state.instances.size(); i++) {
         memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
-            (state.instances.data() + i)->state(context->pushConstants.view, context->cammera.position, context->cammera.strafing,
-            context->cammera.target, zRot, skewCorrectionFactor), sizeof(UniformBufferObject));
+            (state.instances.data() + i)->state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio), sizeof(UniformBufferObject));
     }
 }
 
