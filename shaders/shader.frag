@@ -110,6 +110,7 @@ void main() {
         if (bool(rflags & RFLAG_HIGHLIGHT)) {
             outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
         }
+        if (outColor.a < 0.1) discard;
         return;
     }
 

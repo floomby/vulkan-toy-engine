@@ -15,7 +15,7 @@ enum class CommandKind {
 };
 
 struct CommandData {
-
+    glm::vec3 target;
 };
 
 struct Command {

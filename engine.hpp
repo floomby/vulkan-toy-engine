@@ -33,6 +33,8 @@ struct EngineSettings {
     size_t maxHudTextures;
 };
 
+template<typename T> class DescriptorSyncer;
+
 class Engine : Utilities {
     // TODO add stuff to the engine class to be able to remove this friend declaration
     friend class InternalTexture;
@@ -40,6 +42,7 @@ class Engine : Utilities {
     // The big thing about these is they dont have mipmap levels
     friend class GuiTexture;
     friend class Scene;
+    friend class DescriptorSyncer<UniformBufferObject>;
 public:
     Engine(EngineSettings engineSettings);
     void init();
@@ -102,6 +105,9 @@ private:
 
     // Maybe shove these all in a struct to help organize them
     float maxSamplerAnisotropy;
+    template<typename T> size_t calculateUniformSkipForUBO() {
+        return sizeof(T) / minUniformBufferOffsetAlignment + (sizeof(T) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
+    }
     size_t minUniformBufferOffsetAlignment;
     std::array<float, 2> lineWidthRange;
     float lineWidthGranularity;
@@ -218,9 +224,9 @@ private:
     std::vector<VkImage> subpassImages;
     std::vector<VmaAllocation> subpassImageAllocations;
     std::vector<VkImageView> subpassImageViews;
-    std::vector<VkImage> iconSubpassImages;
-    std::vector<VmaAllocation> iconSubpassImageAllocations;
-    std::vector<VkImageView> iconSubpassImageViews;
+    std::vector<VkImage> bgSubpassImages;
+    std::vector<VmaAllocation> bgSubpassImageAllocations;
+    std::vector<VkImageView> bgSubpassImageViews;
 
     std::vector<int> zSortedIcons;
     
@@ -236,15 +242,25 @@ private:
         VkDescriptorSetLayout descriptorSetLayout;
         VkDescriptorPool descriptorPool;
         std::vector<VkDescriptorSet> descriptorSets;
+        VkDescriptorSetLayout lineDescriptorLayout;
+        VkDescriptorPool lineDescriptorPool;
+        std::vector<VkDescriptorSet> lineDescriptorSets;
     } mainPass;
 
     VkDescriptorSetLayout hudDescriptorLayout;
     void createDescriptorSetLayout();
 
     VkPipelineLayout pipelineLayout;
-    // VkPipelineLayout iconPipelineLayout;
+    VkPipelineLayout linePipelineLayout;
     VkPipelineLayout hudPipelineLayout;
-    std::vector<VkPipeline> graphicsPipelines;
+    enum {
+        GP_BG = 0,
+        GP_WORLD,
+        GP_LINES,
+        GP_HUD,
+        GP_COUNT
+    };
+    std::array<VkPipeline, GP_COUNT> graphicsPipelines;
     VkShaderModule createShaderModule(const std::vector<char>& code);
     void createGraphicsPipelines();
 
@@ -289,14 +305,12 @@ private:
     VmaAllocation hudAllocation;
     void createHudBuffers();
 
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VmaAllocation> uniformBufferAllocations;
+    DescriptorSyncer<UniformBufferObject> *uniformSync;
     std::vector<VkBuffer> lightingBuffers;
     std::vector<VmaAllocation> lightingBufferAllocations;
-    size_t uniformSkip;
-    void allocateUniformBuffers(size_t instanceCount);
-    void reallocateUniformBuffers(size_t instanceCount);
-    void destroyUniformBuffers();
+    // size_t uniformSkip;
+    void allocateLightingBuffers();
+    void destroyLightingBuffers();
     void updateLightingDescriptors(int index, const ViewProjPosNearFar& data);
 
     VkDescriptorPool hudDescriptorPool;
@@ -444,7 +458,7 @@ public:
     // O(n) time complexity where n = # of instances
     inline std::vector<Instance>::iterator getInstance(InstanceID id) {
         return find_if(state.instances.begin(), state.instances.end(), [id](auto x) -> bool { return x.id == id; });
-    };
+    }
 
     // Right now these are public so the engine can see them to copy them to vram
     std::vector<Entity> entities;
@@ -460,7 +474,7 @@ public:
     ObservableState state;
     std::map<std::string, Panel> panels;
     
-    void updateUniforms(void *buffer, size_t uniformSkip);
+    void updateUniforms(int idx);
 
     instanceZSorter zSorter;
 private:
@@ -496,4 +510,89 @@ private:
     bool supportsLinearBlitting();
 
     void generateMipmaps();
+};
+
+struct DescriptorSyncPoint {
+    std::vector<VkDescriptorSet> *descriptorSets;
+    uint binding;
+};
+
+template<typename T> class DescriptorSyncer {
+public:
+    DescriptorSyncer(Engine *context, std::vector<DescriptorSyncPoint> syncPoints, size_t initialSize = 50)
+    : context(context), syncPoints(syncPoints), info({
+        NULL, 0, VK_WHOLE_SIZE
+    }), writer({
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, NULL,
+        0, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        nullptr, &info, nullptr
+    }) {
+        uniformBuffers.resize(context->concurrentFrames);
+        uniformBufferAllocations.resize(context->concurrentFrames);
+        currentSize.resize(context->concurrentFrames);
+        validCount.resize(context->concurrentFrames);
+        uniformSkip = context->calculateUniformSkipForUBO<T>();
+
+        for (int i = 0; i < uniformBuffers.size(); i++) {
+            currentSize[i] = initialSize;
+            VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+            bufferInfo.size = initialSize * uniformSkip;
+            bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+            VmaAllocationCreateInfo bufferAllocationInfo = {};
+            bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+            bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+            if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
+                throw std::runtime_error("Unable to allocate memory for uniform buffers.");
+
+            info.buffer = uniformBuffers[i];
+
+            for (const auto& syncPoint : syncPoints) {
+                writer.dstSet = (*syncPoint.descriptorSets)[i];
+                writer.dstBinding = syncPoint.binding;
+                vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+            }
+        }
+    }
+    void sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func);
+    ~DescriptorSyncer() {
+        for (int i = 0; i < uniformBuffers.size(); i++)
+            vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+    }
+    size_t uniformSkip;
+    std::vector<size_t> validCount;
+private:
+    void reallocateBuffer(int idx, size_t newSize) {
+        vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[idx], uniformBufferAllocations[idx]);
+
+        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufferInfo.size = newSize * uniformSkip;
+        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo bufferAllocationInfo = {};
+        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + idx, uniformBufferAllocations.data() + idx, nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for uniform buffers.");
+
+        currentSize[idx] = newSize;
+
+        info.buffer = uniformBuffers[idx];
+
+        for (const auto& syncPoint : syncPoints) {
+            writer.dstSet = (*syncPoint.descriptorSets)[idx];
+            writer.dstBinding = syncPoint.binding;
+            vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+        }
+    }
+
+    VkWriteDescriptorSet writer;
+    VkDescriptorBufferInfo info;
+    Engine *context;
+    std::vector<DescriptorSyncPoint> syncPoints;
+    std::vector<size_t> currentSize;
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VmaAllocation> uniformBufferAllocations;
 };

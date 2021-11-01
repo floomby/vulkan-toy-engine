@@ -673,9 +673,9 @@ void Engine::createImageViews() {
     subpassImages.resize(swapChainImages.size());
     subpassImageAllocations.resize(swapChainImages.size());
     subpassImageViews.resize(swapChainImages.size());
-    iconSubpassImages.resize(swapChainImages.size());
-    iconSubpassImageAllocations.resize(swapChainImages.size());
-    iconSubpassImageViews.resize(swapChainImages.size());
+    bgSubpassImages.resize(swapChainImages.size());
+    bgSubpassImageAllocations.resize(swapChainImages.size());
+    bgSubpassImageViews.resize(swapChainImages.size());
     swapChainImageViews.resize(swapChainImages.size());
     static bool notFirstCall;
 
@@ -703,7 +703,7 @@ void Engine::createImageViews() {
         if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &subpassImages[i], &subpassImageAllocations[i], nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to create attachment images.");
         
-        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &iconSubpassImages[i], &iconSubpassImageAllocations[i], nullptr) != VK_SUCCESS)
+        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &bgSubpassImages[i], &bgSubpassImageAllocations[i], nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to create attachment images.");
 
 
@@ -712,23 +712,39 @@ void Engine::createImageViews() {
         if (notFirstCall) {
             VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-            VkImageMemoryBarrier barrier {};
-            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkImageMemoryBarrier subpassBarrier {};
+            subpassBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            subpassBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            subpassBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            subpassBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            subpassBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            subpassBarrier.image = subpassImages[i];
+            subpassBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            subpassBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            subpassBarrier.subresourceRange.baseMipLevel = 0;
+            subpassBarrier.subresourceRange.levelCount = 1;
+            subpassBarrier.subresourceRange.baseArrayLayer = 0;
+            subpassBarrier.subresourceRange.layerCount = 1;
+            subpassBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            subpassBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            VkImageMemoryBarrier bgBarrier {};
+            bgBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            bgBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            bgBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            bgBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bgBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            bgBarrier.image = bgSubpassImages[i];
+            bgBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            bgBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            bgBarrier.subresourceRange.baseMipLevel = 0;
+            bgBarrier.subresourceRange.levelCount = 1;
+            bgBarrier.subresourceRange.baseArrayLayer = 0;
+            bgBarrier.subresourceRange.layerCount = 1;
+            bgBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            bgBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-            barrier.image = subpassImages[i];
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            barrier.subresourceRange.baseMipLevel = 0;
-            barrier.subresourceRange.levelCount = 1;
-            barrier.subresourceRange.baseArrayLayer = 0;
-            barrier.subresourceRange.layerCount = 1;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            std::array<VkImageMemoryBarrier, 2> barriers = { subpassBarrier, bgBarrier };
 
             vkCmdPipelineBarrier(
                 commandBuffer,
@@ -736,7 +752,7 @@ void Engine::createImageViews() {
                 0,
                 0, nullptr,
                 0, nullptr,
-                1, &barrier
+                barriers.size(), barriers.data()
             );
 
             endSingleTimeCommands(commandBuffer);
@@ -745,8 +761,7 @@ void Engine::createImageViews() {
         VkImageViewCreateInfo imageViewInfo {};
 
         subpassImageViews[i] = createImageView(subpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-        iconSubpassImageViews[i] = createImageView(iconSubpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
-
+        bgSubpassImageViews[i] = createImageView(bgSubpassImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     notFirstCall = true;
@@ -755,9 +770,9 @@ void Engine::createImageViews() {
 void Engine::destroyImageViews() {
     for(int i = 0; i < concurrentFrames; i++) {
         vkDestroyImageView(device, subpassImageViews[i], nullptr);
-        vmaDestroyImage(memoryAllocator, subpassImages[i], iconSubpassImageAllocations[i]);
-        vkDestroyImageView(device, iconSubpassImageViews[i], nullptr);
-        vmaDestroyImage(memoryAllocator, iconSubpassImages[i], subpassImageAllocations[i]);
+        vmaDestroyImage(memoryAllocator, subpassImages[i], bgSubpassImageAllocations[i]);
+        vkDestroyImageView(device, bgSubpassImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, bgSubpassImages[i], subpassImageAllocations[i]);
     }
     for (auto imageView : swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
@@ -943,6 +958,10 @@ void Engine::createDescriptorSetLayout() {
 
     vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mainPass.descriptorSetLayout), "Failed to create descriptor set layout.");
 
+    // for line drawing all we need is one ubo
+    layoutInfo.bindingCount = 1;
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &mainPass.lineDescriptorLayout), "Failed to create descriptor set layout.");
+
     VkDescriptorSetLayoutBinding hudColorInput {};
     hudColorInput.binding = 0;
     hudColorInput.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
@@ -984,8 +1003,6 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
 }
 
 void Engine::createGraphicsPipelines() {
-    graphicsPipelines.resize(3);
-
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
     auto hudVertShaderCode = readFile("shaders/hud_vert.spv");
@@ -1117,6 +1134,10 @@ void Engine::createGraphicsPipelines() {
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout), "Failed to create pipeline layout.");
 
+    pipelineLayoutInfo.pSetLayouts = &mainPass.descriptorSetLayout;
+
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &linePipelineLayout), "Failed to create pipeline layout.");
+
     VkPipelineDepthStencilStateCreateInfo depthStencil {};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
@@ -1151,13 +1172,23 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.pDepthStencilState = &depthStencil;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_WORLD]), "Failed to create graphics pipeline.");
 
-
-    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.subpass = 1;
 
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_BG]), "Failed to create graphics pipeline.");
+
+    // I think I need a new layout for the line drawing, a way to effeciently express the lines to the 
+
+    colorBlendAttachment.blendEnable = VK_FALSE;
+    pipelineInfo.subpass = 0;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+
+    pipelineInfo.layout = linePipelineLayout;
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
+
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     // turn off depth stenciling for drawing the hud
     // I am going to try and reuse the depth resource
@@ -1214,7 +1245,7 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.layout = hudPipelineLayout;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[2]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_HUD]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -1562,7 +1593,7 @@ void Engine::createFramebuffers() {
             subpassImageViews[i],
             depthImageViews[i],
             swapChainImageViews[i],
-            iconSubpassImageViews[i]
+            bgSubpassImageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo {};
@@ -1731,8 +1762,6 @@ void Engine::initVulkan() {
 
     createDepthResources();
     createFramebuffers();
-
-    std::cout << std::dec << "Skip: " << uniformSkip << " min alignment: " << minUniformBufferOffsetAlignment << std::endl;
 
     // this sets the currentScene pointer
     loadDefaultScene();
@@ -2089,16 +2118,16 @@ void Engine::updateScene(int index) {
     // The 0th instance is the skybox (probably shouldnt be like this though)
     currentScene->state.instances[0].position = cammera.position;
 
-    zSortedIcons.clear();
+    // zSortedIcons.clear();
     // It is probably better just to reserve to avoid reallocations
-    zSortedIcons.reserve(currentScene->state.instances.size());
+    // zSortedIcons.reserve(currentScene->state.instances.size());
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
         currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
-        if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
+        // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
     }
 
-    std::sort(zSortedIcons.begin(), zSortedIcons.end(), currentScene->zSorter);
+    // std::sort(zSortedIcons.begin(), zSortedIcons.end(), currentScene->zSorter);
 
     // 0 1
     // 3 2
@@ -2145,7 +2174,7 @@ void Engine::drawFrame() {
         hudDescriptorSets[currentFrame], hudBuffer, currentFrame);
     updateScene(currentFrame);
     // update the next frames uniforms
-    currentScene->updateUniforms(uniformBufferAllocations[(currentFrame + 1) % uniformBuffers.size()]->GetMappedData(), uniformSkip);
+    currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2192,30 +2221,28 @@ void Engine::drawFrame() {
     currentFrame = (currentFrame + 1) % concurrentFrames;
 }
 
-void Engine::allocateUniformBuffers(size_t instanceCount) {
-    uniformBuffers.resize(swapChainImages.size());
-    uniformBufferAllocations.resize(swapChainImages.size());
-    uniformSkip = sizeof(UniformBufferObject) / minUniformBufferOffsetAlignment + 
-        (sizeof(UniformBufferObject) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
+void Engine::allocateLightingBuffers() {
+    // uniformBuffers.resize(swapChainImages.size());
+    // uniformBufferAllocations.resize(swapChainImages.size());
+    // uniformSkip = calculateUniformSkipForUBO<UniformBufferObject>();
+    lightingBuffers.resize(concurrentFrames);
+    lightingBufferAllocations.resize(concurrentFrames);
 
-    lightingBuffers.resize(swapChainImages.size());
-    lightingBufferAllocations.resize(swapChainImages.size());
+    for (int i = 0; i < concurrentFrames; i++) {
+        // bufferInfo.size = instanceCount * uniformSkip;
+        // bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-    for (int i = 0; i < uniformBuffers.size(); i++) {
-        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = instanceCount * uniformSkip;
-        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        // bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        // bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-        VmaAllocationCreateInfo bufferAllocationInfo = {};
-        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-        if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
-            throw std::runtime_error("Unable to allocate memory for uniform buffers.");
+        // if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
+        //     throw std::runtime_error("Unable to allocate memory for uniform buffers.");
         
+        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         bufferInfo.size = sizeof(ViewProjPosNearFar);
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
+        VmaAllocationCreateInfo bufferAllocationInfo = {};
         bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
@@ -2224,14 +2251,8 @@ void Engine::allocateUniformBuffers(size_t instanceCount) {
     }
 }
 
-void Engine::reallocateUniformBuffers(size_t instanceCount) {
-    destroyUniformBuffers();
-    allocateUniformBuffers(instanceCount);
-}
-
-void Engine::destroyUniformBuffers() {
-    for (int i = 0; i < uniformBuffers.size(); i++) {
-        vmaDestroyBuffer(memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+void Engine::destroyLightingBuffers() {
+    for (int i = 0; i < concurrentFrames; i++) {
         vmaDestroyBuffer(memoryAllocator, lightingBuffers[i], lightingBufferAllocations[i]);
     }
 }
@@ -2239,9 +2260,10 @@ void Engine::destroyUniformBuffers() {
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
-    allocateUniformBuffers(50);
+    allocateLightingBuffers();
     createDescriptors(currentScene->textures, {});
     createShadowDescriptorSets();
+    uniformSync = new DescriptorSyncer<UniformBufferObject>(this, {{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }}, 1);
     allocateCommandBuffers();
     initSynchronization();
     currentFrame = 0;
@@ -2262,7 +2284,7 @@ void Engine::runCurrentScene() {
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width);
 
     // we need to get stuff for the first frame on the device
-    currentScene->updateUniforms(uniformBufferAllocations[0]->GetMappedData(), uniformSkip);
+    currentScene->updateUniforms(0);
     hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
     lightingDirty.resize(concurrentFrames);
     fill(lightingDirty.begin(), lightingDirty.end(), true);
@@ -2354,27 +2376,27 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &hudAllocInfo, hudDescriptorSets.data()), "Failed to allocate hud descriptor sets.");
 
     for (size_t i = 0; i < concurrentFrames; i++) {
-        VkDescriptorBufferInfo bufferInfo {};
-        bufferInfo.buffer = uniformBuffers[i];
-        bufferInfo.offset = 0;
-        // Idk if this involves a performance hit other than always copying the whole buffer even if it is not completely filled (this should be very small)
-        // It does save updating the descriptor set though, which means it could be faster this way (this would be my guess)
-        bufferInfo.range = VK_WHOLE_SIZE;
+        // VkDescriptorBufferInfo bufferInfo {};
+        // bufferInfo.buffer = uniformBuffers[i];
+        // bufferInfo.offset = 0;
+        // // Idk if this involves a performance hit other than always copying the whole buffer even if it is not completely filled (this should be very small)
+        // // It does save updating the descriptor set though, which means it could be faster this way (this would be my guess)
+        // bufferInfo.range = VK_WHOLE_SIZE;
 
         VkDescriptorBufferInfo lightingBufferInfo {};
         lightingBufferInfo.buffer = lightingBuffers[i];
         lightingBufferInfo.offset = 0;
         lightingBufferInfo.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 5> descriptorWrites {};
+        std::array<VkWriteDescriptorSet, 4> descriptorWrites {};
 
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
+        // descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
+        // descriptorWrites[0].dstBinding = 0;
+        // descriptorWrites[0].dstArrayElement = 0;
+        // descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        // descriptorWrites[0].descriptorCount = 1;
+        // descriptorWrites[0].pBufferInfo = &bufferInfo;
 
         std::vector<VkDescriptorImageInfo> imageInfos(textures.size());
         for (int i = 0; i < textures.size(); i++) {
@@ -2383,48 +2405,48 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
             imageInfos[i].sampler = textures[i].textureSampler;
         }
 
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = mainPass.descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[0].dstBinding = 1;
         // Hmm, can we use this for arraying our textures in a smarter way?
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = imageInfos.size();
-        descriptorWrites[1].pImageInfo = imageInfos.data();
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[0].descriptorCount = imageInfos.size();
+        descriptorWrites[0].pImageInfo = imageInfos.data();
 
         VkDescriptorImageInfo shadowImageInfo = {};
         shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         shadowImageInfo.imageView = shadow.imageView;
         shadowImageInfo.sampler = shadow.sampler;
 
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[1].dstBinding = 2;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &shadowImageInfo;
+
         descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[2].dstSet = mainPass.descriptorSets[i];
-        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstBinding = 3;
         descriptorWrites[2].dstArrayElement = 0;
-        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pImageInfo = &shadowImageInfo;
-
-        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[3].dstSet = mainPass.descriptorSets[i];
-        descriptorWrites[3].dstBinding = 3;
-        descriptorWrites[3].dstArrayElement = 0;
-        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[3].descriptorCount = 1;
-        descriptorWrites[3].pBufferInfo = &lightingBufferInfo;
+        descriptorWrites[2].pBufferInfo = &lightingBufferInfo;
 
         VkDescriptorImageInfo skyboxInfo;
         skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         skyboxInfo.imageView = currentScene->skybox.textureImageView;
         skyboxInfo.sampler = currentScene->skybox.textureSampler;
 
-        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[4].dstSet = mainPass.descriptorSets[i];
-        descriptorWrites[4].dstBinding = 4;
-        descriptorWrites[4].dstArrayElement = 0;
-        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[4].descriptorCount = 1;
-        descriptorWrites[4].pImageInfo = &skyboxInfo;
+        descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[3].dstSet = mainPass.descriptorSets[i];
+        descriptorWrites[3].dstBinding = 4;
+        descriptorWrites[3].dstArrayElement = 0;
+        descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[3].descriptorCount = 1;
+        descriptorWrites[3].pImageInfo = &skyboxInfo;
 
         vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
     }
@@ -2454,7 +2476,7 @@ void Engine::writeHudDescriptors() {
 
         VkDescriptorImageInfo iconDescriptorImageInfo {};
         iconDescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        iconDescriptorImageInfo.imageView = iconSubpassImageViews[i];
+        iconDescriptorImageInfo.imageView = bgSubpassImageViews[i];
         iconDescriptorImageInfo.sampler = VK_NULL_HANDLE;
 
         hudDescriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2593,27 +2615,29 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[0]);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_WORLD]);
 
     VkBuffer vertexBuffers[] = { vertexBuffer };
     VkDeviceSize offsets[] = { 0 };
+    uint32_t dynamicOffset = 0;
 
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 1; j < currentScene->state.instances.size(); j++) {
+    for(int j = 1; j < uniformSync->validCount[index]; j++) {
+        dynamicOffset = j * uniformSync->uniformSkip;
         if (currentScene->state.instances[j].renderAsIcon) {
-            // pushConstants.renderType = 2;
-            // // last texture is what we have as the placeholder texture for now
-            // auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
-            // pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
-            // vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-            // vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+            const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+            vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+            pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
+            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
+            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
             continue;
         }
         pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
-        uint32_t dynamicOffset = j * uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
         pushConstants.textureIndex = currentScene->entities[currentScene->state.instances[j].entityIndex].textureIndex;
@@ -2623,32 +2647,25 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
+    // Render the icons back to front
+    // for(const int j : zSortedIcons) {
+    //     dynamicOffset = j * uniformSkip;
+    // }
+
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[1]);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_BG]);
 
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // render the skybox
+    dynamicOffset = 0;
     pushConstants.renderType = RINT_SKYBOX;
-    uint32_t dynamicOffset = 0;
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
     vkCmdDrawIndexed(buffer, currentScene->state.instances.data()->sceneModelInfo->indexCount, 1,
             currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
-
-    // Render the icons back to front
-    for(const int j : zSortedIcons) {
-        dynamicOffset = j * uniformSkip;
-        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
-        pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
-        pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
-        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-        // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
-        vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
-    }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -2665,7 +2682,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdClearAttachments(buffer, 1, &depthClear, 1, &depthClearRect);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[2]);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_HUD]);
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
@@ -2745,6 +2762,7 @@ void Engine::cleanupSwapChain() {
         vkDestroyPipeline(device, pipeline, nullptr);
     // TODO I think we could technically keep the pipeline layouts even on resizing
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyPipelineLayout(device, linePipelineLayout, nullptr);
     vkDestroyPipelineLayout(device, hudPipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -2759,9 +2777,11 @@ void Engine::cleanupSwapChain() {
 void Engine::cleanup() {
     cleanupSwapChain();
 
-    destroyUniformBuffers();
+    destroyLightingBuffers();
+    delete uniformSync;
 
     vkDestroyDescriptorSetLayout(device, mainPass.descriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, mainPass.lineDescriptorLayout, nullptr);
     vkDestroyDescriptorSetLayout(device, hudDescriptorLayout, nullptr);
 
     vkDestroyBuffer(device, indexBuffer, nullptr);
@@ -3221,24 +3241,24 @@ void Engine::createShadowDescriptorSets() {
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, shadow.descriptorSets.data()), "Failed to allocate shadow descriptor sets.");
 
-    for (size_t i = 0; i < concurrentFrames; i++) {
-        VkDescriptorBufferInfo bufferInfo {};
-        bufferInfo.buffer = uniformBuffers[i];
-        bufferInfo.offset = 0;
-        bufferInfo.range = VK_WHOLE_SIZE;
+    // for (size_t i = 0; i < concurrentFrames; i++) {
+    //     VkDescriptorBufferInfo bufferInfo {};
+    //     bufferInfo.buffer = uniformBuffers[i];
+    //     bufferInfo.offset = 0;
+    //     bufferInfo.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
+    //     std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
 
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = shadow.descriptorSets[i];
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].dstArrayElement = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
+    //     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    //     descriptorWrites[0].dstSet = shadow.descriptorSets[i];
+    //     descriptorWrites[0].dstBinding = 0;
+    //     descriptorWrites[0].dstArrayElement = 0;
+    //     descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    //     descriptorWrites[0].descriptorCount = 1;
+    //     descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-        vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
-    }
+    //     vkUpdateDescriptorSets(device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+    // }
 }
 
 void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
@@ -3269,8 +3289,8 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 1; j < currentScene->state.instances.size(); j++) {
-        uint32_t dynamicOffset = j * uniformSkip;
+    for(int j = 1; j < uniformSync->validCount[index]; j++) {
+        uint32_t dynamicOffset = j * uniformSync->uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
@@ -3654,13 +3674,18 @@ void Scene::makeBuffers() {
     }
 }
 
-void Scene::updateUniforms(void *buffer, size_t uniformSkip) {
+void Scene::updateUniforms(int idx) {
     auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
     float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
-    for (int i = 0; i < state.instances.size(); i++) {
-        memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
-            (state.instances.data() + i)->state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio), sizeof(UniformBufferObject));
-    }
+    context->uniformSync->sync(idx, state.instances.size(), [this, view_1proj_1, aspectRatio](size_t n) -> UniformBufferObject * {
+        return this->state.instances[n].state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio,
+            context->cammera.minClip, context->cammera.maxClip);
+    });
+    // for (int i = 0; i < state.instances.size(); i++) {
+    //     memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
+    //         (state.instances.data() + i)->state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio,
+    //             context->cammera.minClip, context->cammera.maxClip), sizeof(UniformBufferObject));
+    // }
 }
 
 namespace CubeMaps {
@@ -4144,3 +4169,15 @@ namespace GuiTextures {
         defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_SRGB);
     }
 };
+
+template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
+    if (count > currentSize[descriptorIndex]) {
+        reallocateBuffer(descriptorIndex, count + 50);
+    }
+    // assume for right now that this updates every valid instance
+    validCount[descriptorIndex] = count;
+    for (size_t i = 0; i < count; i++) {
+        memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
+            func(i), sizeof(T));
+    }
+}

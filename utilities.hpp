@@ -33,7 +33,7 @@ public:
         glm::vec3 normal;
 
         bool operator==(const Vertex& other) const {
-            return pos == other.pos && color == other.color && texCoord == other.texCoord;
+            return pos == other.pos && color == other.color && texCoord == other.texCoord && normal == other.normal;
         }
 
         static VkVertexInputBindingDescription getBindingDescription() {
@@ -130,6 +130,10 @@ typedef void* ResourceID;
 
 template <typename T> int sgn(T x) {
     return (T(0) < x) - (x < T(0));
+}
+
+template <typename T> T linmap(T x, T inMin, T inMax, T outMin, T outMax) {
+    return ((x - inMin) / (inMax - inMin) + outMin) * (outMax - outMin);
 }
 
 #define sq(x) ((x) * (x))
