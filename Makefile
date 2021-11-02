@@ -4,6 +4,7 @@ LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -lboost_p
 SRC = $(wildcard *.cpp)
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
+GLSL = $(wildcard shaders/*.frag) $(wildcard shaders/*.vert)
 
 # engine: entry.cpp engine.cpp engine.hpp entity.cpp entity.hpp instance.hpp instance.cpp gui.cpp gui.hpp
 # g++ $(CFLAGS) -o result entry.cpp engine.cpp entity.cpp instance.cpp gui.cpp $(LDFLAGS)
@@ -15,7 +16,7 @@ engine: $(OBJ)
 
 -include $(DEP)
 
-shaders: shaders/shader.frag shaders/shader.vert shaders/hud.frag shaders/hud.vert
+shaders: $(GLSL) shaders/render_modes.h 
 	cd shaders && ./compile.sh
 
 .PHONY: clean check_formats

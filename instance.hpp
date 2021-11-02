@@ -33,10 +33,10 @@ public:
 
     bool renderAsIcon = false;
     float cammeraDistance2;
-    bool highlight;
+    bool highlight, rendered;
 
     InstanceID id;
 private:
     UniformBufferObject _state;
-    Entity* entity;
+    Entity *entity;
 };

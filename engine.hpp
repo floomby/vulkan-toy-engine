@@ -33,16 +33,22 @@ struct EngineSettings {
     size_t maxHudTextures;
 };
 
+struct LineUBO {
+    glm::vec3 a;
+    glm::vec3 b;
+};
+
 template<typename T> class DescriptorSyncer;
 
 class Engine : Utilities {
-    // TODO add stuff to the engine class to be able to remove this friend declaration
+    // Mmmm, tasty spahgetti
     friend class InternalTexture;
     friend class CubeMap;
-    // The big thing about these is they dont have mipmap levels
     friend class GuiTexture;
     friend class Scene;
+
     friend class DescriptorSyncer<UniformBufferObject>;
+    friend class DescriptorSyncer<LineUBO>;
 public:
     Engine(EngineSettings engineSettings);
     void init();
@@ -306,6 +312,7 @@ private:
     void createHudBuffers();
 
     DescriptorSyncer<UniformBufferObject> *uniformSync;
+    DescriptorSyncer<LineUBO> *lineSync;
     std::vector<VkBuffer> lightingBuffers;
     std::vector<VmaAllocation> lightingBufferAllocations;
     // size_t uniformSkip;
@@ -350,12 +357,6 @@ private:
 
     void handleInput();
 
-    std::array<Vertex, 4> iconPrimative;
-    struct ExtraPrimatives {
-        int vertexCount = 4;
-        int indexCount = 6;
-        int vertexStart, indexStart; 
-    } extraPrimatives;
     std::vector<bool> lightingDirty;
     void updateScene(int index);
 
@@ -559,6 +560,17 @@ public:
     ~DescriptorSyncer() {
         for (int i = 0; i < uniformBuffers.size(); i++)
             vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
+    }
+    void rebindSyncPoints(std::vector<DescriptorSyncPoint> syncPoints) {
+        this->syncPoints = syncPoints;
+        for (int i = 0; i < context->concurrentFrames; i++) { 
+            info.buffer = uniformBuffers[i];
+            for (const auto& syncPoint : syncPoints) {
+                writer.dstSet = (*syncPoint.descriptorSets)[i];
+                writer.dstBinding = syncPoint.binding;
+                vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+            }
+        }
     }
     size_t uniformSkip;
     std::vector<size_t> validCount;

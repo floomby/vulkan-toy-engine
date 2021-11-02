@@ -73,7 +73,6 @@ void run(EngineSettings& settings) {
 }
 
 /*
-Random non-crital stuff:
  I am linking to libpng now for freetype2, maybe I should stop using stbi
  Make concurrent frames correspond to the command buffers, descriptor sets and so forth while swapchain.size() is used for the framebuffer and other stuff like that
    So I mostly did this, but now I have the problem of the input attachments being in the framebuffer and that size being depending on the swapchain,
@@ -82,12 +81,17 @@ Random non-crital stuff:
  cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I know it is bad as it is)
  I think I read the glfw docs wrong and dont need spsc lockfree queues for the input handling threads (afaict the linux tids are the same as the engine thread, this
  could be not guarenteed though)
+ The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass into the world pass because without it the code
+ complexity of order line drawing was going to be really high
 
 Next steps
+ turn back on pipeline caching
+ lines for unit orders
+ compute optimized lighting frustum based on objects that are visible
+ world space raycasting and maybe spherecasting
  projectiles
  organized input handling (a new object and associated files to do this)
- game instance allocation synchronization with vulkan buffers       <- these two kind of go together
- game state (this involves concurrency stuff)                       </
+ basic game state stuff (this involves concurrency stuff)
  gui
   the text is really bad, I tried bicubic interpolation and this is slightly better, but it is still blurry
   messaging from the gui to the render thread (probably just use another spsc lockfree queue)
@@ -97,20 +101,19 @@ Next steps
  lt - networking
  lt - lua
 
- collider class so I can support aabb and sphere and importantly obb coliders
- culling??? (maybe just use https://gist.github.com/podgorskiy/e698d18879588ada9014768e3e82a644, but it does use aabb) (this should be done with the previous two
-  steps in place and should be easy)
- ECS? (or something else as an organizational structure for the proccessing)
+ not crittical - collider class so I can support aabb and sphere and importantly obb coliders
+ instance component system or something (or something else as an organizational structure for the proccessing)
  lt - better model library (assimp?)
  lt - emmisivity maps would be cool
  pcf filtering for shadows - I did this and it is better for sure, but still looks like crap
  dynamic backface culling (Idk if this is a thing, the hardware supports it, but my prefunctory perusing through the vulkan docs did not show this was availible)
+   It might be one of those things that on some hardware would require rebuilding the pipeline and trigger shader recompilation and therefore might not be in the standard
    or fix normals for skybox geometry
  nlips is cool, we can make BIG units
  explosions - particles?
 
 Bugfixxy stuff
- Mipmap lod is not working, although I haven't looked at it in a while (I made a so question for this)
+ Mipmap max lod is not working, although I haven't looked at it in a while (I made a so question for this)
  InternalTexture constructor fails if channels are 3 (and presumably 2 and possibly 1 as well) Vulkan doesnt like the format when creating the image via vmaCreateImage
  resizing rarly, but sometimes does this:
     Validation layer: Validation Error: [ VUID-VkSwapchainCreateInfoKHR-imageExtent-01274 ] Object 0: handle = 0x560cc52946a8, type = VK_OBJECT_TYPE_DEVICE;

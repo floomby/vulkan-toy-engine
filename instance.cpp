@@ -4,7 +4,7 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
 : id(idCounter++) {
     this->entityIndex = entityIndex;
     // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
-    this->entity = entity;
+    this->entity = entity; // !!!!!!!!!! This is problematic
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
     highlight = false;
