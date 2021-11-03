@@ -91,6 +91,7 @@ private:
     } pushConstants;
 
     ViewProjPosNearFar lightingData;
+    ViewProj linePushConstans;
 
     bool guiOutOfDate = false;
     Gui *gui = nullptr;
@@ -557,6 +558,7 @@ public:
         }
     }
     void sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func);
+    void sync(int descriptorIndex, size_t count, std::function<T ()> func);
     ~DescriptorSyncer() {
         for (int i = 0; i < uniformBuffers.size(); i++)
             vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);

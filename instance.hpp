@@ -1,8 +1,30 @@
 #pragma once
 
+#include <coroutine>
+#include <list>
 #include "entity.hpp"
 
 typedef uint32_t InstanceID;
+
+enum class CommandKind {
+    MOVE,
+    ATTACK,
+    STOP,
+    //.....
+};
+
+struct CommandData {
+    glm::vec3 dest;
+    int id;
+};
+
+struct Command {
+    CommandKind kind;
+    InstanceID id;
+    CommandData data;
+};
+
+// typedef std::list<std::pair<Command, uint32_t>> CommandList;
 
 class InternalTexture;
 
@@ -35,6 +57,7 @@ public:
     float cammeraDistance2;
     bool highlight, rendered;
 
+    std::list<Command> commandList;
     InstanceID id;
 private:
     UniformBufferObject _state;

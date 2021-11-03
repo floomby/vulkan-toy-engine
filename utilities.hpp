@@ -72,6 +72,11 @@ public:
         }
     };
 
+    struct ViewProj {
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
+
     // used for lighting and probably other things in the future
     struct ViewProjPos {
         glm::mat4 view;

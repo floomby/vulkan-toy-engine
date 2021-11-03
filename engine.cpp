@@ -18,6 +18,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <map>
 #include <sstream>
 #include <thread>
@@ -1150,6 +1151,7 @@ void Engine::createGraphicsPipelines() {
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout), "Failed to create pipeline layout.");
 
+    // pushConstantRange.size = sizeof(ViewProj);
     pipelineLayoutInfo.pSetLayouts = &mainPass.lineDescriptorLayout;
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &linePipelineLayout), "Failed to create pipeline layout.");
@@ -1198,7 +1200,7 @@ void Engine::createGraphicsPipelines() {
     // I think I need a new layout for the line drawing, a way to effeciently express the lines to the 
 
     colorBlendAttachment.blendEnable = VK_FALSE;
-    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pStages = lineShaders;
     pipelineInfo.subpass = 0;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 
@@ -1255,7 +1257,7 @@ void Engine::createGraphicsPipelines() {
     hudPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     hudLayoutInfo.pushConstantRangeCount = 1;
-    hudLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    hudLayoutInfo.pPushConstantRanges = &hudPushConstantRange;
 
     vulkanErrorGuard(vkCreatePipelineLayout(device, &hudLayoutInfo, nullptr, &hudPipelineLayout), "Failed to create pipeline layout.");
 
@@ -1884,7 +1886,19 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_T) {
                 // shadow.makeSnapshot = true;
-                std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
+                // std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
+                std::vector<uint32_t> v = {0, 1};
+                int count = currentScene->state.commandCount(v);
+
+                std::cout << "Count: " << count << std::endl;
+
+                auto cmdGen = currentScene->state.getCommandGenerator(&v);
+
+                for (int i = 0; i < count; i++) {
+                    cmdGen.next();
+                    auto a = cmdGen.value();
+                    std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
+                }
             }
             if (keyEvent.key == GLFW_KEY_Y) {
                 GuiCommandData *what3 = new GuiCommandData();
@@ -2699,9 +2713,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // This loop indexing will change once the instance allocator changes
-    for(int j = 1; j < uniformSync->validCount[index]; j++) {
-        if (!currentScene->state.instances[j].rendered) continue;
-        dynamicOffset = j * uniformSync->uniformSkip;
+    for (int j = 1; j < uniformSync->validCount[index]; j++) {
+        // if (!currentScene->state.instances[j].rendered) continue;
         if (currentScene->state.instances[j].renderAsIcon) {
             const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
@@ -2710,8 +2723,10 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
             vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+            std::cout << "here" << std::endl;
             continue;
         }
+        dynamicOffset = j * uniformSync->uniformSkip;
         pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
@@ -2722,9 +2737,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
+    // vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
 
-    
+    // for (int j = 0; j < lineSync->validCount[index]; j++) {
+    //     dynamicOffset = j * uniformSync->uniformSkip;
+    //     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
+    //     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+    //     vkCmdDraw(buffer, 2, 1, 0, 0);
+    // }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -3757,15 +3777,25 @@ void Scene::makeBuffers() {
 void Scene::updateUniforms(int idx) {
     auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
     float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
-    context->uniformSync->sync(idx, state.instances.size(), [this, view_1proj_1, aspectRatio](size_t n) -> UniformBufferObject * {
+    context->uniformSync->sync(idx, state.instances.size(), [this, view_1proj_1, aspectRatio] (size_t n) -> UniformBufferObject * {
         return this->state.instances[n].state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio,
             context->cammera.minClip, context->cammera.maxClip);
     });
-    // for (int i = 0; i < state.instances.size(); i++) {
-    //     memcpy(static_cast<unsigned char *>(buffer) + i * uniformSkip,
-    //         (state.instances.data() + i)->state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio,
-    //             context->cammera.minClip, context->cammera.maxClip), sizeof(UniformBufferObject));
-    // }
+
+    std::vector<uint> things(state.instances.size() - 1);
+    std::iota(things.begin(), things.end(), 1);
+    uint commandCount = state.commandCount(things);
+
+    auto cmdGen = state.getCommandGenerator(&things);
+
+    // for (int i = 0; i < count; i++) {
+    //     cmdGen.next();
+    //     auto a = cmdGen.value();
+    //     std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
+
+    context->lineSync->sync(idx, 1, [] () -> LineUBO {
+        return {{ 0.0f, 0.0f, 0.0f }, { -3.0f, 3.0f, 0.0f }};
+    });
 }
 
 namespace CubeMaps {
@@ -4250,6 +4280,7 @@ namespace GuiTextures {
     }
 };
 
+
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
     if (count > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, count + 50);
@@ -4259,5 +4290,19 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     for (size_t i = 0; i < count; i++) {
         memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
             func(i), sizeof(T));
+    }
+}
+
+// // probably can combine these 2 function with some clever template code but I don't want to spend the brainpower now
+template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T ()> func) {
+    if (count > currentSize[descriptorIndex]) {
+        reallocateBuffer(descriptorIndex, count + 50);
+    }
+    // assume for right now that this updates every valid instance
+    validCount[descriptorIndex] = count;
+    for (size_t i = 0; i < count; i++) {
+        auto tmp = func();
+        memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
+            &tmp, sizeof(T));
     }
 }
