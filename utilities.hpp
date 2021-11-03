@@ -84,6 +84,7 @@ public:
         glm::vec3 pos;
     };
 
+    // I think the alignment is wrong for nearFar
     struct ViewProjPosNearFar {
         glm::mat4 view;
         glm::mat4 proj;

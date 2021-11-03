@@ -86,7 +86,7 @@ void run(EngineSettings& settings) {
 
 Next steps
  turn back on pipeline caching
- lines for unit orders
+ need antialaiasing on the lines
  compute optimized lighting frustum based on objects that are visible
  world space raycasting and maybe spherecasting
  projectiles

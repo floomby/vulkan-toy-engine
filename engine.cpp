@@ -1884,6 +1884,10 @@ void Engine::handleInput() {
         if (keyEvent.action == GLFW_PRESS) {
             keysPressed[keyEvent.key] = true;
 
+            if (keyEvent.key == GLFW_KEY_I) {
+                shadow.makeSnapshot = true;
+            }
+
             if (keyEvent.key == GLFW_KEY_T) {
                 // shadow.makeSnapshot = true;
                 // std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
@@ -1929,6 +1933,8 @@ void Engine::handleInput() {
     cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
     cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
     cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
+
+
     // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto orbitMatrix = glm::toMat3(orbit);
@@ -2137,8 +2143,10 @@ static bool frustumContainsPoint(const std::array<std::pair<glm::vec3, float>, 6
 
 template<typename T> static T normalizePlanes(const T& planes) {
     T ret;
-    for(int i = 0; i < planes.size(); i++)
-        ret[i] = { normalize(planes[i].first), planes[i].second};
+    for(int i = 0; i < planes.size(); i++) {
+        auto len = length(planes[i].first);
+        ret[i] = { planes[i].first / len, planes[i].second / len };
+    }
     return ret;
 }
 
@@ -2162,32 +2170,68 @@ void Engine::updateScene(int index) {
     // TODO I should just store this in the camera struct since I need it here and in the input handling
     pushConstants.normedPointing = normalize(cammera.position - cammera.target);
 
+    cammera.cached.proj_1 = inverse(pushConstants.projection);
+    cammera.cached.view_1 = inverse(pushConstants.view);
+    cammera.cached.projView = pushConstants.projection * pushConstants.view;
+    cammera.cached.view_1Proj_1 =  cammera.cached.view_1 * cammera.cached.proj_1;
 
     // The 0th instance is the skybox (probably shouldnt be like this though)
     currentScene->state.instances[0].position = cammera.position;
 
     auto projView = pushConstants.projection * pushConstants.view;
     auto cammeraFrustumNormed = normalizePlanes(extractFrustum(projView));
+    // auto cammeraFrustum = extractFrustum(projView);
 
     // zSortedIcons.clear();
     // It is probably better just to reserve to avoid reallocations
     // zSortedIcons.reserve(currentScene->state.instances.size());
+
+    // needed for building an optimal orthographic projection for doing the lighting
+    float xMax, xMin, yMax, yMin, zMax, zMin, boundMax;
+    xMax = yMax = zMax = std::numeric_limits<float>::lowest();
+    xMin = yMin = zMin = std::numeric_limits<float>::max();
+    boundMax = 0;
+    uint fullyRenderCount = 0;
+
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
         const Entity& entity = currentScene->entities[currentScene->state.instances[i].entityIndex];
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
         currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
         currentScene->state.instances[i].rendered = 
+            // frustumContainsPoint(cammeraFrustumNormed, currentScene->state.instances[i].position);
             frustumContainsSphere(cammeraFrustumNormed, currentScene->state.instances[i].position, entity.boundingRadius);
+        if (currentScene->state.instances[i].rendered && !currentScene->state.instances[i].renderAsIcon) {
+            auto inLightingViewSpace = lightingData.view * glm::vec4{ currentScene->state.instances[i].position, 1.0f };
+            xMax = std::max(xMax, inLightingViewSpace.x);
+            yMax = std::max(yMax, inLightingViewSpace.y);
+            zMax = std::max(zMax, inLightingViewSpace.z);
+            xMin = std::min(xMin, inLightingViewSpace.x);
+            yMin = std::min(yMin, inLightingViewSpace.y);
+            zMin = std::min(zMin, inLightingViewSpace.z);
+            boundMax = std::max(boundMax, currentScene->entities[currentScene->state.instances[i].entityIndex].boundingRadius);
+            fullyRenderCount++;
+        }
     }
+
+    // auto max = lightingDataView_1 * glm::vec4(xMax, yMax, zMax, 1.0);
+    // auto min = lightingDataView_1 * glm::vec4(xMin, yMin, zMin, 1.0);
+    // std::cout << xMax << " " << yMax << " " << zMax << " " << xMin << " " << yMin << " " << zMin << std::endl;
 
     // std::sort(zSortedIcons.begin(), zSortedIcons.end(), currentScene->zSorter);
 
-    if (lightingDirty[index]) {
-        lightingData.nearFar = { 0.7f, 13.0f };
-        lightingData.pos = { 0.0f, 10.0f, 0.0f };
-        lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        lightingData.proj = glm::perspective(glm::radians(45.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
+    // check if we need to draw shadows (if we are only rendering icons we don't need them)
+
+    // if (lightingDirty[index] && shadow.needed) {
+    if (fullyRenderCount) {
+        // lightingData.nearFar = { 0.7f, 13.0f };
+        // lightingData.pos = { 100.0f, 0.0f, 0.0f };
+        // lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        // lightingData.proj = glm::perspective(glm::radians(45.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
+        // lightingData.view = glm::mat4(1.0f);
+        // lightingData.proj = glm::ortho(-1.0f - xMax, 1.0f + xMin, 1.0f, -1.0f, 1.0f + zMax, -1.0f + zMin);
+        lightingData.nearFar = { boundMax - zMin, -boundMax - zMax };
+        lightingData.proj = glm::ortho(-boundMax + xMin, boundMax + xMax, boundMax - yMin, -boundMax - yMax, boundMax - zMin, -boundMax - zMax);
         lightingData.proj[1][1] *= -1;
 
         shadow.constants.lightPos = lightingData.pos;
@@ -2198,7 +2242,6 @@ void Engine::updateScene(int index) {
 
         lightingDirty[index] = false;
     }
-
 }
 
 #if (DEPTH_DEBUG_IMAGE_USAGE == VK_IMAGE_USAGE_TRANSFER_SCR_BIT)
@@ -2399,11 +2442,16 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->addInstance(0, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance(0, { 0.0f, 0.0f, 5.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
 
     currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
+
+    // +x = -x, +y = -y, z = -z
+    lightingData.pos = { 0.0f, -10.0, 0.0f };
+    lightingData.view = glm::lookAt(-lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    lightingDataView_1 = inverse(lightingData.view);
 }
 
 // TODO this function has a crappy name that confuses me
@@ -2682,7 +2730,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vulkanErrorGuard(vkBeginCommandBuffer(buffer, &beginInfo), "Failed to begin recording command buffer.");
 
-    runShadowPass(buffer, index);
+    // if (shadow.needed)
+        runShadowPass(buffer, index);
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -2714,7 +2763,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     // This loop indexing will change once the instance allocator changes
     for (int j = 1; j < uniformSync->validCount[index]; j++) {
-        // if (!currentScene->state.instances[j].rendered) continue;
+        if (!currentScene->state.instances[j].rendered) continue;
+        dynamicOffset = j * uniformSync->uniformSkip;
         if (currentScene->state.instances[j].renderAsIcon) {
             const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
@@ -2723,10 +2773,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
             vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
-            std::cout << "here" << std::endl;
             continue;
         }
-        dynamicOffset = j * uniformSync->uniformSkip;
         pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
@@ -2737,14 +2785,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
 
-    // vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
 
-    // for (int j = 0; j < lineSync->validCount[index]; j++) {
-    //     dynamicOffset = j * uniformSync->uniformSkip;
-    //     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
-    //     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-    //     vkCmdDraw(buffer, 2, 1, 0, 0);
-    // }
+    for (int j = 0; j < lineSync->validCount[index]; j++) {
+        dynamicOffset = j * uniformSync->uniformSkip;
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
+        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+        vkCmdDraw(buffer, 2, 1, 0, 0);
+    }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -3775,10 +3823,10 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(int idx) {
-    auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
+    // auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
     float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
-    context->uniformSync->sync(idx, state.instances.size(), [this, view_1proj_1, aspectRatio] (size_t n) -> UniformBufferObject * {
-        return this->state.instances[n].state(context->pushConstants.view, context->pushConstants.projection, view_1proj_1, aspectRatio,
+    context->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> UniformBufferObject * {
+        return this->state.instances[n].state(context->pushConstants.view, context->cammera.cached.projView, context->cammera.cached.view_1Proj_1, aspectRatio,
             context->cammera.minClip, context->cammera.maxClip);
     });
 
@@ -3793,8 +3841,11 @@ void Scene::updateUniforms(int idx) {
     //     auto a = cmdGen.value();
     //     std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
 
-    context->lineSync->sync(idx, 1, [] () -> LineUBO {
-        return {{ 0.0f, 0.0f, 0.0f }, { -3.0f, 3.0f, 0.0f }};
+    context->lineSync->sync(idx, commandCount, [&] () -> LineUBO {
+        cmdGen.next();
+        auto a = cmdGen.value();
+        // std::cout << "From " << this->state.instances[a.which->at(a.idx)].position << " to " << a.command->data.dest << std::endl;
+        return { this->state.instances[a.which->at(a.idx)].position, a.command->data.dest };
     });
 }
 
@@ -4293,6 +4344,11 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     }
 }
 
+template<typename T> void printIfLineUBO(T obj) {
+    if constexpr (std::is_same<T, LineUBO>::value)
+        std::cout << obj.a << " - " << obj.b << std::endl;
+}
+
 // // probably can combine these 2 function with some clever template code but I don't want to spend the brainpower now
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T ()> func) {
     if (count > currentSize[descriptorIndex]) {
@@ -4302,6 +4358,7 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     validCount[descriptorIndex] = count;
     for (size_t i = 0; i < count; i++) {
         auto tmp = func();
+        // printIfLineUBO(tmp);
         memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
             &tmp, sizeof(T));
     }

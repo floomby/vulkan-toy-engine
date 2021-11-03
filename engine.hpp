@@ -34,8 +34,8 @@ struct EngineSettings {
 };
 
 struct LineUBO {
-    glm::vec3 a;
-    glm::vec3 b;
+    alignas(16) glm::vec3 a;
+    alignas(16) glm::vec3 b;
 };
 
 template<typename T> class DescriptorSyncer;
@@ -91,6 +91,7 @@ private:
     } pushConstants;
 
     ViewProjPosNearFar lightingData;
+    glm::mat4 lightingDataView_1;
     ViewProj linePushConstans;
 
     bool guiOutOfDate = false;
@@ -105,6 +106,12 @@ private:
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
         uint32_t when;
+        struct {
+            glm::mat4 view_1;
+            glm::mat4 proj_1;
+            glm::mat4 projView;
+            glm::mat4 view_1Proj_1;
+        } cached;
     } cammera;
     void stateObserver(ObservableState& state);
 
@@ -381,6 +388,7 @@ private:
     const char *shadowMapFile = "shadow_map.png";
 
     struct {
+        bool needed = true;
         const uint32_t width = 2048, height = 2048;
         VkRenderPass renderPass;
         VkPipelineLayout pipelineLayout;
