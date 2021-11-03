@@ -35,7 +35,7 @@ Entity::Entity(SpecialEntities entityType) {
 
     // 0 1
     // 3 2
-    vertices = std::vector<Vertex>({{
+    vertices = std::vector<Utilities::Vertex>({{
         { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
         { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
         { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
@@ -65,13 +65,13 @@ Entity::Entity(const char *model, const char *texture, const char *icon) {
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, model)) throw std::runtime_error(std::string("Unable to load model: ") + warn + err);
 
-    std::unordered_map<Vertex, uint32_t> uniqueVertices {};
+    std::unordered_map<Utilities::Vertex, uint32_t> uniqueVertices {};
 
     float d2max = 0;
 
     for(const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
-            Vertex vertex {};
+            Utilities::Vertex vertex {};
 
             vertex.pos = {
                 attrib.vertices[3 * index.vertex_index + 0],

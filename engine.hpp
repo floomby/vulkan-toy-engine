@@ -40,7 +40,7 @@ struct LineUBO {
 
 template<typename T> class DescriptorSyncer;
 
-class Engine : Utilities {
+class Engine {
     // Mmmm, tasty spahgetti
     friend class InternalTexture;
     friend class CubeMap;
@@ -90,9 +90,9 @@ private:
         glm::uint32_t renderType;
     } pushConstants;
 
-    ViewProjPosNearFar lightingData;
+    Utilities::ViewProjPosNearFar lightingData;
     glm::mat4 lightingDataView_1;
-    ViewProj linePushConstans;
+    Utilities::ViewProj linePushConstans;
 
     bool guiOutOfDate = false;
     Gui *gui = nullptr;
@@ -326,7 +326,7 @@ private:
     // size_t uniformSkip;
     void allocateLightingBuffers();
     void destroyLightingBuffers();
-    void updateLightingDescriptors(int index, const ViewProjPosNearFar& data);
+    void updateLightingDescriptors(int index, const Utilities::ViewProjPosNearFar& data);
 
     VkDescriptorPool hudDescriptorPool;
     std::vector<VkDescriptorSet> hudDescriptorSets;
@@ -365,7 +365,6 @@ private:
 
     void handleInput();
 
-    std::vector<bool> lightingDirty;
     void updateScene(int index);
 
     Scene *currentScene;
@@ -374,9 +373,8 @@ private:
     void cleanupSwapChain();
     void cleanup();
 
-    // I think we dont need to worry about this for a single run of the application, only if we want to reload them when we restart the appliction
-    // which could be nice in the future
-    // VkPipelineCache pipelineCache;
+    // I read on the nvidia docs you should use one even if not writing them to disc
+    VkPipelineCache pipelineCache;
 
     // shadow render pass stuff
     struct ShadowPushConstansts {
@@ -393,11 +391,11 @@ private:
         VkRenderPass renderPass;
         VkPipelineLayout pipelineLayout;
         VkPipeline pipeline;
-        VkImageView imageView;
-        VkImage image;
-        VmaAllocation allocation;
-        VkSampler sampler;
-        VkFramebuffer framebuffer;
+        std::vector<VkImageView> imageViews;
+        std::vector<VkImage> images;
+        std::vector<VmaAllocation> allocations;
+        std::vector<VkSampler> samplers;
+        std::vector<VkFramebuffer> framebuffers;
         ShadowPushConstansts constants;
         VkDescriptorSetLayout descriptorLayout;
         VkDescriptorPool descriptorPool;
@@ -416,7 +414,7 @@ private:
     void createShadowDescriptorSets();
     void runShadowPass(const VkCommandBuffer& buffer, int index);
     // for debugging
-    void writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename);
+    void writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename, int idx);
     void doShadowDebugWrite();
 };
 

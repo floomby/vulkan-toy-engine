@@ -46,22 +46,13 @@ int main(int argc, char **argv) {
     settings.maxTextures = 1024;
     settings.maxHudTextures = 128;
 
-
-    std::ofstream log;
-    log.open("log");
-    log.close();
-
     try {
         run(settings);
     } catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
-        log << e.what() << std::endl;
-        log.close();    
         return EXIT_FAILURE;
     }
 
-    log << "exited normally" << std::endl;
-    log.close();
     return EXIT_SUCCESS;
 }
 
@@ -83,11 +74,11 @@ void run(EngineSettings& settings) {
  could be not guarenteed though)
  The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass into the world pass because without it the code
  complexity of order line drawing was going to be really high
+ one wierd thing is how the lighting works, the blin phong lighting model I was using was using a point light, but I am using orthographic lighting for the shadows
+  I should probably change it to not be like that
 
 Next steps
- turn back on pipeline caching
  need antialaiasing on the lines
- compute optimized lighting frustum based on objects that are visible
  world space raycasting and maybe spherecasting
  projectiles
  organized input handling (a new object and associated files to do this)

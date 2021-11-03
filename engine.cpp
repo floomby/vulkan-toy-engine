@@ -1003,12 +1003,12 @@ VkShaderModule Engine::createShaderModule(const std::vector<char>& code) {
 }
 
 void Engine::createGraphicsPipelines() {
-    auto vertShaderCode = readFile("shaders/vert.spv");
-    auto fragShaderCode = readFile("shaders/frag.spv");
-    auto lineVertShaderCode = readFile("shaders/line_vert.spv");
-    auto lineFragShaderCode = readFile("shaders/line_frag.spv");
-    auto hudVertShaderCode = readFile("shaders/hud_vert.spv");
-    auto hudFragShaderCode = readFile("shaders/hud_frag.spv");
+    auto vertShaderCode = Utilities::readFile("shaders/vert.spv");
+    auto fragShaderCode = Utilities::readFile("shaders/frag.spv");
+    auto lineVertShaderCode = Utilities::readFile("shaders/line_vert.spv");
+    auto lineFragShaderCode = Utilities::readFile("shaders/line_frag.spv");
+    auto hudVertShaderCode = Utilities::readFile("shaders/hud_vert.spv");
+    auto hudFragShaderCode = Utilities::readFile("shaders/hud_frag.spv");
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -1060,8 +1060,8 @@ void Engine::createGraphicsPipelines() {
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription = Utilities::Vertex::getBindingDescription();
+    auto attributeDescriptions = Utilities::Vertex::getAttributeDescriptions();
 
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
@@ -1128,7 +1128,6 @@ void Engine::createGraphicsPipelines() {
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
     colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    // the validation is complaining about this, but I can't see why (as far as I can see the validation is just reporting something which is incorrect)
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
     colorBlending.blendConstants[0] = 0.0f;
@@ -1190,12 +1189,12 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.pDepthStencilState = &depthStencil;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_WORLD]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_WORLD]), "Failed to create graphics pipeline.");
 
     colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.subpass = 1;
 
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_BG]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_BG]), "Failed to create graphics pipeline.");
 
     // I think I need a new layout for the line drawing, a way to effeciently express the lines to the 
 
@@ -1205,7 +1204,7 @@ void Engine::createGraphicsPipelines() {
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 
     pipelineInfo.layout = linePipelineLayout;
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
 
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -1264,7 +1263,7 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.layout = hudPipelineLayout;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_HUD]), "Failed to create graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_HUD]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
@@ -1698,7 +1697,7 @@ void Engine::createModelBuffers() {
     VkDeviceMemory stagingBufferMemory;
 
     // Vertex buffer
-    VkDeviceSize bufferSize = currentScene->vertexBuffer.size() * sizeof(Vertex);
+    VkDeviceSize bufferSize = currentScene->vertexBuffer.size() * sizeof(Utilities::Vertex);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         stagingBuffer, stagingBufferMemory);
@@ -1759,14 +1758,15 @@ void Engine::initVulkan() {
     setupLogicalDevice();
 
 
-    // VkPipelineCacheCreateInfo pipelineCacheCI = {};
-    // pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    VkPipelineCacheCreateInfo pipelineCacheCI = {};
+    pipelineCacheCI.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     // pipelineCacheCI.flags = VK_PIPELINE_CACHE_CREATE_EXTERNALLY_SYNCHRONIZED_BIT_EXT;
-    // pipelineCacheCI.pNext = nullptr;
-    // pipelineCacheCI.pInitialData = nullptr;
-    // pipelineCacheCI.initialDataSize = 0;
+    pipelineCacheCI.flags = 0;
+    pipelineCacheCI.pNext = nullptr;
+    pipelineCacheCI.pInitialData = nullptr;
+    pipelineCacheCI.initialDataSize = 0;
 
-    // vulkanErrorGuard(vkCreatePipelineCache(device, &pipelineCacheCI, nullptr, &pipelineCache), "Unable to create pipeline cache.");
+    vulkanErrorGuard(vkCreatePipelineCache(device, &pipelineCacheCI, nullptr, &pipelineCache), "Unable to create pipeline cache.");
 
     createSwapChain();
     framebufferResized = false;
@@ -2239,8 +2239,6 @@ void Engine::updateScene(int index) {
         shadow.constants.projection = lightingData.proj;
 
         updateLightingDescriptors(index, lightingData);
-
-        lightingDirty[index] = false;
     }
 }
 
@@ -2277,9 +2275,6 @@ void Engine::drawFrame() {
     // Wait for the previous fence
     recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], mainPass.descriptorSets[currentFrame],
         hudDescriptorSets[currentFrame], hudBuffer, currentFrame);
-    updateScene(currentFrame);
-    // update the next frames uniforms
-    currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2317,6 +2312,10 @@ void Engine::drawFrame() {
 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
+    // update the next frame
+    updateScene((currentFrame + 1)  % concurrentFrames);
+    currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
+
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         recreateSwapChain();
         framebufferResized = false;
@@ -2344,7 +2343,7 @@ void Engine::allocateLightingBuffers() {
         //     throw std::runtime_error("Unable to allocate memory for uniform buffers.");
         
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-        bufferInfo.size = sizeof(ViewProjPosNearFar);
+        bufferInfo.size = sizeof(Utilities::ViewProjPosNearFar);
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
         VmaAllocationCreateInfo bufferAllocationInfo = {};
@@ -2417,8 +2416,6 @@ void Engine::runCurrentScene() {
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(0);
     hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
-    lightingDirty.resize(concurrentFrames);
-    fill(lightingDirty.begin(), lightingDirty.end(), true);
     updateScene(0);
     vkDeviceWaitIdle(device);
 
@@ -2552,8 +2549,8 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
 
         VkDescriptorImageInfo shadowImageInfo = {};
         shadowImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        shadowImageInfo.imageView = shadow.imageView;
-        shadowImageInfo.sampler = shadow.sampler;
+        shadowImageInfo.imageView = shadow.imageViews[i];
+        shadowImageInfo.sampler = shadow.samplers[i];
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet = mainPass.descriptorSets[i];
@@ -2689,8 +2686,8 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
     }
 }
 
-void Engine::updateLightingDescriptors(int index, const ViewProjPosNearFar& data) {
-    memcpy(lightingBufferAllocations[index]->GetMappedData(), &data, sizeof(ViewProjPosNearFar));
+void Engine::updateLightingDescriptors(int index, const Utilities::ViewProjPosNearFar& data) {
+    memcpy(lightingBufferAllocations[index]->GetMappedData(), &data, sizeof(Utilities::ViewProjPosNearFar));
 }
 
 void Engine::allocateCommandBuffers() {
@@ -2949,7 +2946,7 @@ void Engine::cleanup() {
     vkDestroyCommandPool(device, commandPool, nullptr);
     vkDestroyCommandPool(device, guiCommandPool, nullptr);
 
-    // vkDestroyPipelineCache(device, pipelineCache, nullptr);
+    vkDestroyPipelineCache(device, pipelineCache, nullptr);
     destroyShadowResources();
     vmaDestroyAllocator(memoryAllocator);
 
@@ -3024,7 +3021,7 @@ void Engine::createShadowResources(bool createDebugging) {
 
     vulkanErrorGuard(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &shadow.renderPass), "Unable to create shadow render pass");
 
-    auto vertShaderCode = readFile("shaders/shadow_vert.spv");
+    auto vertShaderCode = Utilities::readFile("shaders/shadow_vert.spv");
     
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 
@@ -3039,8 +3036,8 @@ void Engine::createShadowResources(bool createDebugging) {
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription = Utilities::Vertex::getBindingDescription();
+    auto attributeDescriptions = Utilities::Vertex::getAttributeDescriptions();
 
     vertexInputInfo.vertexBindingDescriptionCount = 1;
     vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
@@ -3172,75 +3169,83 @@ void Engine::createShadowResources(bool createDebugging) {
     pipelineInfo.pDepthStencilState = &depthStencil;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
 
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 
-    // For shadow mapping we only need a depth attachment
-    VkImageCreateInfo imageInfo {};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = shadow.width;
-    imageInfo.extent.height = shadow.height;
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.format = depthFormat;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    shadow.imageViews.resize(concurrentFrames);
+    shadow.images.resize(concurrentFrames);
+    shadow.allocations.resize(concurrentFrames);
+    shadow.samplers.resize(concurrentFrames);
+    shadow.framebuffers.resize(concurrentFrames);
 
-    VmaAllocationCreateInfo imageAllocCreateInfo = {};
-    imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    for (int i = 0; i < concurrentFrames; i++) {
+        // For shadow mapping we only need a depth attachment
+        VkImageCreateInfo imageInfo {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = shadow.width;
+        imageInfo.extent.height = shadow.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = depthFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &shadow.image, &shadow.allocation, nullptr) != VK_SUCCESS)
-        throw std::runtime_error("Unable to create shadow framebuffer image");
+        VmaAllocationCreateInfo imageAllocCreateInfo = {};
+        imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    VkImageViewCreateInfo depthStencilView = {};
-    depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    depthStencilView.format = depthFormat;
-    depthStencilView.subresourceRange = {};
-    depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    depthStencilView.subresourceRange.baseMipLevel = 0;
-    depthStencilView.subresourceRange.levelCount = 1;
-    depthStencilView.subresourceRange.baseArrayLayer = 0;
-    depthStencilView.subresourceRange.layerCount = 1;
-    depthStencilView.image = shadow.image;
-    vulkanErrorGuard(vkCreateImageView(device, &depthStencilView, nullptr, &shadow.imageView), "Unable to create shadow framebuffer image view.");
+        if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &shadow.images[i], &shadow.allocations[i], nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to create shadow framebuffer image");
 
-    // Create sampler to sample from to depth attachment
-    VkFilter shadowmapFilter = formatIsFilterable(physicalDevice, depthFormat, VK_IMAGE_TILING_OPTIMAL) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-    VkSamplerCreateInfo sampler = {};
-    sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler.magFilter = shadowmapFilter;
-    sampler.minFilter = shadowmapFilter;
-    sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler.unnormalizedCoordinates = false;
-    sampler.anisotropyEnable = false;
-    sampler.maxAnisotropy = 1.0f;
-    sampler.mipLodBias = 0.0f;
-    sampler.minLod = 0.0f;
-    sampler.maxLod = 100.0f;
-    sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-    vulkanErrorGuard(vkCreateSampler(device, &sampler, nullptr, &shadow.sampler), "Unable to create shadow sampler.");
+        VkImageViewCreateInfo depthStencilView = {};
+        depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        depthStencilView.format = depthFormat;
+        depthStencilView.subresourceRange = {};
+        depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthStencilView.subresourceRange.baseMipLevel = 0;
+        depthStencilView.subresourceRange.levelCount = 1;
+        depthStencilView.subresourceRange.baseArrayLayer = 0;
+        depthStencilView.subresourceRange.layerCount = 1;
+        depthStencilView.image = shadow.images[i];
+        vulkanErrorGuard(vkCreateImageView(device, &depthStencilView, nullptr, &shadow.imageViews[i]), "Unable to create shadow framebuffer image view.");
 
-    // Create frame buffer
-    VkFramebufferCreateInfo fbufCreateInfo = {};
-    fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    fbufCreateInfo.renderPass = shadow.renderPass;
-    fbufCreateInfo.attachmentCount = 1;
-    fbufCreateInfo.pAttachments = &shadow.imageView;
-    fbufCreateInfo.width = shadow.width;
-    fbufCreateInfo.height = shadow.height;
-    fbufCreateInfo.layers = 1;
+        // Create sampler to sample from to depth attachment
+        VkFilter shadowmapFilter = formatIsFilterable(physicalDevice, depthFormat, VK_IMAGE_TILING_OPTIMAL) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        VkSamplerCreateInfo sampler = {};
+        sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler.magFilter = shadowmapFilter;
+        sampler.minFilter = shadowmapFilter;
+        sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler.unnormalizedCoordinates = false;
+        sampler.anisotropyEnable = false;
+        sampler.maxAnisotropy = 1.0f;
+        sampler.mipLodBias = 0.0f;
+        sampler.minLod = 0.0f;
+        sampler.maxLod = 100.0f;
+        sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        vulkanErrorGuard(vkCreateSampler(device, &sampler, nullptr, &shadow.samplers[i]), "Unable to create shadow sampler.");
 
-    vulkanErrorGuard(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &shadow.framebuffer), "Unable to create shadow framebuffer.");
+        // Create frame buffer
+        VkFramebufferCreateInfo fbufCreateInfo = {};
+        fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fbufCreateInfo.renderPass = shadow.renderPass;
+        fbufCreateInfo.attachmentCount = 1;
+        fbufCreateInfo.pAttachments = &shadow.imageViews[i];
+        fbufCreateInfo.width = shadow.width;
+        fbufCreateInfo.height = shadow.height;
+        fbufCreateInfo.layers = 1;
+
+        vulkanErrorGuard(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &shadow.framebuffers[i]), "Unable to create shadow framebuffer.");
+    }
 
     if (shadow.debugging) {
         // TODO This code assumes that we are only using VK_FORMAT_D32_SFLOAT for the depth format
@@ -3266,10 +3271,12 @@ void Engine::destroyShadowResources() {
     vkDestroyPipelineLayout(device, shadow.pipelineLayout, nullptr);
     vkDestroyPipeline(device, shadow.pipeline, nullptr);
 
-    vkDestroyFramebuffer(device, shadow.framebuffer, nullptr);
-    vkDestroySampler(device, shadow.sampler, nullptr);
-    vkDestroyImageView(device, shadow.imageView, nullptr);
-    vmaDestroyImage(memoryAllocator, shadow.image, shadow.allocation);
+    for (int i = 0; i < concurrentFrames; i++) {
+        vkDestroyFramebuffer(device, shadow.framebuffers[i], nullptr);
+        vkDestroySampler(device, shadow.samplers[i], nullptr);
+        vkDestroyImageView(device, shadow.imageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, shadow.images[i], shadow.allocations[i]);
+    }
 
     if(shadow.debugging)
         vmaDestroyBuffer(memoryAllocator, shadow.debugBuffer, shadow.debugAllocation);
@@ -3278,7 +3285,7 @@ void Engine::destroyShadowResources() {
     vkDestroyDescriptorSetLayout(device, shadow.descriptorLayout, nullptr);
 }
 
-void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename) {
+void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename, int idx) {
     assert(!shadow.debugWritePending);
 
     VkImageMemoryBarrier barrier {};
@@ -3287,7 +3294,7 @@ void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *
     barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = shadow.image;
+    barrier.image = shadow.images[idx];
 
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     barrier.subresourceRange.baseMipLevel = 0;
@@ -3318,7 +3325,7 @@ void Engine::writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *
     region.imageExtent.height = shadow.height;
     region.imageExtent.depth = 1;
 
-    vkCmdCopyImageToBuffer(buffer, shadow.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shadow.debugBuffer, 1, &region);
+    vkCmdCopyImageToBuffer(buffer, shadow.images[idx], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shadow.debugBuffer, 1, &region);
 
     shadow.debugWritePending = true;
     shadow.filename = std::string(filename);
@@ -3413,7 +3420,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = shadow.renderPass;
-    renderPassInfo.framebuffer = shadow.framebuffer;
+    renderPassInfo.framebuffer = shadow.framebuffers[index];
 
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = { shadow.width, shadow.height };
@@ -3449,7 +3456,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdEndRenderPass(buffer);
 
     if (shadow.makeSnapshot && shadow.debugging) {
-        writeShadowBufferToFile(buffer, shadowMapFile);
+        writeShadowBufferToFile(buffer, shadowMapFile, index);
         shadow.makeSnapshot = false;
     }
 }

@@ -105,8 +105,8 @@ public:
                 throw std::logic_error("Bad channel count (something is programmed incorrectly)");
         }
     }
-protected:
     static std::vector<char> readFile(const std::string& filename);
+protected:
 };
 
 namespace std {
