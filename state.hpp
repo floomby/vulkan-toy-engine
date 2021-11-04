@@ -104,6 +104,8 @@ public:
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
     // player economy state and metadata stuff and so forth....
+    // Updating does not really belong here
+    void doUpdateTick();
 };
 
 // class State {

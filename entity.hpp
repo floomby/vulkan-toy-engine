@@ -27,6 +27,8 @@ public:
     Entity translate(glm::vec3 delta);
     float boundingRadius;
     int textureIndex, iconIndex;
+
+    float maxSpeed = 0.1f;
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;

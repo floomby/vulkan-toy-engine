@@ -78,6 +78,7 @@ void run(EngineSettings& settings) {
   I should probably change it to not be like that
 
 Next steps
+ support multiple textures for a single gui element and create a way to switch between them without rebuilding the whole ui
  need antialaiasing on the lines
  world space raycasting and maybe spherecasting
  projectiles

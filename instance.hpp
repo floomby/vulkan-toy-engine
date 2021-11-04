@@ -10,12 +10,13 @@ enum class CommandKind {
     MOVE,
     ATTACK,
     STOP,
+    COUNT,
     //.....
 };
 
 struct CommandData {
     glm::vec3 dest;
-    int id;
+    uint32_t id;
 };
 
 struct Command {
@@ -59,7 +60,7 @@ public:
 
     std::list<Command> commandList;
     InstanceID id;
+    Entity *entity;
 private:
     UniformBufferObject _state;
-    Entity *entity;
 };

@@ -26,19 +26,26 @@ CommandGenerator<CommandCoroutineType> ObservableState::getCommandGenerator(std:
     }
 }
 
-/*
-    return [this, which] () {
-        auto v = which;
-        auto vit = which.data();
-        auto it = this->instances[*vit].commandList.begin();
-        return [=, this] () mutable -> Command {
-            while(true) {
-                if (it != this->instances[*vit].commandList.end()) {
-                    return *it++;
-                } else {
-                    this->instances[*++vit].commandList.begin();
-                }
+void ObservableState::doUpdateTick() {
+    for (auto& inst : instances) {
+        if (!inst.commandList.empty()) {
+            const auto& cmd = inst.commandList.front();
+            float len;
+            glm::vec3 delta;
+            switch (cmd.kind){
+                case CommandKind::MOVE:
+                    delta = cmd.data.dest - inst.position;
+                    len = delta.length();
+                    if (len > inst.entity->maxSpeed) {
+                        inst.position += inst.entity->maxSpeed / len * delta;
+                    } else {
+                        inst.commandList.pop_front();
+                    }
+                    break;
+                case CommandKind::STOP:
+                    inst.commandList.clear();
+                    break;
             }
-        };
-    }();
-*/
+        }
+    }
+}

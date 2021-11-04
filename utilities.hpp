@@ -142,4 +142,5 @@ template <typename T> T linmap(T x, T inMin, T inMax, T outMin, T outMax) {
     return ((x - inMin) / (inMax - inMin) + outMin) * (outMax - outMin);
 }
 
+// will evaluate x twice
 #define sq(x) ((x) * (x))

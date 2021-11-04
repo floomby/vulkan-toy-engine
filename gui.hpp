@@ -2,15 +2,17 @@
 
 #include "shaders/render_modes.h"
 #include "utilities.hpp"
+#include "lua_wrapper.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
 #include <chrono>
+#include <map>
 #include <mutex>
 #include <thread>
 #include <queue>
 
 // I am not sure about using yaml for the gui layout stuff (xml might be better because I could specify a schema and validate it easily)
-#include <yaml-cpp/yaml.h>
+// #include <yaml-cpp/yaml.h>
 
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
@@ -133,11 +135,11 @@ public:
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
         std::pair<float, float> c1, int layer, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-         std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
+         std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> c0, std::pair<float, float> c1, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
+        std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> tl, float height, int layer, GuiTexture texture, uint32_t renderMode = RMODE_FLAT);
+        std::pair<float, float> tl, float height, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -159,9 +161,10 @@ public:
     void removeComponent(std::queue<uint>& childIndices);
 
     std::vector<GuiTexture *>& mapTextures(std::vector<GuiTexture *>& acm, int& idx);
-    GuiTexture texture;
+    std::vector<GuiTexture> textures;
+    std::vector<uint> textureIndexMap;
 
-    void buildVertexBuffer(std::vector<GuiVertex>& acm);
+    void buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index);
     inline bool containsNDCPoint(float x, float y)
     { return x > vertices[0].pos.x && y > vertices[0].pos.y && x < vertices[1].pos.x && y < vertices[1].pos.y; }
     uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y);
@@ -170,7 +173,7 @@ public:
     uint32_t renderMode;
 
     virtual void click(float x, float y);
-    uint32_t id;
+    uint32_t id, activeTexture = 0;
 protected:
     bool dynamicNDC = false;
     virtual void resizeVertices();
@@ -205,6 +208,11 @@ struct GuiPushConstant {
     glm::uint32_t guiID;
 };
 
+#define MOD_SHIFT   (1 << 0)
+#define MOD_CTL     (1 << 1)
+#define MOD_ALT     (1 << 2)
+#define MOD_SPACE   (1 << 3)
+
 class GuiCommandData {
 public:
     std::queue<uint> childIndices;
@@ -231,6 +239,9 @@ public:
     } size;
     // the gui object already knows this via the push constants, but that technically creates a synchronization error even if it is maybe just a frame off
     uint32_t id;
+    uint action;
+    uint flags;
+    std::string str;
 };
 
 class Gui {
@@ -244,7 +255,7 @@ public:
     Gui& operator=(const Gui& other) = delete;
     Gui& operator=(Gui&& other) noexcept = delete;
 
-    size_t updateBuffer(void *buffer, size_t max);
+    std::pair<size_t, std::map<uint32_t, uint>> updateBuffer(void *buffer, size_t max);
 
     // set this to true to indicate the need to update the buffers in vram
     bool rebuilt;
@@ -272,6 +283,7 @@ public:
         GUI_REMOVE,
         GUI_RESIZE,
         GUI_CLICK,
+        GUI_LOAD,
         GUI_TERMINATE
     };
 
@@ -282,24 +294,35 @@ public:
     };
 
     enum GuiSignal {
-        GUI_SOMETHING,
+        GUI_CLICKED,
+        // GUI_TOGGLE_TEXTURE,
+    };
+
+    struct GuiMessageData {
+        uint32_t id;
+        int texture;
     };
 
     // messages passed from the gui
     struct GuiMessage {
         GuiSignal signal;
-        // GuiMessageData *data;
+        GuiMessageData *data;
     };
 
     void submitCommand(GuiCommand command);
     boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
-    static const int dummyVertexCount = 12;
+    static const int dummyCompomentCount = 2;
+    static const int dummyVertexCount = dummyCompomentCount * 6;
     int width, height;
     int idCounter = 0;
 
     uint32_t idUnderPoint(GuiVertex *buffer, size_t count, float x, float y);
+    void setTextureIndexInBuffer(GuiVertex *buffer, uint index, int textureIndex);
     std::map<uint32_t, GuiComponent *> idLookup;
+    void rebuildBuffer();
+
+    GuiComponent *fromFile(std::string name);
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
@@ -307,17 +330,19 @@ private:
     // std::mutex constantMutex;
     GuiPushConstant _pushConstant;
     std::mutex dataMutex;
+    std::map<uint32_t, uint> idToBuffer;
     std::vector<GuiVertex> vertices;
     std::vector<GuiTexture *> textures;
     std::vector<GuiVertex> dragBox;
 
-    void rebuildBuffer();
 
     void pollChanges();
 
     static constexpr auto pollInterval = std::chrono::milliseconds(5);
 
     GuiComponent *root;
+
+    LuaWrapper lua;
 };
 
 class Panel {
@@ -325,5 +350,5 @@ public:
     Panel(const char *filename);
 
 private:
-    YAML::Node root;
+    // YAML::Node root;
 };

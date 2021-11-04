@@ -143,7 +143,8 @@ static const std::vector<const char*> requiredDeviceExtensions = {
 
 Engine::Engine(EngineSettings engineSettings) {
     this->engineSettings = engineSettings;
-    std::cout << "Engine main thread is " << gettid() << std::endl;
+    // std::cout << "Engine main thread is " << gettid() << std::endl;
+    Api::context = this;
 }
 
 // This function is badly named since it only gets *intstance* extensions
@@ -1853,9 +1854,14 @@ inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm
 void Engine::handleInput() {
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
-        if(message.signal == Gui::GUI_SOMETHING) {
+        if(message.signal == Gui::GUI_CLICKED) {
             currentScene->state.instances.erase(currentScene->state.instances.begin() + 1, currentScene->state.instances.end());
         }
+        // if (message.signal == Gui::GUI_TOGGLE_TEXTURE) {
+        //     std::cout << "here: " << message.data->id << " : " << message.data->texture << std::endl;
+        //     gui->setTextureIndexInBuffer((GuiVertex *)hudAllocation->GetMappedData(), guiIdToBufferIndex[message.data->id], message.data->texture);
+        //     delete message.data;
+        // }
     }
 
     double x, y;
@@ -1914,14 +1920,17 @@ void Engine::handleInput() {
                 std::raise(SIGTRAP);
             }
             if (keyEvent.key == GLFW_KEY_O) {
+                // GuiCommandData *what = new GuiCommandData();
+                // // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
+                // what->component = new GuiComponent(gui, false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
+                // gui->submitCommand({ Gui::GUI_ADD, what });
+                // GuiCommandData *what2 = new GuiCommandData();
+                // // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
+                // what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
+                // gui->submitCommand({ Gui::GUI_ADD, what2 });
                 GuiCommandData *what = new GuiCommandData();
-                // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what->component = new GuiComponent(gui, false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
-                gui->submitCommand({ Gui::GUI_ADD, what });
-                GuiCommandData *what2 = new GuiCommandData();
-                // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
-                gui->submitCommand({ Gui::GUI_ADD, what2 });
+                what->str = "hud";
+                gui->submitCommand({ Gui::GUI_LOAD, what });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
@@ -2004,26 +2013,34 @@ void Engine::handleInput() {
             // for(const auto& plane : planes) {
             //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             // }
+            idsSelected.clear();
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
-                (currentScene->state.instances.data() + i)->highlight = 
-                    whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
+                if (whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
-                        whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->state.instances.data() + i)->position) < 0 !=
-                        whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->state.instances.data() + i)->position) < 0
+                    whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->state.instances.data() + i)->position) < 0 &&
+                    whichSideOfPlane(planes[4].first, planes[4].second + cammera.maxClip, (currentScene->state.instances.data() + i)->position) > 0
                     // To only select things as far as the cammera drawing distance
-                    // && whichSideOfPlane(planes[4].first, planes[4].second - cammera.maxClip, (currentScene->state.instances + i)->position) > 0
-                    ;
+                ) {
+                    currentScene->state.instances[i].highlight = true;
+                    idsSelected.push_back(currentScene->state.instances[i].id);
+                } else {
+                    currentScene->state.instances[i].highlight = false;
+                }
             }
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
             if (planeIntersectionDenominator == 0) {
                 std::cout << "orthognal" << std::endl;
             } else {
-                currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
-                    static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)) });
+                // currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
+                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
+                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
+                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)) });
+                for (const auto id : idsSelected) {
+                    Api::cmd_move(id, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, InsertionMode::OVERWRITE);
+                }
             }
         }
     }
@@ -2262,8 +2279,10 @@ void Engine::drawFrame() {
 
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
-        hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+        auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+        hudVertexCount = bufRet.first;
         guiOutOfDate = false;
+        guiIdToBufferIndex = std::move(bufRet.second);
     }
     gui->pushConstant()->guiID = gui->idUnderPoint((GuiVertex *)hudAllocation->GetMappedData(), hudVertexCount, lastMousePosition.normedX, lastMousePosition.normedY);
 
@@ -2312,15 +2331,16 @@ void Engine::drawFrame() {
 
     result = vkQueuePresentKHR(presentQueue, &presentInfo);
 
-    // update the next frame
-    updateScene((currentFrame + 1)  % concurrentFrames);
-    currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
-
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
         recreateSwapChain();
         framebufferResized = false;
     } else if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to present swap chain image.");
+
+    // update the next frame
+    updateScene((currentFrame + 1)  % concurrentFrames);
+    currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
+    currentScene->state.doUpdateTick();
 
     currentFrame = (currentFrame + 1) % concurrentFrames;
 }
@@ -2415,7 +2435,9 @@ void Engine::runCurrentScene() {
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(0);
-    hudVertexCount = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+    auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
+    hudVertexCount = bufRet.first;
+    guiIdToBufferIndex = std::move(bufRet.second);
     updateScene(0);
     vkDeviceWaitIdle(device);
 
@@ -2439,11 +2461,11 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->addInstance(0, { 0.0f, 0.0f, 5.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
 
-    currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
+    // currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
 
     // +x = -x, +y = -y, z = -z
     lightingData.pos = { 0.0f, -10.0, 0.0f };

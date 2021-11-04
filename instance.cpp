@@ -8,7 +8,7 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
     highlight = false;
-    commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, -1 }});
+    commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
     // commandList.push_back({ CommandKind::MOVE, id, {{ 5.0f, 0.0f, 0.0f }, -1 }});
 };
 

@@ -19,6 +19,7 @@
 } while(false)
 
 class Scene;
+class Api;
 
 struct EngineSettings {
     bool useConcurrentTransferQueue;
@@ -46,6 +47,7 @@ class Engine {
     friend class CubeMap;
     friend class GuiTexture;
     friend class Scene;
+    friend class Api;
 
     friend class DescriptorSyncer<UniformBufferObject>;
     friend class DescriptorSyncer<LineUBO>;
@@ -163,6 +165,9 @@ private:
         float x, y;
         glm::vec3 ray;
     };
+
+    std::vector<uint32_t> idsSelected;
+
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     float scrollAmount;
@@ -315,6 +320,7 @@ private:
     void createModelBuffers();
 
     size_t hudVertexCount;
+    std::map<uint32_t, uint> guiIdToBufferIndex;
     VkBuffer hudBuffer;
     VmaAllocation hudAllocation;
     void createHudBuffers();
@@ -616,3 +622,5 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VmaAllocation> uniformBufferAllocations;
 };
+
+#include "api.hpp"
