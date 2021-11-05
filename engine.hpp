@@ -225,6 +225,7 @@ private:
 
     VkDevice device;
     VkQueue graphicsQueue;
+    VkQueue guiGraphicsQueue;
     VkQueue presentQueue;
     VkQueue transferQueue;
     VmaAllocator memoryAllocator;

@@ -144,3 +144,9 @@ template <typename T> T linmap(T x, T inMin, T inMax, T outMin, T outMax) {
 
 // will evaluate x twice
 #define sq(x) ((x) * (x))
+
+// I think I will just use the modifiers that glfw has (space is not a modifer for them though)
+// #define MOD_SHIFT   (1 << 0)
+// #define MOD_CTL     (1 << 1)
+// #define MOD_ALT     (1 << 2)
+// #define MOD_SPACE   (1 << 3)

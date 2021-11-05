@@ -133,13 +133,13 @@ class GuiComponent {
 public:
     GuiComponent() = delete;
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-        std::pair<float, float> c1, int layer, uint32_t renderMode = RMODE_FLAT);
+        std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-         std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
+         std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
+        std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> tl, float height, int layer, std::vector<GuiTexture> textures, uint32_t renderMode = RMODE_FLAT);
+        std::pair<float, float> tl, float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -155,7 +155,7 @@ public:
     std::vector<GuiVertex> vertices;
 
     // indices to parent
-    void addComponent(std::queue<uint>& childIdices, GuiComponent *component);
+    void addComponent(std::queue<uint> childIdices, GuiComponent *component);
     void addComponent(std::queue<uint>& childIdices, GuiComponent *component, GuiComponent *parent);
     // indices to child
     void removeComponent(std::queue<uint>& childIndices);
@@ -174,22 +174,26 @@ public:
 
     virtual void click(float x, float y);
     uint32_t id, activeTexture = 0;
+
+    GuiComponent *getComponent(std::queue<uint> childIdices);
 protected:
     bool dynamicNDC = false;
     virtual void resizeVertices();
     Gui *context;
+    std::map<std::string, int> luaHandlers;
 private:
     bool layoutOnly;
 
     void mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx);
     // I guess just one texture per component?
     void setTextureIndex(int textureIndex);
+    GuiComponent *getComponent_i(std::queue<uint>& childIdices);
 };
 
 class GuiLabel : public GuiComponent {
 public:
-    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer);
-    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers);
     std::string message;
 
     virtual void click(float x, float y);
@@ -207,11 +211,6 @@ struct GuiPushConstant {
     glm::vec2 dragBox[2];
     glm::uint32_t guiID;
 };
-
-#define MOD_SHIFT   (1 << 0)
-#define MOD_CTL     (1 << 1)
-#define MOD_ALT     (1 << 2)
-#define MOD_SPACE   (1 << 3)
 
 class GuiCommandData {
 public:
@@ -322,7 +321,8 @@ public:
     std::map<uint32_t, GuiComponent *> idLookup;
     void rebuildBuffer();
 
-    GuiComponent *fromFile(std::string name);
+    GuiComponent *fromFile(std::string name, int baseLayer);
+    LuaWrapper lua;
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
@@ -342,7 +342,7 @@ private:
 
     GuiComponent *root;
 
-    LuaWrapper lua;
+    GuiComponent *fromLayout(GuiLayoutNode *tree, int baseLayer);
 };
 
 class Panel {

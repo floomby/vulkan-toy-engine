@@ -78,7 +78,8 @@ void run(EngineSettings& settings) {
   I should probably change it to not be like that
 
 Next steps
- support multiple textures for a single gui element and create a way to switch between them without rebuilding the whole ui
+ I need a seperate command queue with graphics abilities for the gui thread (it needs graphics capabilities cause it is messing with textures not just moving things around)
+ my text rendering with freetype cant render space characters for some reason
  need antialaiasing on the lines
  world space raycasting and maybe spherecasting
  projectiles
@@ -90,8 +91,9 @@ Next steps
   a button component (I might just blit the text alpha mask onto a button texture and call that good)
   yaml reader into layouts - to get to here we still need much work
  shadow pass needs to move to having the abillity to have multiple depth buffers so that the fence for rendering can be moved to the correct spot
+ the api exposed in api.hpp needs to be thread safe since we will be calling it from lua
  lt - networking
- lt - lua
+ the text rendering to texture code is so slow, (Like unbelievably slow, of course I did note that it looked slow when I was writting it in the first place)
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
  instance component system or something (or something else as an organizational structure for the proccessing)

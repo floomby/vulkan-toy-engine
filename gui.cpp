@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+// Tbh the layers should probably just be created when the vertex buffer is built and be just the parent layer plus one
+
 // we use ndc
 // This is just in the vertex shader now
 // static std::vector<GuiVertex> background = {
@@ -14,13 +16,15 @@
 // };
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth)
-: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, RMODE_NONE)), height(screenHeight), width(screenWidth) {
+: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     guiThread = std::thread(&Gui::pollChanges, this);
+
+    lua.exportEnumToLua<GuiLayoutType>();
 }
 
 // Doing it this way wastes sizeof(GuiVertex) * Gui::dummyVertexCount bytes of vram where the imaginary drag box and background are (...idk what I doing...)
@@ -155,12 +159,13 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_LOAD) {
                 try {
-                    fromFile(command.data->str);
-                    // root->addComponent(command.data->childIndices, fromFile(command.data->str));
+                    // fromFile(command.data->str);
+                    root->addComponent(command.data->childIndices, fromFile(command.data->str, root->getComponent(command.data->childIndices)->layer + 1));
                 } catch (const std::exception& e) {
                     std::cerr << e.what() << std::endl;
                     // I may need to clean up the state in the lua_State "object"
                 }
+                changed = true;
                 delete command.data;
             }
         }
@@ -185,8 +190,8 @@ Gui::~Gui() {
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
 // TODO Fix this
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, uint32_t renderMode)
-: textures({ *GuiTexture::defaultTexture() }), context(context) {
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+: textures({ *GuiTexture::defaultTexture() }), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
     this->parent = parent;
@@ -211,8 +216,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::p
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, 
-    float height, int layer, std::vector<GuiTexture> textures, uint32_t renderMode)
-: textures(textures), context(context) {
+    float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+: textures(textures), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly;
     this->parent = parent;
@@ -241,8 +246,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode)
-: textures(textures), context(context) {
+    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+: textures(textures), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly;
     this->parent = parent;
@@ -274,8 +279,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, uint32_t renderMode)
-: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, textures, renderMode) {}
+    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, textures, luaHandlers, renderMode) {}
 
 GuiComponent::~GuiComponent() {
     context->idLookup.erase(id);
@@ -284,7 +289,22 @@ GuiComponent::~GuiComponent() {
         delete child;
 }
 
-void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *component) {
+GuiComponent *GuiComponent::getComponent(std::queue<uint> childIndices) {
+    return getComponent_i(childIndices);
+}
+
+GuiComponent *GuiComponent::getComponent_i(std::queue<uint>& childIndices) {
+    if (childIndices.empty()) {
+        return this;
+    }
+
+    int index = childIndices.front();
+    childIndices.pop();
+    return children.at(index)->getComponent_i(childIndices);
+}
+
+
+void GuiComponent::addComponent(std::queue<uint> childIndices, GuiComponent *component) {
     addComponent(childIndices, component, this);
 }
 
@@ -379,7 +399,8 @@ void GuiComponent::resizeVertices() {
 }
 
 void GuiComponent::click(float x, float y) {
-    std::cout << "Clicked me: " << id << std::endl;
+    if (luaHandlers.contains("onClick"))
+        context->lua.callFunction(luaHandlers["onClick"]);
 }
 
 // Arguably I should just do this at the same time as maping the textures
@@ -394,14 +415,16 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
         child->buildVertexBuffer(acm, indexMap, index);
 }
 
-GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { GuiTextures::makeGuiTexture(str) }, RMODE_TEXT), message(str) {
+GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
+std::map<std::string, int> luaHandlers)
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { GuiTextures::makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
     textures.push_back(GuiTextures::makeGuiTexture("cleared"));
 }
 
-GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer)
-: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, { GuiTextures::makeGuiTexture(str) }, RMODE_TEXT), message(str) {
+GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer,
+std::map<std::string, int> luaHandlers)
+: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, { GuiTextures::makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
     textures.push_back(GuiTextures::makeGuiTexture("cleared"));
 }
@@ -431,7 +454,22 @@ void GuiLabel::click(float x, float y) {
     
 // }
 
-GuiComponent *Gui::fromFile(std::string name) {
-    lua.loadGuiFile(name.c_str());
-    return nullptr;
+GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
+    auto tree = lua.loadGuiFile(name.c_str());
+    return fromLayout(tree, baseLayer);
+}
+
+GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
+    GuiComponent *ret = nullptr;
+    switch (tree->kind) {
+        case GuiLayoutType::PANEL:
+            ret = new GuiComponent(this, false, 0x60ff6060, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            break;
+        case GuiLayoutType::TEXT_BUTTON:
+            ret = new GuiLabel(this, tree->text.c_str(), 0x000000ff, 0x60606070, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            break;
+        default:
+            throw std::runtime_error("Unsupported gui layout kind - aborting.");
+    }
+    return ret;
 }

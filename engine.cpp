@@ -217,11 +217,14 @@ void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int
     // I guess the tids are the same as the engine main thread and we can just do this???
     // Glfw docs have me confoozzled in this reguard (entirely possible I just can't read)
     // std::cout << "Mouse handler tid: " << gettid() << std::endl;
-    auto what = new GuiCommandData();
-    what->id = engine->gui->pushConstant()->guiID;
-    what->position.x.asFloat = engine->lastMousePosition.normedX;
-    what->position.y.asFloat = engine->lastMousePosition.normedY;
-    engine->gui->submitCommand({ Gui::GUI_CLICK, what });
+    if (action == GLFW_PRESS) {
+        auto what = new GuiCommandData();
+        what->id = engine->gui->pushConstant()->guiID;
+        what->position.x.asFloat = engine->lastMousePosition.normedX;
+        what->position.y.asFloat = engine->lastMousePosition.normedY;
+        what->flags = mods;
+        engine->gui->submitCommand({ Gui::GUI_CLICK, what });
+    }
 }
 
 void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -517,7 +520,7 @@ void Engine::setupLogicalDevice() {
         VkDeviceQueueCreateInfo queueCreateInfo {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.queueCount = queueFamily == physicalDeviceIndices.graphicsFamily.value() ? 2 : 1;
         queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back(queueCreateInfo);
     }
@@ -549,6 +552,7 @@ void Engine::setupLogicalDevice() {
     vulkanErrorGuard(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device), "Failed to create logical device.");
 
     vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 0, &graphicsQueue);
+    vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 1, &guiGraphicsQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.presentFamily.value(), 0, &presentQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.transferFamily.value(), 0, &transferQueue);
     // if (engineSettings.verbose) std::cout << std::hex << "Presentation queue: " << presentQueue << "  Graphics queue: " << graphicsQueue << "  Transfer queue: " << transferQueue << std::endl;
@@ -1929,7 +1933,7 @@ void Engine::handleInput() {
                 // what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
                 // gui->submitCommand({ Gui::GUI_ADD, what2 });
                 GuiCommandData *what = new GuiCommandData();
-                what->str = "hud";
+                what->str = "Hud";
                 gui->submitCommand({ Gui::GUI_LOAD, what });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
@@ -2060,11 +2064,6 @@ void Engine::handleInput() {
     if (keysPressed[GLFW_KEY_UP]) {
         cammera.position += cammera.fowarding / 600.0f;
         cammera.target += cammera.fowarding / 600.0f;
-    }
-
-    if (keysPressed[GLFW_KEY_U]) {
-        std::cout << "Mouse normed vector: " << mouseRayNormed << std::endl;
-        std::cout << "Cammera position: " << cammera.position << std::endl;
     }
 
     if (mouseAction == MOUSE_PANNING) {
@@ -4177,7 +4176,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
         0, nullptr,
         1, &imageMemoryBarrier);
 
-    context->endSingleTimeCommands(commandBuffer, context->guiCommandPool, context->graphicsQueue);
+    context->endSingleTimeCommands(commandBuffer, context->guiCommandPool, context->guiGraphicsQueue);
 
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
 
@@ -4287,7 +4286,7 @@ namespace GuiTextures {
         FT_Error error = FT_Init_FreeType(&library);
         if (error) throw std::runtime_error("Unable to initialize freetype.");
 
-        error = FT_New_Face(GuiTextures::library, "fonts/FreeSansBold.ttf", 0, &face);
+        error = FT_New_Face(GuiTextures::library, "fonts/FreeSans.ttf", 0, &face);
         if (error == FT_Err_Unknown_File_Format) throw std::runtime_error("Unsupported font format.");
         else if (error) throw std::runtime_error("Unable to read font file.");
         
@@ -4298,7 +4297,7 @@ namespace GuiTextures {
 
         error = FT_Load_Glyph(face, FT_Get_Char_Index(face, 'T'), 0);
         if (error) throw std::runtime_error("Unable to load glyph.");
-        error = FT_Render_Glyph( face->glyph, FT_RENDER_MODE_SDF);
+        error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF);
         if (error) throw std::runtime_error("Unable to render glyph.");
         maxGlyphHeight = face->glyph->bitmap_top;
 
