@@ -41,12 +41,12 @@ struct UniformBufferObject {
 
 class Instance {
 public:
-    inline static InstanceID idCounter = 0;
-    Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept;
+    // inline static InstanceID idCounter = 0;
+    Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex, bool inPlay = false) noexcept;
     // Instance& transform(glm::mat4 transformationMatrix) noexcept;
+    SceneModelInfo* sceneModelInfo;
 
     UniformBufferObject *state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
-    SceneModelInfo* sceneModelInfo;
     int entityIndex;
 
     glm::vec3 position, heading;
@@ -58,6 +58,8 @@ public:
     float cammeraDistance2;
     bool highlight, rendered;
 
+    bool inPlay;
+    bool orphaned = false;
     std::list<Command> commandList;
     InstanceID id;
     Entity *entity;

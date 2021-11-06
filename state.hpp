@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <map>
 #include <mutex>
 #include <stdint.h>
 #include <thread>
@@ -97,6 +98,19 @@ template<typename StateType> struct CommandGenerator {
     };
 };
 
+// I feel like I am doing this all wrong
+class AuthoritativeState {
+public:
+    std::vector<Instance> instances;
+    uint totalElapsedTicks;
+    void doUpdateTick();
+    InstanceID counter = 100;
+    std::mutex lock;
+    inline std::vector<Instance>::iterator getInstance(InstanceID id) {
+        return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
+    }
+};
+
 class ObservableState {
 public:
     std::vector<Instance> instances;
@@ -105,8 +119,11 @@ public:
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
     // player economy state and metadata stuff and so forth....
     // Updating does not really belong here
-    void doUpdateTick();
+    void doUpdate(float timeDelta);
+    void syncToAuthoritativeState(AuthoritativeState& state);
 };
+
+
 
 // class State {
 // public:

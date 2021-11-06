@@ -440,18 +440,17 @@ void GuiLabel::resizeVertices() {
     vertices[5].pos.x = right;
 }
 
-void GuiLabel::click(float x, float y) {
-    // static bool called;
-    // if (!called) called = true;
-    // context->guiMessages.push({ Gui::GUI_TOGGLE_TEXTURE, new Gui::GuiMessageData { id, called ? 0 : -1 } });
-    activeTexture = (int)!(bool)activeTexture;
-    context->rebuildBuffer();
-}
+// void GuiLabel::click(float x, float y) {
+//     // static bool called;
+//     // if (!called) called = true;
+//     // context->guiMessages.push({ Gui::GUI_TOGGLE_TEXTURE, new Gui::GuiMessageData { id, called ? 0 : -1 } });
+//     activeTexture = (int)!(bool)activeTexture;
+//     context->rebuildBuffer();
+// }
 
 // Panel::Panel(const char *filename)
 // : root(YAML::LoadFile(filename)) {
 //     // build the tree
-    
 // }
 
 GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
@@ -466,10 +465,14 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             ret = new GuiComponent(this, false, 0x60ff6060, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutType::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), 0x000000ff, 0x60606070, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiLabel(this, tree->text.c_str(), 0x000000ff, 0x00000000, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
+    }
+    ret->children.reserve(tree->children.size());
+    for (auto& child : tree->children) {
+        ret->children.push_back(fromLayout(child, baseLayer + 1));
     }
     return ret;
 }

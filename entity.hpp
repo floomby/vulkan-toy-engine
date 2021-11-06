@@ -28,7 +28,7 @@ public:
     float boundingRadius;
     int textureIndex, iconIndex;
 
-    float maxSpeed = 0.1f;
+    float maxSpeed = 0.5f;
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;

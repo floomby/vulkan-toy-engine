@@ -147,8 +147,7 @@ Engine::Engine(EngineSettings engineSettings) {
     Api::context = this;
 }
 
-// This function is badly named since it only gets *intstance* extensions
-std::set<std::string> Engine::getSupportedExtensions() {
+std::set<std::string> Engine::getSupportedInstanceExtensions() {
     uint32_t count;
     vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
     std::vector<VkExtensionProperties> extensions(count);
@@ -166,7 +165,7 @@ void Engine::initWidow()
 {
     // if (engineSettings.extremelyVerbose) {
     //     std::cout << "Supported extensions:" << std::endl;
-    //     for(const auto& name : getSupportedExtensions()) {
+    //     for(const auto& name : getSupportedInstanceExtensions()) {
     //         std::cout << "\t" << name << std::endl;
     //     }
     // }
@@ -307,12 +306,12 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Engine::debugCallback(
 }
 
 void Engine::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& debugCreateInfo){
-        debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        debugCreateInfo.pfnUserCallback = debugCallback;
+    debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    debugCreateInfo.pfnUserCallback = debugCallback;
 }
 
 void Engine::initInstance() {
@@ -1193,7 +1192,6 @@ void Engine::createGraphicsPipelines() {
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[0]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_WORLD]), "Failed to create graphics pipeline.");
 
     colorBlendAttachment.blendEnable = VK_FALSE;
@@ -1201,21 +1199,28 @@ void Engine::createGraphicsPipelines() {
 
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_BG]), "Failed to create graphics pipeline.");
 
-    // I think I need a new layout for the line drawing, a way to effeciently express the lines to the 
-
     colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.pStages = lineShaders;
     pipelineInfo.subpass = 0;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+
+    // I am going to use this soon for drawing pathing lines and stuff in the world
+    // VkDynamicState dynamicStates[] = {
+    //     VK_DYNAMIC_STATE_LINE_WIDTH
+    // };
+
+    // VkPipelineDynamicStateCreateInfo dynamicState {};
+    // dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    // dynamicState.dynamicStateCount = 1;
+    // dynamicState.pDynamicStates = dynamicStates;
+
+    // pipelineInfo.pDynamicState = &dynamicState;
 
     pipelineInfo.layout = linePipelineLayout;
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
 
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    // turn off depth stenciling for drawing the hud
-    // I am going to try and reuse the depth resource
-    // pipelineInfo.pDepthStencilState = nullptr;
     pipelineInfo.subpass = 2;
 
     VkPipelineVertexInputStateCreateInfo hudVertexInputInfo {};
@@ -1242,18 +1247,6 @@ void Engine::createGraphicsPipelines() {
     // This way I don't have to worry about which is the front side of the triangles for the hud, we wouldnt want anything culled anyways
     rasterizer.cullMode = VK_CULL_MODE_NONE;
 
-    // I am going to use this soon for drawing pathing lines and stuff in the world
-    // VkDynamicState dynamicStates[] = {
-    //     VK_DYNAMIC_STATE_LINE_WIDTH
-    // };
-
-    // VkPipelineDynamicStateCreateInfo dynamicState {};
-    // dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    // dynamicState.dynamicStateCount = 1;
-    // dynamicState.pDynamicStates = dynamicStates;
-
-    // pipelineInfo.pDynamicState = &dynamicState;
-
     VkPushConstantRange hudPushConstantRange;
     hudPushConstantRange.offset = 0;
     hudPushConstantRange.size = sizeof(GuiPushConstant);
@@ -1266,6 +1259,11 @@ void Engine::createGraphicsPipelines() {
     vulkanErrorGuard(vkCreatePipelineLayout(device, &hudLayoutInfo, nullptr, &hudPipelineLayout), "Failed to create pipeline layout.");
 
     pipelineInfo.layout = hudPipelineLayout;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    
+    // depthStencil.depthTestEnable = VK_FALSE;
+    // depthStencil.depthWriteEnable = VK_FALSE;
+    // depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_HUD]), "Failed to create graphics pipeline.");
@@ -1858,9 +1856,9 @@ inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm
 void Engine::handleInput() {
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
-        if(message.signal == Gui::GUI_CLICKED) {
-            currentScene->state.instances.erase(currentScene->state.instances.begin() + 1, currentScene->state.instances.end());
-        }
+        // if(message.signal == Gui::GUI_CLICKED) {
+        //     currentScene->state.instances.erase(currentScene->state.instances.begin() + 1, currentScene->state.instances.end());
+        // }
         // if (message.signal == Gui::GUI_TOGGLE_TEXTURE) {
         //     std::cout << "here: " << message.data->id << " : " << message.data->texture << std::endl;
         //     gui->setTextureIndexInBuffer((GuiVertex *)hudAllocation->GetMappedData(), guiIdToBufferIndex[message.data->id], message.data->texture);
@@ -1895,7 +1893,8 @@ void Engine::handleInput() {
             keysPressed[keyEvent.key] = true;
 
             if (keyEvent.key == GLFW_KEY_I) {
-                shadow.makeSnapshot = true;
+                currentScene->state.syncToAuthoritativeState(authState);
+                // shadow.makeSnapshot = true;
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
@@ -2019,6 +2018,7 @@ void Engine::handleInput() {
             // }
             idsSelected.clear();
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
+                if (!currentScene->state.instances[i].inPlay) continue;
                 if (whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
                     whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
@@ -2114,6 +2114,7 @@ void Engine::handleInput() {
     float minDistance = std::numeric_limits<float>::max();
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
+        if (!currentScene->state.instances[i].inPlay) continue;
         float distance;
         if(currentScene->state.instances[i].intersects(cammera.position, mouseRayNormed, distance)) {
             // !!!! potentially a pointer geting invalidated
@@ -2174,11 +2175,10 @@ static bool frustumContainsSphere(const std::array<std::pair<glm::vec3, float>, 
 
 // The index is for which descriptor index to put the lighting buffer information
 // Here is the big graphics update function
-void Engine::updateScene(int index) {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+float Engine::updateScene(int index) {
+    auto nowTime = std::chrono::steady_clock::now();
+    float delta = std::chrono::duration<float, std::chrono::seconds::period>(nowTime - lastTime).count();
+    lastTime = nowTime;
 
     pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
     pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
@@ -2256,6 +2256,8 @@ void Engine::updateScene(int index) {
 
         updateLightingDescriptors(index, lightingData);
     }
+
+    return delta;
 }
 
 #if (DEPTH_DEBUG_IMAGE_USAGE == VK_IMAGE_USAGE_TRANSFER_SCR_BIT)
@@ -2273,9 +2275,8 @@ void Engine::drawFrame() {
         return;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
-    // TODO This fence is in the wrong spot, but to move it we need to make concurrentFrames numbers of shadow framebuffers first so we dont corrupt stuff
-    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
 
+    // TODO We probably need to a-b buffer the vertex buffer for the gui stuff
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
         auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
@@ -2283,7 +2284,13 @@ void Engine::drawFrame() {
         guiOutOfDate = false;
         guiIdToBufferIndex = std::move(bufRet.second);
     }
-    gui->pushConstant()->guiID = gui->idUnderPoint((GuiVertex *)hudAllocation->GetMappedData(), hudVertexCount, lastMousePosition.normedX, lastMousePosition.normedY);
+    if (hudDescriptorNeedsRewrite[currentFrame]) {
+        hudDescriptorNeedsRewrite[currentFrame] = false;
+        rewriteHudDescriptors(currentFrame);
+    } 
+    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+    gui->pushConstant()->guiID = gui->idUnderPoint((GuiVertex *)hudAllocation->GetMappedData(), hudVertexCount,
+        lastMousePosition.normedX, lastMousePosition.normedY);
 
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2315,7 +2322,7 @@ void Engine::drawFrame() {
 
     vulkanErrorGuard(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]), "Failed to submit draw command buffer.");
 
-    VkPresentInfoKHR presentInfo{};
+    VkPresentInfoKHR presentInfo {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
@@ -2337,9 +2344,9 @@ void Engine::drawFrame() {
         throw std::runtime_error("Failed to present swap chain image.");
 
     // update the next frame
-    updateScene((currentFrame + 1)  % concurrentFrames);
+    float timeDelta = updateScene((currentFrame + 1)  % concurrentFrames);
     currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
-    currentScene->state.doUpdateTick();
+    currentScene->state.doUpdate(timeDelta);
 
     currentFrame = (currentFrame + 1) % concurrentFrames;
 }
@@ -2437,13 +2444,22 @@ void Engine::runCurrentScene() {
     auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
     hudVertexCount = bufRet.first;
     guiIdToBufferIndex = std::move(bufRet.second);
+    lastTime = std::chrono::steady_clock::now();
+    net.start();
     updateScene(0);
     vkDeviceWaitIdle(device);
+
+    Api::eng_createInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
         handleInput();
+        // catch up to the sever (this will actually be in a seperate thread, but for now it goes here)
+        while (net.unprocessedSeverTicks) {
+            net.unprocessedSeverTicks--;
+            authState.doUpdateTick();
+        }
     }
 
     vkDeviceWaitIdle(device);
@@ -2460,7 +2476,7 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->addInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    // currentScene->addInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
 
@@ -2611,6 +2627,8 @@ namespace GuiTextures {
 };
 
 void Engine::writeHudDescriptors() {
+    hudDescriptorNeedsRewrite.resize(concurrentFrames);
+
     for (size_t i = 0; i < concurrentFrames; i++) {
         std::array<VkWriteDescriptorSet, 3> hudDescriptorWrites {};
 
@@ -2663,48 +2681,48 @@ void Engine::writeHudDescriptors() {
 
 // This is a hack to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
 static std::vector<GuiTexture> textureRefs;
+static size_t oldSize = textureRefs.size();
 
 void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
-    size_t oldSize = textureRefs.size();
     if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
     textureRefs.clear();
 
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
-        std::array<VkWriteDescriptorSet, 1> hudDescriptorWrites {};
-
-        std::vector<VkDescriptorImageInfo> hudTextureInfos(std::max(hudTextures.size(), oldSize));
-        int j;
-
-        for (j = 0; j < hudTextures.size(); j++) {
-            hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            hudTextureInfos[j].imageView = hudTextures[j]->textureImageView;
-            hudTextureInfos[j].sampler = hudTextures[j]->textureSampler;
-            // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
-            // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
-        }
-        for (; j < oldSize; j++) {
-            hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            hudTextureInfos[j].imageView = GuiTextures::defaultTexture->textureImageView;
-            hudTextureInfos[j].sampler = GuiTextures::defaultTexture->textureSampler;
-        }
-
-        hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        hudDescriptorWrites[0].dstSet = hudDescriptorSets[i];
-        hudDescriptorWrites[0].dstBinding = 2;
-        hudDescriptorWrites[0].dstArrayElement = 0;
-        hudDescriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        hudDescriptorWrites[0].descriptorCount = hudTextureInfos.size();
-        hudDescriptorWrites[0].pImageInfo = hudTextureInfos.data();
-
-        vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
-    }
+    fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
 
     // Now we leverage the reference counting to keep the textures from disapearing on us
-    // textureRefs.reserve(hudTextures.size());
-    // transform(hudTextures.begin(), hudTextures.end(), refs.begin(), [](GuiTexture *x)-> GuiTexture { return GuiTexture(*x); } );
     for(const auto textPtr : hudTextures) {
         textureRefs.push_back(GuiTexture(*textPtr));
     }
+}
+
+void Engine::rewriteHudDescriptors(int index) {
+    std::array<VkWriteDescriptorSet, 1> hudDescriptorWrites {};
+
+    std::vector<VkDescriptorImageInfo> hudTextureInfos(std::max(textureRefs.size(), oldSize));
+    int j;
+
+    for (j = 0; j < textureRefs.size(); j++) {
+        hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        hudTextureInfos[j].imageView = textureRefs[j].textureImageView;
+        hudTextureInfos[j].sampler = textureRefs[j].textureSampler;
+        // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
+        // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
+    }
+    for (; j < oldSize; j++) {
+        hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        hudTextureInfos[j].imageView = GuiTextures::defaultTexture->textureImageView;
+        hudTextureInfos[j].sampler = GuiTextures::defaultTexture->textureSampler;
+    }
+
+    hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    hudDescriptorWrites[0].dstSet = hudDescriptorSets[index];
+    hudDescriptorWrites[0].dstBinding = 2;
+    hudDescriptorWrites[0].dstArrayElement = 0;
+    hudDescriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    hudDescriptorWrites[0].descriptorCount = hudTextureInfos.size();
+    hudDescriptorWrites[0].pImageInfo = hudTextureInfos.data();
+
+    vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
 }
 
 void Engine::updateLightingDescriptors(int index, const Utilities::ViewProjPosNearFar& data) {
@@ -2884,8 +2902,6 @@ void Engine::initSynchronization() {
 }
 
 void Engine::recreateSwapChain() {
-    std::cout << "Recreating swapchain with thread: " << gettid() << std::endl;
-
     int width = 0, height = 0;
     glfwGetFramebufferSize(window, &width, &height);
     while (width == 0 || height == 0) {
@@ -2907,8 +2923,6 @@ void Engine::recreateSwapChain() {
     uniformSync->rebindSyncPoints({{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
     writeHudDescriptors();
     // allocateCommandBuffers();
-
-
 }
 
 void Engine::cleanupSwapChain() {
@@ -3189,8 +3203,8 @@ void Engine::createShadowResources(bool createDebugging) {
 
     pipelineInfo.pDepthStencilState = &depthStencil;
 
-    // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline), "Failed to create shadow graphics pipeline.");
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &shadow.pipeline),
+        "Failed to create shadow graphics pipeline.");
 
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 

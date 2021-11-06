@@ -1,7 +1,7 @@
 #include "instance.hpp"
 
-Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex) noexcept
-: id(idCounter++) {
+Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex, bool inPlay) noexcept
+: id(0), inPlay(inPlay) {
     this->entityIndex = entityIndex;
     // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
     this->entity = entity; // !!!!!!!!!! This is problematic

@@ -196,7 +196,7 @@ public:
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers);
     std::string message;
 
-    virtual void click(float x, float y);
+    // virtual void click(float x, float y);
 private:
     virtual void resizeVertices();
 };

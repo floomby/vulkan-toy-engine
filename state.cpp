@@ -26,7 +26,7 @@ CommandGenerator<CommandCoroutineType> ObservableState::getCommandGenerator(std:
     }
 }
 
-void ObservableState::doUpdateTick() {
+void ObservableState::doUpdate(float timeDelta) {
     for (auto& inst : instances) {
         if (!inst.commandList.empty()) {
             const auto& cmd = inst.commandList.front();
@@ -35,10 +35,57 @@ void ObservableState::doUpdateTick() {
             switch (cmd.kind){
                 case CommandKind::MOVE:
                     delta = cmd.data.dest - inst.position;
-                    len = delta.length();
-                    if (len > inst.entity->maxSpeed) {
-                        inst.position += inst.entity->maxSpeed / len * delta;
+                    len = length(delta);
+                    if (len > inst.entity->maxSpeed / 30.0f) {
+                        inst.position += (inst.entity->maxSpeed * timeDelta / len) * delta;
                     } else {
+                        inst.position = cmd.data.dest;
+                        inst.commandList.pop_front();
+                    }
+                    break;
+                case CommandKind::STOP:
+                    inst.commandList.clear();
+                    break;
+            }
+        }
+    }
+}
+
+void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
+    uint highestSynced = 0;
+    uint syncIndex = 0;
+    for (int i = 0; i < instances.size(); i++) {
+        if (instances[i].inPlay) {
+            if (state.instances[syncIndex].id > instances[i].id) {
+                instances[i].orphaned = true;
+            } else if (state.instances[syncIndex].id == instances[i].id) {
+                instances[i] = state.instances[syncIndex];
+                syncIndex++;
+            } else {
+                std::cerr << "Instance syncronization problem" << std::endl;
+            }
+        }
+    }
+    for (; syncIndex < state.instances.size(); syncIndex++) {
+        instances.push_back(state.instances[syncIndex]);
+    }
+}
+
+void AuthoritativeState::doUpdateTick() {
+    const float timeDelta = 33.0f / 1000.0f;
+    for (auto& inst : instances) {
+        if (!inst.commandList.empty()) {
+            const auto& cmd = inst.commandList.front();
+            float len;
+            glm::vec3 delta;
+            switch (cmd.kind){
+                case CommandKind::MOVE:
+                    delta = cmd.data.dest - inst.position;
+                    len = length(delta);
+                    if (len > inst.entity->maxSpeed * timeDelta) {
+                        inst.position += (inst.entity->maxSpeed * timeDelta / len) * delta;
+                    } else {
+                        inst.position = cmd.data.dest;
                         inst.commandList.pop_front();
                     }
                     break;

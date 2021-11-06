@@ -8,6 +8,7 @@
 #include "instance.hpp"
 #include "gui.hpp"
 #include "state.hpp"
+#include "net.hpp"
 
 // #include <map>
 #include <boost/lockfree/spsc_queue.hpp>
@@ -117,6 +118,10 @@ private:
     } cammera;
     void stateObserver(ObservableState& state);
 
+    Net net;
+    std::chrono::time_point<std::chrono::steady_clock> lastTime;
+    int serverTicksSinceLastSynchronization;
+
     EngineSettings engineSettings;
 
     // Maybe shove these all in a struct to help organize them
@@ -213,7 +218,7 @@ private:
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     void initInstance();
 
-    std::set<std::string> getSupportedExtensions();
+    std::set<std::string> getSupportedInstanceExtensions();
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     QueueFamilyIndices physicalDeviceIndices;
@@ -341,6 +346,8 @@ private:
     // I do not like the way I am doing this
     void createDescriptors(const std::vector<InternalTexture>& textures, const std::vector<GuiTexture>& hudTextures);
     void writeHudDescriptors();
+    std::vector<bool> hudDescriptorNeedsRewrite;
+    void rewriteHudDescriptors(int index);
     void rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures);
 
     std::vector<VkCommandBuffer> commandBuffers;
@@ -372,9 +379,10 @@ private:
 
     void handleInput();
 
-    void updateScene(int index);
+    float updateScene(int index);
 
     Scene *currentScene;
+    AuthoritativeState authState;
     void loadDefaultScene();
 
     void cleanupSwapChain();

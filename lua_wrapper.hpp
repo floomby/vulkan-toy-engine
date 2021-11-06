@@ -46,7 +46,7 @@ enum class GuiLayoutType {
 struct GuiLayoutNode {
     float x, y, height, width;
     GuiLayoutType kind;
-    // std::vector<GuiLayoutNode *> children;
+    std::vector<GuiLayoutNode *> children;
     std::map<std::string, int> handlers;
     std::string text;
 };
@@ -77,6 +77,8 @@ private:
     float getNumberField(const char *key);
     bool getFunctionField(const char *key);
     std::string getStringField(const char *key);
-    GuiLayoutNode *readGuiLayoutNode();
+    GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
     lua_State *luaState;
+
+    void dumpStack();
 };

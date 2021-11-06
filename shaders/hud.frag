@@ -73,12 +73,15 @@ void main() {
             outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
             break;
         case RMODE_FLAT:
-            outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
+            // outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
+            outColor = inColor;
             break;
         case RMODE_TEXT:
-            float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
+            // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
+            float distance = texture(texSampler[inTexIndex], inTexCoord).r;
             float alpha = smoothstep(boldness - smoothing, boldness + smoothing, distance);
-            outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            // outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            outColor = vec4(mix(inColor.rgb, inSecondaryColor.rgb, alpha), alpha);
             if (inGuiID == inCursorID) {
                 outColor = smoothstep(0.0, 1.0, outColor);
             }

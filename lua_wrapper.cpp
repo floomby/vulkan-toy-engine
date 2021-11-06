@@ -1,7 +1,5 @@
 #include "lua_wrapper.hpp"
 
-#include <iostream>
-
 LuaWrapper::LuaWrapper() {
     luaState = luaL_newstate();
     luaL_openlibs(luaState);
@@ -67,19 +65,16 @@ GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     
     lua_getglobal(luaState, name);
     if (!lua_istable(luaState, -1))
-        error("%s should be a table\n", name);
+        error("%s should be a table", name);
     
     auto ret = readGuiLayoutNode();
 
-    // if(lua_pcall(luaState, 0, 0, 0))
-    //     error("Error running function: %s", lua_tostring(luaState, -1));
-
     return ret;
-    // lua_pop(luaState, 1);
 }
 
-GuiLayoutNode *LuaWrapper::readGuiLayoutNode() {
+GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     auto ret = new GuiLayoutNode;
+    int tableIndex = lua_gettop(luaState);
     ret->x = getNumberField("x");
     ret->y = getNumberField("y");
     ret->height = getNumberField("height");
@@ -88,9 +83,30 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode() {
     if (ret->kind == GuiLayoutType::TEXT_BUTTON) {
         ret->text = getStringField("text");
     }
+    int pushedHandlerCount = 0;
     if (getFunctionField("onClick")) {
-        ret->handlers.insert({ "onClick", lua_gettop(luaState) });
+        ret->handlers.insert({ "onClick", lua_gettop(luaState) - 1 - handlerOffset});
+        pushedHandlerCount++;
     }
+    lua_pushstring(luaState, "children");
+    int toRemove = lua_gettop(luaState);
+    lua_gettable(luaState, -2 - pushedHandlerCount);
+    if (!lua_isnil(luaState, -1)) {
+        if (!lua_istable(luaState, -1))
+            error("Children should be a table");
+        int childrenCount = lua_objlen(luaState, -1);
+
+        ret->children.reserve(childrenCount);
+        int childrenLocation = lua_gettop(luaState);
+        for (int i = 1; i <= childrenCount; i++) {
+            lua_rawgeti(luaState, childrenLocation, i);
+            ret->children.push_back(readGuiLayoutNode(handlerOffset + 2));
+        }
+    }
+
+    // remove the stack clutter
+    lua_remove(luaState, toRemove);
+    lua_remove(luaState, tableIndex);
     return ret;
 }
 
@@ -98,4 +114,32 @@ void LuaWrapper::callFunction(int index) {
     lua_pushvalue(luaState, index);
     if(lua_pcall(luaState, 0, 0, 0))
         error("Error running function: %s", lua_tostring(luaState, -1));
+}
+
+void LuaWrapper::dumpStack() {
+    printf("Lua stack dump:\n");
+    int top = lua_gettop(luaState);
+    for (int i = 1; i <= top; i++) {
+        printf("%d\t%s\t", i, luaL_typename(luaState, i));
+        switch (lua_type(luaState, i)) {
+            case LUA_TNUMBER:
+                printf("%g\n", lua_tonumber(luaState, i));
+                break;
+            case LUA_TSTRING:
+                printf("%s\n", lua_tostring(luaState, i));
+                break;
+            case LUA_TBOOLEAN:
+                printf("%s\n", (lua_toboolean(luaState, i) ? "true" : "false"));
+                break;
+            case LUA_TNIL:
+                printf("%s\n", "nil");
+                break;
+            case LUA_TTABLE:
+                printf("%s\n", "A table");
+                break;
+            default:
+                printf("%p\n", lua_topointer(luaState, i));
+                break;
+        }
+    }
 }
