@@ -245,7 +245,7 @@ public:
 
 class Gui {
 public:
-    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth);
+    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context);
     ~Gui();
 
     // These should be automatically deleted, but I want to be sure
@@ -254,10 +254,10 @@ public:
     Gui& operator=(const Gui& other) = delete;
     Gui& operator=(Gui&& other) noexcept = delete;
 
-    std::pair<size_t, std::map<uint32_t, uint>> updateBuffer(void *buffer, size_t max);
+    std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> updateBuffer();
 
     // set this to true to indicate the need to update the buffers in vram
-    bool rebuilt;
+    std::atomic<bool> rebuilt;
 
     // Takes normalized device coordinates
     // I think these are in the wrong place
@@ -316,7 +316,7 @@ public:
     int width, height;
     int idCounter = 0;
 
-    uint32_t idUnderPoint(GuiVertex *buffer, size_t count, float x, float y);
+    uint32_t idUnderPoint(float x, float y);
     void setTextureIndexInBuffer(GuiVertex *buffer, uint index, int textureIndex);
     std::map<uint32_t, GuiComponent *> idLookup;
     void rebuildBuffer();
@@ -335,7 +335,6 @@ private:
     std::vector<GuiTexture *> textures;
     std::vector<GuiVertex> dragBox;
 
-
     void pollChanges();
 
     static constexpr auto pollInterval = std::chrono::milliseconds(5);
@@ -343,6 +342,18 @@ private:
     GuiComponent *root;
 
     GuiComponent *fromLayout(GuiLayoutNode *tree, int baseLayer);
+
+    int whichBuffer;
+    std::array<VmaAllocation, 2> gpuAllocations;
+    std::array<VkBuffer, 2> gpuBuffers;
+    std::array<size_t, 2> gpuSizes;
+    std::array<size_t, 2> usedSizes;
+
+    void createBuffers(size_t initalSize);
+    void reallocateBuffer(int index, size_t newSize);
+    void destroyBuffer(int index);
+
+    Engine *context;
 };
 
 class Panel {

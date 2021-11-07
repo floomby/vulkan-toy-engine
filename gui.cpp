@@ -15,8 +15,8 @@
 //     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
 // };
 
-Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth)
-: root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
+Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
+: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });
@@ -24,32 +24,30 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
 
     guiThread = std::thread(&Gui::pollChanges, this);
 
+    createBuffers(50);
+    whichBuffer = 0;
+    usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
+
     lua.exportEnumToLua<GuiLayoutType>();
+}
+
+Gui::~Gui() {
+    destroyBuffer(0);
+    destroyBuffer(1);
+    delete root;
+    guiCommands.push({ GUI_TERMINATE });
+    std::cout << "Waiting to join gui thread..." << std::endl;
+    guiThread.join();
+    assert(idLookup.empty());
 }
 
 // Doing it this way wastes sizeof(GuiVertex) * Gui::dummyVertexCount bytes of vram where the imaginary drag box and background are (...idk what I doing...)
 // maxCount is for the size of the buffer (maybe I should just feed in the alloction so I can know the size, but this breaks encapsulation)
-std::pair<size_t, std::map<uint32_t, uint>> Gui::updateBuffer(void *buffer, size_t maxCount) {
+std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     std::scoped_lock lock(dataMutex);
-    assert(maxCount >= Gui::dummyVertexCount);
-    memcpy(static_cast<GuiVertex *>(buffer) + Gui::dummyVertexCount, vertices.data(), std::min(maxCount - Gui::dummyVertexCount, vertices.size())* sizeof(GuiVertex));
     root->textures[0].syncTexturesToGPU(textures);
     rebuilt = false;
-    return { std::min(maxCount, vertices.size() + Gui::dummyVertexCount), idToBuffer };
-}
-
-// This one just searches the vertex buffer oblivious to the gui component tree, this means we can run it directly on the buffer
-uint32_t Gui::idUnderPoint(GuiVertex *buffer, size_t count, float x, float y) {
-    uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
-    float maxLayer = 1.0;
-    for(int i = Gui::dummyVertexCount; i < count; i += 6){
-        if(buffer[i].pos.z < maxLayer && buffer[i].pos.x < x && buffer[i].pos.y < y && buffer[i + 1].pos.x > x && buffer[i + 1].pos.y > y) {
-            // std::cout << buffer[i].pos.z << std::endl;
-            ret = buffer[i].guiID;
-            maxLayer = buffer[i].pos.z;
-        }
-    }
-    return ret;
+    return { gpuSizes[whichBuffer], idToBuffer, gpuBuffers[whichBuffer] };
 }
 
 // There is a problem with this, for the sake of keeping complexity low I am abondinging to be reevaluaded if the gui rebuilding
@@ -113,23 +111,6 @@ GuiPushConstant *Gui::pushConstant() {
 //     constantMutex.unlock();
 // }
 
-void Gui::rebuildBuffer() {
-    std::vector<GuiTexture *> buildingTextures;
-    int idx = 0;
-    std::vector<GuiVertex> buildingVertices;
-    std::map<uint32_t, uint> componentIdToBufferMap;
-    uint otherIdx = dummyCompomentCount;
-
-    root->mapTextures(buildingTextures, idx);
-    root->buildVertexBuffer(buildingVertices, componentIdToBufferMap, otherIdx);
-
-    std::scoped_lock lock(dataMutex);
-    vertices = buildingVertices;
-    textures = buildingTextures;
-    idToBuffer = componentIdToBufferMap;
-    rebuilt = true;
-}
-
 void Gui::pollChanges() {
     bool terminate = false;
     while(!terminate) {
@@ -176,14 +157,6 @@ void Gui::pollChanges() {
         // std::this_thread::sleep_for(pollInterval - (done - started));
         std::this_thread::yield();
     }
-}
-
-Gui::~Gui() {
-    delete root;
-    guiCommands.push({ GUI_TERMINATE });
-    std::cout << "Waiting to join gui thread..." << std::endl;
-    guiThread.join();
-    assert(idLookup.empty());
 }
 
 // RGBA is the order
@@ -462,10 +435,10 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
     GuiComponent *ret = nullptr;
     switch (tree->kind) {
         case GuiLayoutType::PANEL:
-            ret = new GuiComponent(this, false, 0x60ff6060, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutType::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), 0x000000ff, 0x00000000, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x00000000, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");

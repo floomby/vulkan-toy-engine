@@ -80,6 +80,8 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     ret->height = getNumberField("height");
     ret->width = getNumberField("width");
     ret->kind = (GuiLayoutType)(int)getNumberField("kind");
+    ret->color = (uint32_t)getNumberField("color");
+    std::cout << "Color: " << std::hex << ret->color << std::dec << std::endl;
     if (ret->kind == GuiLayoutType::TEXT_BUTTON) {
         ret->text = getStringField("text");
     }

@@ -49,6 +49,7 @@ struct GuiLayoutNode {
     std::vector<GuiLayoutNode *> children;
     std::map<std::string, int> handlers;
     std::string text;
+    uint32_t color;
 };
 
 #include <iostream>

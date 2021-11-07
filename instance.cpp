@@ -1,8 +1,9 @@
 #include "instance.hpp"
 
-Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, int entityIndex, bool inPlay) noexcept
+#include <iostream>
+
+Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
 : id(0), inPlay(inPlay) {
-    this->entityIndex = entityIndex;
     // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
     this->entity = entity; // !!!!!!!!!! This is problematic
     this->texture = texture;
@@ -11,13 +12,6 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
     commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
     // commandList.push_back({ CommandKind::MOVE, id, {{ 5.0f, 0.0f, 0.0f }, -1 }});
 };
-
-// Instance& Instance::transform(glm::mat4 transformationMatrix) noexcept {
-//     state.model *= transformationMatrix;
-//     return *this;
-// };
-
-#include <iostream>
 
 UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
     // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)

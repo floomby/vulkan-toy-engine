@@ -4,13 +4,13 @@
 #error "Please include engine before/instead of GLFW headers"
 #endif
 
+#include "api.hpp"
 #include "utilities.hpp"
 #include "instance.hpp"
 #include "gui.hpp"
 #include "state.hpp"
 #include "net.hpp"
 
-// #include <map>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <set>
 
@@ -20,7 +20,6 @@
 } while(false)
 
 class Scene;
-class Api;
 
 struct EngineSettings {
     bool useConcurrentTransferQueue;
@@ -62,6 +61,10 @@ public:
     Engine(Engine&& other) noexcept = delete;
     Engine& operator=(const Engine& other) = delete;
     Engine& operator=(Engine&& other) noexcept = delete;
+
+    VkDevice device;
+    VmaAllocator memoryAllocator;
+    // Stuff the gui class needs (we do this the right way this time and don't just make another friend)
 
 private:
     struct QueueFamilyIndices {
@@ -228,12 +231,10 @@ private:
     bool deviceSupportsSwapChain(VkPhysicalDevice device);
     void pickPhysicalDevice();
 
-    VkDevice device;
     VkQueue graphicsQueue;
     VkQueue guiGraphicsQueue;
     VkQueue presentQueue;
     VkQueue transferQueue;
-    VmaAllocator memoryAllocator;
     void setupLogicalDevice();
 
     uint32_t concurrentFrames;
@@ -328,8 +329,7 @@ private:
     size_t hudVertexCount;
     std::map<uint32_t, uint> guiIdToBufferIndex;
     VkBuffer hudBuffer;
-    VmaAllocation hudAllocation;
-    void createHudBuffers();
+    // void createHudBuffers();
 
     DescriptorSyncer<UniformBufferObject> *uniformSync;
     DescriptorSyncer<LineUBO> *lineSync;
@@ -355,7 +355,7 @@ private:
     void allocateCommandBuffers();
 
     void recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
-        const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index);
+        const VkDescriptorSet& hudDescriptorSet, int index);
 
     struct {
         bool makeDump;
@@ -631,5 +631,3 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VmaAllocation> uniformBufferAllocations;
 };
-
-#include "api.hpp"

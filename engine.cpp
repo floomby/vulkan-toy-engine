@@ -513,20 +513,20 @@ void Engine::pickPhysicalDevice() {
 
 void Engine::setupLogicalDevice() {
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    float queuePriority = 1.0f;
+    float queuePriorities[] = { 1.0f, 0.0f };
 
     for(uint32_t queueFamily : physicalDeviceIndices.families() ) {
         VkDeviceQueueCreateInfo queueCreateInfo {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
         queueCreateInfo.queueCount = queueFamily == physicalDeviceIndices.graphicsFamily.value() ? 2 : 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfo.pQueuePriorities = queuePriorities;
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
     VkPhysicalDeviceFeatures deviceFeatures {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
-    // deviceFeatures.wideLines = VK_TRUE;
+    deviceFeatures.wideLines = VK_TRUE;
     // Vulkan 1.2 feature that I might want to use
 
     VkPhysicalDeviceVulkan12Features otherFeatures {};
@@ -1205,19 +1205,21 @@ void Engine::createGraphicsPipelines() {
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 
     // I am going to use this soon for drawing pathing lines and stuff in the world
-    // VkDynamicState dynamicStates[] = {
-    //     VK_DYNAMIC_STATE_LINE_WIDTH
-    // };
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_LINE_WIDTH
+    };
 
-    // VkPipelineDynamicStateCreateInfo dynamicState {};
-    // dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    // dynamicState.dynamicStateCount = 1;
-    // dynamicState.pDynamicStates = dynamicStates;
+    VkPipelineDynamicStateCreateInfo dynamicState {};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 1;
+    dynamicState.pDynamicStates = dynamicStates;
 
-    // pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.pDynamicState = &dynamicState;
 
     pipelineInfo.layout = linePipelineLayout;
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
+
+    pipelineInfo.pDynamicState = nullptr;
 
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -1741,17 +1743,86 @@ void Engine::createModelBuffers() {
     vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Engine::createHudBuffers() {
+void Gui::createBuffers(size_t initialSize) {
     VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    bufferInfo.size = 50 * sizeof(GuiVertex);
+    bufferInfo.size = initialSize * sizeof(GuiVertex);
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VmaAllocationCreateInfo bufferAllocationInfo = {};
     bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
     bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-    if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, &hudBuffer, &hudAllocation, nullptr) !=VK_SUCCESS)
+    for (int i = 0; i < 2; i++) {
+        if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, &gpuBuffers[i], &gpuAllocations[i], nullptr) !=VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for hud buffer.");
+    }
+}
+
+void Gui::destroyBuffer(int index) {
+    vmaDestroyBuffer(context->memoryAllocator, gpuBuffers[index], gpuAllocations[index]);
+}
+
+void Gui::reallocateBuffer(int index, size_t newSize) {
+    destroyBuffer(index);
+
+    VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    bufferInfo.size = newSize * sizeof(GuiVertex);
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+    VmaAllocationCreateInfo bufferAllocationInfo = {};
+    bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, &gpuBuffers[index], &gpuAllocations[index], nullptr) !=VK_SUCCESS)
         throw std::runtime_error("Unable to allocate memory for hud buffer.");
+}
+
+// This one just searches the vertex buffer oblivious to the gui component tree, this means we can run it directly on the buffer
+uint32_t Gui::idUnderPoint(float x, float y) {
+    std::scoped_lock(dataMutex);
+    uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
+    float maxLayer = 1.0;
+    for(int i = Gui::dummyVertexCount; i < usedSizes[whichBuffer]; i += 6){
+        GuiVertex *vertex = static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + i;
+        if(
+            vertex->pos.z < maxLayer &&
+            vertex->pos.x < x &&
+            vertex->pos.y < y &&
+            (vertex + 1)->pos.x > x &&
+            (vertex + 1)->pos.y > y) {
+            // std::cout << buffer[i].pos.z << std::endl;
+            ret = vertex->guiID;
+            maxLayer = vertex->pos.z;
+        }
+    }
+    return ret;
+}
+
+void Gui::rebuildBuffer() {
+    std::vector<GuiTexture *> buildingTextures;
+    int idx = 0;
+    std::vector<GuiVertex> buildingVertices;
+    std::map<uint32_t, uint> componentIdToBufferMap;
+    uint otherIdx = dummyCompomentCount;
+
+    root->mapTextures(buildingTextures, idx);
+    root->buildVertexBuffer(buildingVertices, componentIdToBufferMap, otherIdx);
+
+    whichBuffer ^= 1;
+    vertices = buildingVertices;
+
+    std::scoped_lock lock(dataMutex);
+    textures = buildingTextures;
+    idToBuffer = componentIdToBufferMap;
+    usedSizes[whichBuffer] = Gui::dummyVertexCount + vertices.size();
+    if (vertices.size() + Gui::dummyVertexCount > gpuSizes[whichBuffer]) {
+        reallocateBuffer(whichBuffer, vertices.size() + Gui::dummyVertexCount);
+        gpuSizes[whichBuffer] = Gui::dummyVertexCount + vertices.size();
+    }
+
+    memcpy(static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + Gui::dummyVertexCount, vertices.data(), vertices.size() * sizeof(GuiVertex));
+
+    rebuilt = true;
 }
 
 void Engine::initVulkan() {
@@ -1789,8 +1860,6 @@ void Engine::initVulkan() {
 
     // this sets the currentScene pointer
     loadDefaultScene();
-
-    createHudBuffers();
 }
 
 void Engine::init() {
@@ -2210,7 +2279,7 @@ float Engine::updateScene(int index) {
     uint fullyRenderCount = 0;
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
-        const Entity& entity = currentScene->entities[currentScene->state.instances[i].entityIndex];
+        const Entity& entity = *currentScene->state.instances[i].entity;
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
         currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
@@ -2225,7 +2294,7 @@ float Engine::updateScene(int index) {
             xMin = std::min(xMin, inLightingViewSpace.x);
             yMin = std::min(yMin, inLightingViewSpace.y);
             zMin = std::min(zMin, inLightingViewSpace.z);
-            boundMax = std::max(boundMax, currentScene->entities[currentScene->state.instances[i].entityIndex].boundingRadius);
+            boundMax = std::max(boundMax, entity.boundingRadius);
             fullyRenderCount++;
         }
     }
@@ -2276,21 +2345,21 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
 
-    // TODO We probably need to a-b buffer the vertex buffer for the gui stuff
+    // TODO We probably need to a-b buffer the vertex buffer for the gui stuff since this potentially writes to the vertex buffer while it is still being used
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
-        auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
-        hudVertexCount = bufRet.first;
+        auto bufRet = gui->updateBuffer();
+        hudVertexCount = get<0>(bufRet);
         guiOutOfDate = false;
-        guiIdToBufferIndex = std::move(bufRet.second);
+        guiIdToBufferIndex = std::move(get<1>(bufRet));
+        hudBuffer = get<2>(bufRet);
     }
     if (hudDescriptorNeedsRewrite[currentFrame]) {
         hudDescriptorNeedsRewrite[currentFrame] = false;
         rewriteHudDescriptors(currentFrame);
     } 
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
-    gui->pushConstant()->guiID = gui->idUnderPoint((GuiVertex *)hudAllocation->GetMappedData(), hudVertexCount,
-        lastMousePosition.normedX, lastMousePosition.normedY);
+    gui->pushConstant()->guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
 
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2299,7 +2368,7 @@ void Engine::drawFrame() {
         logDepthBufferToFile(mainDepthHistogram, "depth_map.png");
     // Wait for the previous fence
     recordCommandBuffer(commandBuffers[currentFrame], swapChainFramebuffers[imageIndex], mainPass.descriptorSets[currentFrame],
-        hudDescriptorSets[currentFrame], hudBuffer, currentFrame);
+        hudDescriptorSets[currentFrame], currentFrame);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -2437,13 +2506,14 @@ void Engine::runCurrentScene() {
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
-    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width);
+    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this);
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(0);
-    auto bufRet = gui->updateBuffer(hudAllocation->GetMappedData(), 50);
-    hudVertexCount = bufRet.first;
-    guiIdToBufferIndex = std::move(bufRet.second);
+    auto bufRet = gui->updateBuffer();
+    hudVertexCount = get<0>(bufRet);
+    guiIdToBufferIndex = std::move(get<1>(bufRet));
+    hudBuffer = get<2>(bufRet);
     lastTime = std::chrono::steady_clock::now();
     net.start();
     updateScene(0);
@@ -2758,7 +2828,7 @@ void Engine::allocateCommandBuffers() {
 // I am sorry what I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
 // cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
-    const VkDescriptorSet& hudDescriptorSet, const VkBuffer& hudBuffer, int index) {
+    const VkDescriptorSet& hudDescriptorSet, int index) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
@@ -2802,7 +2872,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         if (!currentScene->state.instances[j].rendered) continue;
         dynamicOffset = j * uniformSync->uniformSkip;
         if (currentScene->state.instances[j].renderAsIcon) {
-            const auto ent = &currentScene->entities[currentScene->state.instances[j].entityIndex];
+            const auto ent = currentScene->state.instances[j].entity;
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
             pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
             pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
@@ -2814,7 +2884,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
-        pushConstants.textureIndex = currentScene->entities[currentScene->state.instances[j].entityIndex].textureIndex;
+        pushConstants.textureIndex = currentScene->state.instances[j].entity->textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
         vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
@@ -2822,6 +2892,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     }
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
+
+    vkCmdSetLineWidth(buffer, 4.0);
 
     for (int j = 0; j < lineSync->validCount[index]; j++) {
         dynamicOffset = j * uniformSync->uniformSkip;
@@ -2922,7 +2994,7 @@ void Engine::recreateSwapChain() {
     createDescriptors(currentScene->textures, {});
     uniformSync->rebindSyncPoints({{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
     writeHudDescriptors();
-    // allocateCommandBuffers();
+    fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
 }
 
 void Engine::cleanupSwapChain() {
@@ -2974,8 +3046,6 @@ void Engine::cleanup() {
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
     }
-
-    vmaDestroyBuffer(memoryAllocator, hudBuffer, hudAllocation);
 
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
@@ -3846,7 +3916,7 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
 
 void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
-    state.instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex));
+    state.instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, false));
     state.instances.back().position = std::move(position);
     state.instances.back().heading = std::move(heading);
 }
