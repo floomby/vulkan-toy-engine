@@ -928,7 +928,7 @@ void Engine::createDescriptorSetLayout() {
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding {};
     samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 4;
+    samplerLayoutBinding.descriptorCount = 5;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -2519,7 +2519,9 @@ void Engine::runCurrentScene() {
     updateScene(0);
     vkDeviceWaitIdle(device);
 
-    Api::eng_createInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+
+    iconModelIndex = currentScene->entities["icon"]->modelIndex;
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -2530,6 +2532,7 @@ void Engine::runCurrentScene() {
             net.unprocessedSeverTicks--;
             authState.doUpdateTick();
         }
+        currentScene->state.syncToAuthoritativeState(authState);
     }
 
     vkDeviceWaitIdle(device);
@@ -2539,13 +2542,13 @@ void Engine::loadDefaultScene() {
     //currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
     // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
     currentScene = new Scene(this, {
-        {"models/spaceship.obj", "textures/spaceship.png", "textures/spaceship_icon.png"},
-        {"models/viking_room.obj", "textures/viking_room.png", ""},
-        {"models/sphere.obj", "textures/sphere.png", ""}
-    }, 50, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
+        // {"models/spaceship.obj", "textures/spaceship.png", "textures/spaceship_icon.png", "ship"},
+        {"models/viking_room.obj", "textures/viking_room.png", "", "room"},
+        {"models/sphere.obj", "textures/sphere.png", "", "sphere"}
+    }, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
-    currentScene->addInstance(2, { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->addInstance("sphere", { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
@@ -2564,7 +2567,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = concurrentFrames;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 4 * concurrentFrames;
+    poolSizes[1].descriptorCount = 5 * concurrentFrames;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[2].descriptorCount = concurrentFrames;
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -2875,10 +2878,10 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             const auto ent = currentScene->state.instances[j].entity;
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
             pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
-            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->missingIcon; // ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
-            vkCmdDrawIndexed(buffer, (currentScene->models.end() - 1)->indexCount, 1, (currentScene->models.end() - 1)->indexOffset, 0, 0);
+            vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
         pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
@@ -3891,46 +3894,60 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
     return *this;
 }
 
-Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *>> entities, size_t initialSize, std::array<const char *, 6> skyboxImages)
+Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>> entities, std::array<const char *, 6> skyboxImages)
 : skybox(context, skyboxImages), zSorter(instanceZSorter(this)) {
     this->context = context;
-    Entity icon(ENT_ICON);
-    for(const auto& entity : entities) {
-        this->entities.push_back(Entity(get<0>(entity), get<1>(entity), get<2>(entity)));
-    }
-    for(auto& entity : this->entities) {
-        if (entity.hasTexture) {
-            entity.textureIndex = textures.size();
-            textures.push_back(InternalTexture(context, { entity.textureHeight, entity.textureWidth, entity.textureChannels, entity.texturePixels }));
+    auto icon = new Entity(ENT_ICON);
+    for(const auto& entityData : entities) {
+        auto entity = new Entity(get<0>(entityData), get<1>(entityData), get<2>(entityData));
+        this->entities.insert({ std::string(get<3>(entityData)), entity });
+        if (entity->hasTexture) {
+            entity->textureIndex = textures.size();
+            textures.push_back(InternalTexture(context, { entity->textureHeight, entity->textureWidth, entity->textureChannels, entity->texturePixels }));
         }
-        if (entity.hasIcon) {
-            entity.iconIndex = textures.size();
-            textures.push_back(InternalTexture(context, { entity.iconHeight, entity.iconWidth, entity.iconChannels, entity.iconPixels }));
+        if (entity->hasIcon) {
+            entity->iconIndex = textures.size();
+            textures.push_back(InternalTexture(context, { entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels }));
         }
     }
-    this->entities.push_back(icon);
-    textures.push_back(InternalTexture(context, { icon.textureHeight, icon.textureWidth, icon.textureChannels, icon.texturePixels }));
-
-    state.instances.reserve(initialSize);
+    this->entities.insert({ std::string("icon"), icon });
+    missingIcon = textures.size();
+    textures.push_back(InternalTexture(context, { icon->textureHeight, icon->textureWidth, icon->textureChannels, icon->texturePixels }));
+    auto ents = loadEntitiesFromLua("units");
+    for(const auto& entity : ents) {
+        this->entities.insert({ entity->name, entity });
+        if (entity->hasTexture) {
+            entity->textureIndex = textures.size();
+            textures.push_back(InternalTexture(context, { entity->textureHeight, entity->textureWidth, entity->textureChannels, entity->texturePixels }));
+        }
+        if (entity->hasIcon) {
+            // std::cout << "!!!!Here: " << textures.size() << std::endl;
+            entity->iconIndex = textures.size();
+            // stbi_write_bmp("debug_dump.png", entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels);
+            textures.push_back(InternalTexture(context, { entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels }));
+        }
+    }
 }
 
-void Scene::addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading) {
+void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading) {
     if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
-    state.instances.push_back(Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, false));
+    auto ent = entities[name];
+    state.instances.push_back(Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, false));
     state.instances.back().position = std::move(position);
     state.instances.back().heading = std::move(heading);
 }
 
 void Scene::makeBuffers() {
     size_t vertexOffset = 0, indicesOffset = 0;
-    for(const auto& entity : entities) {
-        models.push_back({ vertexOffset, indicesOffset, entity.indices.size() });
-        vertexBuffer.insert(vertexBuffer.end(), entity.vertices.begin(), entity.vertices.end());
-        for(const auto& idx : entity.indices) {
+    for(const auto& [name, ent] : entities) {
+        ent->modelIndex = models.size();
+        models.push_back({ vertexOffset, indicesOffset, ent->indices.size() });
+        vertexBuffer.insert(vertexBuffer.end(), ent->vertices.begin(), ent->vertices.end());
+        for(const auto& idx : ent->indices) {
             indexBuffer.push_back(idx + vertexOffset);
         }
-        vertexOffset += entity.vertices.size();
-        indicesOffset += entity.indices.size();
+        vertexOffset += ent->vertices.size();
+        indicesOffset += ent->indices.size();
     }
 }
 
@@ -4442,7 +4459,6 @@ namespace GuiTextures {
         defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_SRGB);
     }
 };
-
 
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
     if (count > currentSize[descriptorIndex]) {

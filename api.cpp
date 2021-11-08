@@ -38,20 +38,23 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     }
 }
 
-void Api::eng_createInstance(const uint entityIndex, const glm::vec3& position, const glm::vec3& heading) {
+void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::vec3& heading) {
     // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
-    Instance inst(&context->currentScene->entities[entityIndex], &context->currentScene->textures[entityIndex],
-        &context->currentScene->models[entityIndex], true);
+    auto ent = context->currentScene->entities[name];
+    Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex, true);
     // lock it here
     inst.id = context->authState.counter++; // I dont like this line, it creates races, although technically the others race as well
     // I probably just need a way to ensure order of api calls is consistent across every copy of the game like uuid sorting or something
+    inst.heading = heading;
+    inst.position = position;
     context->authState.instances.push_back(std::move(inst));
 }
 
 #include <iostream>
 
 void Api::eng_echo(const char *message) {
-    std::string msg(message);
+    std::string msg(">>");
+    msg += message;
     msg += '\n';
     std::cout << msg << std::flush;
 }

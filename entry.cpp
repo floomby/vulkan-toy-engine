@@ -78,7 +78,6 @@ void run(EngineSettings& settings) {
   I should probably change it to not be like that
 
 Next steps
- It might be ok to not a b swap the vertex buffer for the gui, idk if I should or not
  my text rendering with freetype cant render space characters for some reason
  need antialaiasing on the lines
  world space raycasting and maybe spherecasting

@@ -59,7 +59,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
             if (state.instances[syncIndex].id > instances[i].id) {
                 instances[i].orphaned = true;
             } else if (state.instances[syncIndex].id == instances[i].id) {
-                instances[i] = state.instances[syncIndex];
+                instances[i].syncToAuthInstance(state.instances[syncIndex]);
                 syncIndex++;
             } else {
                 std::cerr << "Instance syncronization problem" << std::endl;

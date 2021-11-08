@@ -29,6 +29,14 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& pro
     return &_state;
 }
 
+void Instance::syncToAuthInstance(const Instance& other) {
+    position = other.position;
+    heading = other.heading;
+    dP = other.dP;
+    dH = other.dH;
+    commandList = other.commandList;
+}
+
 // NOTE: direction has to be normalized
 bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const {
     return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);

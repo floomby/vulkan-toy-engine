@@ -9,7 +9,9 @@ Net::Net() {
 
 Net::~Net() {
     toExit = true;
-    pretendServerThread.join();
+    try {
+        pretendServerThread.join();
+    } catch(const std::exception& e) {}
 }
 
 void Net::start() {

@@ -1,5 +1,5 @@
 local function click() 
-    print("You clicked me")
+    eng_echo("You clicked me")
 end
 
 local function centerSelected()

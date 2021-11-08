@@ -54,6 +54,8 @@ struct GuiLayoutNode {
 
 #include <iostream>
 
+class Entity;
+
 class LuaWrapper {
 public:
     LuaWrapper();
@@ -72,7 +74,9 @@ public:
     }
 
     GuiLayoutNode *loadGuiFile(const char *name);
+    Entity *loadEntityFile(const std::string& filename);
     void callFunction(int index);
+    void exportEcho();
 private:
     void error(const char *fmt, ...);
     float getNumberField(const char *key);

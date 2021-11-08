@@ -41,14 +41,12 @@ struct UniformBufferObject {
 
 class Instance {
 public:
-    // inline static InstanceID idCounter = 0;
     Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept;
-    // Instance& transform(glm::mat4 transformationMatrix) noexcept;
+    void syncToAuthInstance(const Instance& other);
+
     SceneModelInfo* sceneModelInfo;
 
     UniformBufferObject *state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
-
-    glm::vec3 position, heading;
 
     bool intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const;
     InternalTexture* texture;
@@ -59,9 +57,12 @@ public:
 
     bool inPlay;
     bool orphaned = false;
-    std::list<Command> commandList;
     InstanceID id;
     Entity *entity;
+
+    // This is the stuff that needs to get synced
+    glm::vec3 position, heading, dP = glm::vec3(0.0f), dH = glm::vec3(0.0f);
+    std::list<Command> commandList;
 private:
     UniformBufferObject _state;
 };

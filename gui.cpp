@@ -29,6 +29,8 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
     lua.exportEnumToLua<GuiLayoutType>();
+
+    lua.exportEcho();
 }
 
 Gui::~Gui() {
@@ -47,7 +49,7 @@ std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     std::scoped_lock lock(dataMutex);
     root->textures[0].syncTexturesToGPU(textures);
     rebuilt = false;
-    return { gpuSizes[whichBuffer], idToBuffer, gpuBuffers[whichBuffer] };
+    return { usedSizes[whichBuffer], idToBuffer, gpuBuffers[whichBuffer] };
 }
 
 // There is a problem with this, for the sake of keeping complexity low I am abondinging to be reevaluaded if the gui rebuilding

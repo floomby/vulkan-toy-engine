@@ -11,7 +11,7 @@
 
 namespace Entities {
     const std::array<unsigned char, 4> dummyTexture = {
-        0x70, 0x50, 0xff, 0xff
+        0x70, 0x50, 0x60, 0xff
     };
 
     // 0 1
@@ -50,6 +50,11 @@ Entity::Entity(SpecialEntities entityType) {
     hasTexture = true;
     hasIcon = false;
 }
+
+Entity::Entity(const char *name, const char *model, const char *texture, const char *icon)
+: Entity(model, texture, icon) {
+    this->name = std::string(name);
+};
 
 Entity::Entity(const char *model, const char *texture, const char *icon) {
     hasConstTexture = false;

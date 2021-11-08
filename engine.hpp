@@ -354,6 +354,7 @@ private:
     std::vector<VkCommandBuffer> transferCommandBuffers;
     void allocateCommandBuffers();
 
+    int iconModelIndex;
     void recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
         const VkDescriptorSet& hudDescriptorSet, int index);
 
@@ -467,7 +468,8 @@ private:
 class Scene {
 public:
     // vertex and index offsets for the model
-    Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *>>, size_t initalSize, std::array<const char *, 6> skyboxImages);
+    Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>>, std::array<const char *, 6> skyboxImages);
+    ~Scene();
 
     // I don't really want to accidentally be copying or moving the scene even though it is now safe to do so
     Scene(const Scene& other) = delete;
@@ -476,15 +478,16 @@ public:
     Scene& operator=(Scene&& other) noexcept = delete;
 
     CubeMap skybox;
+    int missingIcon;
 
-    void addInstance(int entityIndex, glm::vec3 position, glm::vec3 heading);
+    void addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading);
     // O(n) time complexity where n = # of instances
     inline std::vector<Instance>::iterator getInstance(InstanceID id) {
         return find_if(state.instances.begin(), state.instances.end(), [id](auto x) -> bool { return x.id == id; });
     }
 
     // Right now these are public so the engine can see them to copy them to vram
-    std::vector<Entity> entities;
+    std::map<std::string, Entity *> entities;
     std::vector<InternalTexture> textures;
     std::vector<SceneModelInfo> models;
 
@@ -502,6 +505,8 @@ public:
     instanceZSorter zSorter;
 private:
     Engine* context;
+
+    std::vector<Entity *> loadEntitiesFromLua(const char *directory);
 };
 
 struct TextureCreationData {

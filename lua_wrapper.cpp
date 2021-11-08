@@ -145,3 +145,51 @@ void LuaWrapper::dumpStack() {
         }
     }
 }
+
+#include "entity.hpp"
+
+Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
+    std::string luaName = filename;
+    const size_t delim = luaName.find_last_of("\\/");
+    if (std::string::npos != delim) {
+        luaName.erase(0, delim + 1);
+    }
+    const size_t dot = luaName.rfind('.');
+    if (std::string::npos != dot) {
+        luaName.erase(dot);
+    }
+    luaName[0] = toupper(luaName[0]);
+
+    if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
+        error("Could not load gui file: %s", lua_tostring(luaState, -1));
+
+    lua_getglobal(luaState, luaName.c_str());
+    if (!lua_istable(luaState, -1))
+        error("%s should be a table", luaName.c_str());
+
+    auto model = getStringField("model");
+    auto texture = getStringField("texture");
+    auto icon = getStringField("icon");
+
+    luaName[0] = tolower(luaName[0]);
+    auto ret = new Entity(luaName.c_str(), model.c_str(), texture.c_str(), icon.c_str());
+    
+    ret->maxSpeed = getNumberField("maxSpeed");
+    ret->acceleration = getNumberField("acceleration");
+    ret->dOmega = getNumberField("dOmega");
+
+    return ret;
+}
+
+#include "api.hpp"
+
+static int echoWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    Api::eng_echo(lua_tostring(ls, 1));
+    return 0;
+}
+
+void LuaWrapper::exportEcho() {
+    lua_pushcfunction(luaState, echoWrapper);
+    lua_setglobal(luaState, "eng_echo");
+}

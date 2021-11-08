@@ -16,6 +16,7 @@ class Entity {
 public:
     Entity(SpecialEntities entityType);
     Entity(const char *model, const char *texture = "", const char *icon = "");
+    Entity(const char *name, const char *model, const char *texture, const char *icon);
     std::vector<uint32_t> mapOffsetToIndices(size_t offset);
 
     Entity(const Entity& other);
@@ -26,9 +27,13 @@ public:
     // temp stuff
     Entity translate(glm::vec3 delta);
     float boundingRadius;
-    int textureIndex, iconIndex;
+    int textureIndex, iconIndex, modelIndex;
 
     float maxSpeed = 0.5f;
+    float acceleration = 0.1f;
+    // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
+    float dOmega = 0.1f;
+    std::string name;
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;
