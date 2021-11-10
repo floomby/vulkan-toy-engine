@@ -884,6 +884,7 @@ void Engine::createRenderPass() {
     renderPassInfo.pSubpasses = subpasses.data();
 
     std::array<VkSubpassDependency, 4> dependencies {};
+
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
     dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
@@ -2245,6 +2246,8 @@ static bool frustumContainsSphere(const std::array<std::pair<glm::vec3, float>, 
 // The index is for which descriptor index to put the lighting buffer information
 // Here is the big graphics update function
 float Engine::updateScene(int index) {
+    currentScene->state.syncToAuthoritativeState(authState);
+
     auto nowTime = std::chrono::steady_clock::now();
     float delta = std::chrono::duration<float, std::chrono::seconds::period>(nowTime - lastTime).count();
     lastTime = nowTime;
@@ -2258,7 +2261,7 @@ float Engine::updateScene(int index) {
     cammera.cached.proj_1 = inverse(pushConstants.projection);
     cammera.cached.view_1 = inverse(pushConstants.view);
     cammera.cached.projView = pushConstants.projection * pushConstants.view;
-    cammera.cached.view_1Proj_1 =  cammera.cached.view_1 * cammera.cached.proj_1;
+    cammera.cached.view_1Proj_1 = cammera.cached.view_1 * cammera.cached.proj_1;
 
     // The 0th instance is the skybox (probably shouldnt be like this though)
     currentScene->state.instances[0].position = cammera.position;
@@ -2299,6 +2302,10 @@ float Engine::updateScene(int index) {
         }
     }
 
+    boundMax *= 2;
+
+    // std::cout << "Fully rendered count = " << fullyRenderCount << std::endl;
+
     // auto max = lightingDataView_1 * glm::vec4(xMax, yMax, zMax, 1.0);
     // auto min = lightingDataView_1 * glm::vec4(xMin, yMin, zMin, 1.0);
     // std::cout << xMax << " " << yMax << " " << zMax << " " << xMin << " " << yMin << " " << zMin << std::endl;
@@ -2307,10 +2314,17 @@ float Engine::updateScene(int index) {
 
     // check if we need to draw shadows (if we are only rendering icons we don't need them)
 
+    // xMax = yMax = 0;
+    // xMin = yMin = -0;
+    // zMax = -105;
+    // zMin = -105;
+
+    // std::cout << "zMax: " << zMax << " zMin: " << zMin << std::endl;
+
+    // lightingData.pos = { 100.0f, 0.0f, 0.0f };
     // if (lightingDirty[index] && shadow.needed) {
     if (fullyRenderCount) {
         // lightingData.nearFar = { 0.7f, 13.0f };
-        // lightingData.pos = { 100.0f, 0.0f, 0.0f };
         // lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         // lightingData.proj = glm::perspective(glm::radians(45.0f), 1.0f, lightingData.nearFar.x, lightingData.nearFar.y);
         // lightingData.view = glm::mat4(1.0f);
@@ -2358,8 +2372,10 @@ void Engine::drawFrame() {
         hudDescriptorNeedsRewrite[currentFrame] = false;
         rewriteHudDescriptors(currentFrame);
     } 
-    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);    
+    
     gui->pushConstant()->guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
+    // updateLightingDescriptors(currentFrame, lightingData);
 
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2413,9 +2429,12 @@ void Engine::drawFrame() {
         throw std::runtime_error("Failed to present swap chain image.");
 
     // update the next frame
+
+    // vkDeviceWaitIdle(device);
+
     float timeDelta = updateScene((currentFrame + 1)  % concurrentFrames);
     currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
-    currentScene->state.doUpdate(timeDelta);
+    // currentScene->state.doUpdate(timeDelta);
 
     currentFrame = (currentFrame + 1) % concurrentFrames;
 }
@@ -2519,7 +2538,7 @@ void Engine::runCurrentScene() {
     updateScene(0);
     vkDeviceWaitIdle(device);
 
-    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})));
 
     iconModelIndex = currentScene->entities["icon"]->modelIndex;
 
@@ -2532,7 +2551,6 @@ void Engine::runCurrentScene() {
             net.unprocessedSeverTicks--;
             authState.doUpdateTick();
         }
-        currentScene->state.syncToAuthoritativeState(authState);
     }
 
     vkDeviceWaitIdle(device);
@@ -2556,7 +2574,7 @@ void Engine::loadDefaultScene() {
     // currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
 
     // +x = -x, +y = -y, z = -z
-    lightingData.pos = { 0.0f, -10.0, 0.0f };
+    lightingData.pos = { -50.0f, -110.0, 0.0f };
     lightingData.view = glm::lookAt(-lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     lightingDataView_1 = inverse(lightingData.view);
 }
@@ -2629,7 +2647,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
         VkDescriptorBufferInfo lightingBufferInfo {};
         lightingBufferInfo.buffer = lightingBuffers[i];
         lightingBufferInfo.offset = 0;
-        lightingBufferInfo.range = VK_WHOLE_SIZE;
+        lightingBufferInfo.range = sizeof(Utilities::ViewProjPosNearFar);
 
         std::array<VkWriteDescriptorSet, 4> descriptorWrites {};
 
@@ -2839,8 +2857,37 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vulkanErrorGuard(vkBeginCommandBuffer(buffer, &beginInfo), "Failed to begin recording command buffer.");
 
-    // if (shadow.needed)
-        runShadowPass(buffer, index);
+    runShadowPass(buffer, index);
+
+    // VkImageMemoryBarrier barrier {};
+    // barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    // barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    // barrier.image = shadow.images[index];
+
+    // barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    // barrier.subresourceRange.baseMipLevel = 0;
+    // barrier.subresourceRange.levelCount = 1;
+    // barrier.subresourceRange.baseArrayLayer = 0;
+    // barrier.subresourceRange.layerCount = 1;
+
+    // // not sure about src mask ????
+    // barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+    // // I do know that the dst access mask is right
+    // barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+
+    // // also no clue about stage masks??? I am continually confused by these things
+    // vkCmdPipelineBarrier(
+    //     buffer,
+    //     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    //     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+    //     0,
+    //     0, nullptr,
+    //     0, nullptr,
+    //     1, &barrier
+    // );
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3108,7 +3155,7 @@ void Engine::createShadowResources(bool createDebugging) {
     subpass.pResolveAttachments = nullptr;
 
     // Use subpass dependencies for layout transitions
-    std::array<VkSubpassDependency, 1> dependencies;
+    std::array<VkSubpassDependency, 2> dependencies;
 
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
@@ -3117,6 +3164,14 @@ void Engine::createShadowResources(bool createDebugging) {
     dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     VkRenderPassCreateInfo renderPassCreateInfo = {};
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -3541,7 +3596,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdSetDepthBias(buffer, 2.0f, 0.0f, 1.5f);
+    vkCmdSetDepthBias(buffer, 4.0f, 0.0f, 1.5f);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipeline);
 

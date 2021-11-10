@@ -61,7 +61,8 @@ public:
     Entity *entity;
 
     // This is the stuff that needs to get synced
-    glm::vec3 position, heading, dP = glm::vec3(0.0f), dH = glm::vec3(0.0f);
+    glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::quat heading;
     std::list<Command> commandList;
 private:
     UniformBufferObject _state;

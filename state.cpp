@@ -27,6 +27,7 @@ CommandGenerator<CommandCoroutineType> ObservableState::getCommandGenerator(std:
 }
 
 void ObservableState::doUpdate(float timeDelta) {
+    return;
     for (auto& inst : instances) {
         if (!inst.commandList.empty()) {
             const auto& cmd = inst.commandList.front();
@@ -71,23 +72,26 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     }
 }
 
+#include "pathgen.hpp"
+
 void AuthoritativeState::doUpdateTick() {
     const float timeDelta = 33.0f / 1000.0f;
     for (auto& inst : instances) {
         if (!inst.commandList.empty()) {
             const auto& cmd = inst.commandList.front();
-            float len;
-            glm::vec3 delta;
+            // float len;
+            // glm::vec3 delta;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    delta = cmd.data.dest - inst.position;
-                    len = length(delta);
-                    if (len > inst.entity->maxSpeed * timeDelta) {
-                        inst.position += (inst.entity->maxSpeed * timeDelta / len) * delta;
-                    } else {
-                        inst.position = cmd.data.dest;
-                        inst.commandList.pop_front();
-                    }
+                    // delta = cmd.data.dest - inst.position;
+                    // len = length(delta);
+                    // if (len > inst.entity->maxSpeed * timeDelta) {
+                    //     inst.position += (inst.entity->maxSpeed * timeDelta / len) * delta;
+                    // } else {
+                    //     inst.position = cmd.data.dest;
+                    //     inst.commandList.pop_front();
+                    // }
+                    Pathgen::applySteering(inst, Pathgen::seek(inst, cmd.data.dest));
                     break;
                 case CommandKind::STOP:
                     inst.commandList.clear();

@@ -38,7 +38,7 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     }
 }
 
-void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::vec3& heading) {
+void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading) {
     // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
     auto ent = context->currentScene->entities[name];
     Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex, true);

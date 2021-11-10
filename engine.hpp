@@ -106,8 +106,8 @@ private:
     struct Cammera {
         const float minZoom2 = 1.0, maxZoom2 = 400.0;
         const float gimbleStop = 0.1;
-        const float minClip = 0.1, maxClip = 40.0;
-        const float renderAsIcon2 = 64.0;
+        const float minClip = 0.1, maxClip = 150.0;
+        const float renderAsIcon2 = 1000.0;
         glm::vec3 position;
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
@@ -403,7 +403,7 @@ private:
 
     struct {
         bool needed = true;
-        const uint32_t width = 2048, height = 2048;
+        const uint32_t width = 4096, height = 4096;
         VkRenderPass renderPass;
         VkPipelineLayout pipelineLayout;
         VkPipeline pipeline;
@@ -561,6 +561,7 @@ public:
         validCount.resize(context->concurrentFrames);
         uniformSkip = context->calculateUniformSkipForUBO<T>();
 
+        info.range = uniformSkip;
         for (int i = 0; i < uniformBuffers.size(); i++) {
             currentSize[i] = initialSize;
             VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };

@@ -21,6 +21,6 @@ void Net::start() {
 void Net::ticker() {
     while (!toExit) {
         unprocessedSeverTicks++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        std::this_thread::sleep_for(std::chrono::milliseconds(msPerTick));
     }
 }

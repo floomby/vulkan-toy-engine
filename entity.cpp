@@ -136,8 +136,9 @@ Entity::Entity(const Entity& other) {
     hasTexture = other.hasTexture;
     textureIndex = other.textureIndex;
     iconIndex = other.iconIndex;
-    vertices = std::move(other.vertices);
-    indices = std::move(other.indices);
+    vertices = other.vertices;
+    indices = other.indices;
+    brakingCurve = other.brakingCurve;
     // I am not sure about this code (we may need to check the image channle count)
     if (hasConstTexture) {
         texturePixels = other.texturePixels;
@@ -157,7 +158,8 @@ Entity::Entity(Entity&& other) noexcept
 : texturePixels(std::exchange(other.texturePixels, nullptr)), iconPixels(std::exchange(other.iconPixels, nullptr)), textureWidth(other.textureWidth),
 textureChannels(other.textureChannels), textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)),
 boundingRadius(other.boundingRadius), hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight),
-iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex)
+iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex),
+brakingCurve(std::move(other.brakingCurve))
 {}
 
 Entity& Entity::operator=(const Entity& other) {
@@ -180,6 +182,7 @@ Entity& Entity::operator=(Entity&& other) noexcept {
     iconIndex = other.iconIndex;
     vertices = std::move(other.vertices);
     indices = std::move(other.indices);
+    brakingCurve = std::move(brakingCurve);
     boundingRadius = other.boundingRadius;
     return *this;
 }
@@ -189,11 +192,19 @@ Entity::~Entity() {
     if (hasIcon && iconPixels) STBI_FREE(iconPixels);
 }
 
-// Temporary function to test something 
-Entity Entity::translate(glm::vec3 delta) {
-    for(auto& vertex : vertices) {
-        vertex.pos = vertex.pos + delta;
-    }
+void Entity::precompute() {
+    dv = acceleration / Net::ticksPerSecond;
+    v_m = maxSpeed  / Net::ticksPerSecond;
+    dW_m = dOmega  / Net::ticksPerSecond;
+    return;
 
-    return std::move(*this);
+    float v = 0;
+    float d = 0;
+    // The lazy way, the non lazy way involves computing a bunch of cube roots for every movement update which seems worse
+    // (You need to solve (n^3 + 2n^2 + 2n)/6 - D_n/dV_s = 0 which I don't see a trick to solve without a general form solution)
+    do {
+        brakingCurve.push_back(d);
+        v += dv;
+        d += v;
+    } while (v < maxSpeed);
 }

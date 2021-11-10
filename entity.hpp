@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net.hpp"
 #include "utilities.hpp"
 
 typedef unsigned char stbi_uc;
@@ -7,6 +8,7 @@ typedef unsigned char stbi_uc;
 enum SpecialEntities {
     ENT_ICON,
 };
+
 
 // TODO It would seem good to support empty entities (ie. no model)
 class Entity {
@@ -25,7 +27,6 @@ public:
     Entity& operator=(Entity&& other) noexcept;
     ~Entity();
     // temp stuff
-    Entity translate(glm::vec3 delta);
     float boundingRadius;
     int textureIndex, iconIndex, modelIndex;
 
@@ -34,6 +35,19 @@ public:
     // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
     float dOmega = 0.1f;
     std::string name;
+
+    float dv;
+    float v_m;
+    float dW_m;
+
+    void precompute();
+    inline float indexToVelocity(int idx) {
+        return float(idx * (idx + 1) >> 1) * dv;
+    }
+    inline float velocityToIndex(float velocity) {
+        return -1.f + sqrtf(velocity / dv * 2.f + 1.f);
+    }
+    std::vector<float> brakingCurve; // we can just precompute this
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;

@@ -178,6 +178,8 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->acceleration = getNumberField("acceleration");
     ret->dOmega = getNumberField("dOmega");
 
+    ret->precompute();
+
     return ret;
 }
 

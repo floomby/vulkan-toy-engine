@@ -22,7 +22,7 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& pro
         _state.model = view_1proj_1 * translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w, clipCoord.z / clipCoord.w))
             * scale(glm::vec3(0.1f / aspectRatio, 0.1f, 0.1f));
     } else {
-        _state.model = translate(position) * glm::eulerAngleYXZ(heading.y, heading.x, heading.z);
+        _state.model = translate(position) * glm::toMat4(heading);
     }
     // position.z -= 0.01f;
     _state.normal = transpose(inverse(view * _state.model));
@@ -33,7 +33,7 @@ void Instance::syncToAuthInstance(const Instance& other) {
     position = other.position;
     heading = other.heading;
     dP = other.dP;
-    dH = other.dH;
+    // dH = other.dH;
     commandList = other.commandList;
 }
 

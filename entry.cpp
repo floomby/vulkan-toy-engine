@@ -79,11 +79,11 @@ void run(EngineSettings& settings) {
 
 Next steps
  my text rendering with freetype cant render space characters for some reason
- need antialaiasing on the lines
+ multisampling
+ mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
  world space raycasting and maybe spherecasting
  projectiles
  organized input handling (a new object and associated files to do this)
- basic game state stuff (this involves concurrency stuff)
  gui
   the text is really bad, I tried bicubic interpolation and this is slightly better, but it is still blurry
   messaging from the gui to the render thread (probably just use another spsc lockfree queue)
@@ -93,6 +93,7 @@ Next steps
  the api exposed in api.hpp needs to be thread safe since we will be calling it from lua
  lt - networking
  the text rendering to texture code is so slow, (Like unbelievably slow, of course I did note that it looked slow when I was writting it in the first place)
+ finish the path following code
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
  instance component system or something (or something else as an organizational structure for the proccessing)

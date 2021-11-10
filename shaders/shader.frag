@@ -160,5 +160,5 @@ void main() {
         outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);
     }
 
-    outColor = vec4((outColor * (getShadow(shadowCoord, 4) * 0.9 + 0.1)).rgb, 1.0);
+    outColor = vec4((outColor * (getShadow(shadowCoord, 8) * 0.9 + 0.1)).rgb, 1.0);
 }
