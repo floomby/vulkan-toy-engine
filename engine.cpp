@@ -1922,7 +1922,23 @@ inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm
     return raycastDevice(normedDevice.first, normedDevice.second, inverseProjection, inverseView);
 }
 
+void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius, const uint segmentCount) {
+    auto theta = 2.0f * M_PI / (float)segmentCount;
+    auto rot = toMat3(rotationVector({ 0.0f, 0.0f, 1.0f }, normal));
+    glm::vec3 prev, curr;
+    for (uint i = 0; i <= segmentCount; i++) {
+        if (i == 0) {
+            prev = center + rot * glm::vec3({ cosf((float)i * theta), sinf((float)i * theta), 0.0f });
+        } else {
+            curr = center + rot * glm::vec3({ cosf((float)i * theta), sinf((float)i * theta), 0.0f });;
+            lines.push_back({ prev, curr });
+            prev = std::move(curr);
+        }
+    }
+}
+
 // So many silly lines of code in this function
+// TODO This needs some serious reimagining
 void Engine::handleInput() {
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
@@ -1963,7 +1979,6 @@ void Engine::handleInput() {
             keysPressed[keyEvent.key] = true;
 
             if (keyEvent.key == GLFW_KEY_I) {
-                currentScene->state.syncToAuthoritativeState(authState);
                 // shadow.makeSnapshot = true;
             }
 
@@ -2034,39 +2049,34 @@ void Engine::handleInput() {
         planeDist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / planeIntersectionDenominator;
         planeIntersection = cammera.position + mouseRay * planeDist;
     }
-    if (scrollAmount != 0.0f) {
-        // Scroll to cammera target
-        // cammera.position += scrollAmount / 5.0f * pointing;
-        // if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom2) cammera.position = pointing * cammera.maxZoom2 + cammera.target;
-        // if (glm::distance(cammera.target, cammera.position) < cammera.minZoom2) cammera.position = pointing * cammera.minZoom2 + cammera.target;
-        // scrollAmount = 0.0f;
-        // scrollToCursor
-        auto deltaPos = -scrollAmount / 5.0f * mouseRayNormed;
-        auto deltaTarget = normalize(planeIntersection - cammera.target) * (length(deltaPos) * length(planeIntersection - cammera.target) / planeDist);
-        auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
-        auto newPos = cammera.position + deltaPos;
-        auto newDelta = length2(newTar - newPos);
-        if (newDelta > cammera.minZoom2 && newDelta < cammera.maxZoom2) {
-            cammera.target = newTar;
-            cammera.position = newPos;
-        }
-
-        scrollAmount = 0.0f;
-    }
 
     if (mouseAction == MOUSE_DRAGGING) {
         gui->setDragBox(dragStartDevice, mouseNormed);
     }
 
+    static glm::vec3 zPlaneNormal;
+    static float zd;
+
     MouseEvent mouseEvent;
     while (mouseInput.pop(mouseEvent)) {
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
+            if (mouseAction == MOUSE_MOVING_Z) {
+                wasZMoving = true;
+            }
             mouseAction = MOUSE_PANNING;
         } else if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
+            if (mouseAction == MOUSE_MOVING_Z) {
+                wasZMoving = true;
+            }
             mouseAction = MOUSE_ROTATING;
         }
         if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
-            mouseAction = MOUSE_NONE;
+            if (wasZMoving) {
+                mouseAction = MOUSE_MOVING_Z;
+                wasZMoving = false;
+            } else {
+                mouseAction = MOUSE_NONE;
+            }
         }
         if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             mouseAction = MOUSE_DRAGGING;
@@ -2105,18 +2115,40 @@ void Engine::handleInput() {
             }
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
-            if (planeIntersectionDenominator == 0) {
-                std::cout << "orthognal" << std::endl;
-            } else {
-                // currentScene->addInstance(0, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, {
-                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
-                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)),
-                //     static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / M_PI * 2)) });
-                for (const auto id : idsSelected) {
-                    Api::cmd_move(id, { planeIntersection.x, planeIntersection.y, planeIntersection.z }, InsertionMode::OVERWRITE);
-                }
+            if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && planeDist > 0 && !idsSelected.empty()) {
+                mouseAction = MOUSE_MOVING_Z;
+                movingToXY = { planeIntersection.x, planeIntersection.y };
+                zPlaneNormal = normalize(cross({ 0.0f, 0.0f, 1.0f }, cross({ 0.0f, 0.0f, 1.0f }, mouseRayNormed)));
+                // std::cout << "x: " << movingToXY.x << " y: " << movingToXY.y << " : " << length(zPlaneNormal) << std::endl;
+                // std::cout << "setting plane normal: " << zPlaneNormal << " plane dist " << planeDist << std::endl;
+                zd = dot(zPlaneNormal, planeIntersection);
             }
+        } else if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT && mouseAction == MOUSE_MOVING_Z) {
+            for (const auto id : idsSelected) {
+                Api::cmd_move(id, { movingToXY.x, movingToXY.y, movingToXY.z }, InsertionMode::OVERWRITE);
+            }
+            mouseAction = MOUSE_NONE;
         }
+    }
+
+    if (scrollAmount != 0.0f) {
+        // Scroll to cammera target
+        // cammera.position += scrollAmount / 5.0f * pointing;
+        // if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom2) cammera.position = pointing * cammera.maxZoom2 + cammera.target;
+        // if (glm::distance(cammera.target, cammera.position) < cammera.minZoom2) cammera.position = pointing * cammera.minZoom2 + cammera.target;
+        // scrollAmount = 0.0f;
+        // scrollToCursor
+        auto deltaPos = -scrollAmount / 5.0f * mouseRayNormed;
+        auto deltaTarget = normalize(planeIntersection - cammera.target) * (length(deltaPos) * length(planeIntersection - cammera.target) / planeDist);
+        auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
+        auto newPos = cammera.position + deltaPos;
+        auto newDelta = length2(newTar - newPos);
+        if (newDelta > cammera.minZoom2 && newDelta < cammera.maxZoom2) {
+            cammera.target = newTar;
+            cammera.position = newPos;
+        }
+
+        scrollAmount = 0.0f;
     }
 
     if (keysPressed[GLFW_KEY_RIGHT]) {
@@ -2196,9 +2228,50 @@ void Engine::handleInput() {
     if(mousedOver) {
         // mousedOver->highlight() = true;
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
+        lineObjects = {};
     } else {
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
+        if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
+            LineHolder circ;
+            circ.addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 2.0f);
+            lineObjects = { circ };
+        } else {
+            lineObjects = {};
+        }
     }
+
+    if (mouseAction == MOUSE_MOVING_Z) {
+        if (planeIntersectionDenominator != 0.0f) {
+            float dist;
+            if (glm::intersectRayPlane(cammera.position, mouseRayNormed, { movingToXY.x, movingToXY.y, 0.0f }, zPlaneNormal, dist)) {
+                auto intersection = cammera.position + mouseRayNormed * dist;
+                movingToXY.z = intersection.z;
+                // std::cout << "z: " << movingToXY.z << std::endl;
+                LineHolder circ;
+                circ.addCircle({ movingToXY.x, movingToXY.y, intersection.z }, { 0.0f, 0.0f, 1.0f }, 2.0f);
+                lineObjects = { circ };
+            } else {
+                // std::cout << "bad bad" << std::endl;
+            }
+            // float zDenom = glm::dot(mouseRay, zPlaneNormal);
+            // float d;
+            // glm::vec3 intersection;
+            // if (zDenom == 0) {
+                
+            // } else {
+            //     d = - (glm::dot(cammera.position, zPlaneNormal) - zd) / zDenom;
+            //     intersection = cammera.position + mouseRay * d;
+            //     if (d > 0) {
+            //         movingToXY.z = intersection.z;
+            //         LineHolder circ;
+            //         circ.addCircle({ movingToXY.x, movingToXY.y, movingToXY.z }, { 0.0f, 0.0f, 1.0f }, 2.0f);
+            //         lineObjects = { circ };
+            //         // std::cout << "z: " << intersection.z << std::endl;
+            //     }
+            // }
+        }
+    }
+
 
     lastMousePosition.x = x;
     lastMousePosition.y = y;
@@ -2359,7 +2432,6 @@ void Engine::drawFrame() {
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
         throw std::runtime_error("Failed to aquire swap chain image.");
 
-    // TODO We probably need to a-b buffer the vertex buffer for the gui stuff since this potentially writes to the vertex buffer while it is still being used
     // update the gui vram if the gui buffer has been rebuilt
     if (gui->rebuilt) {
         auto bufRet = gui->updateBuffer();
@@ -2375,7 +2447,6 @@ void Engine::drawFrame() {
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);    
     
     gui->pushConstant()->guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
-    // updateLightingDescriptors(currentFrame, lightingData);
 
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2715,7 +2786,7 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
 
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
-};
+}
 
 void Engine::writeHudDescriptors() {
     hudDescriptorNeedsRewrite.resize(concurrentFrames);
@@ -2944,6 +3015,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
 
     vkCmdSetLineWidth(buffer, 4.0);
+
+    // std::cout << lineSync->validCount[index] << std::endl;
 
     for (int j = 0; j < lineSync->validCount[index]; j++) {
         dynamicOffset = j * uniformSync->uniformSkip;
@@ -3660,7 +3733,7 @@ void Engine::destroyCursors() {
 
 namespace InternalTextures {
     static std::map<VkImage, uint> references = {};
-};
+}
 
 InternalTexture::InternalTexture(Engine *context, TextureCreationData creationData) {
     this->context = context;
@@ -4014,28 +4087,38 @@ void Scene::updateUniforms(int idx) {
             context->cammera.minClip, context->cammera.maxClip);
     });
 
-    std::vector<uint> things(state.instances.size() - 1);
-    std::iota(things.begin(), things.end(), 1);
-    uint commandCount = state.commandCount(things);
+    std::vector<uint> inPlayIndices;
+    for (uint i = 0; i < state.instances.size(); i++) {
+        if (state.instances[i].inPlay) inPlayIndices.push_back(i);
+    }
+    uint commandCount = state.commandCount(inPlayIndices);
 
-    auto cmdGen = state.getCommandGenerator(&things);
+    auto cmdGen = state.getCommandGenerator(&inPlayIndices);
 
-    // for (int i = 0; i < count; i++) {
-    //     cmdGen.next();
-    //     auto a = cmdGen.value();
-    //     std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
+    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder x) -> size_t { 
+        return s + x.lines.size();
+    });
+    // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
+    std::vector<LineUBO> lineTmp(commandCount + lineObjectSize);
 
-    context->lineSync->sync(idx, commandCount, [&] () -> LineUBO {
+    for (const auto&  lineHolder : context->lineObjects) {
+        lineTmp.insert(lineTmp.end(), lineHolder.lines.begin(), lineHolder.lines.end());
+    }
+
+    auto commandLines = [&] () -> LineUBO {
         cmdGen.next();
         auto a = cmdGen.value();
         // std::cout << "From " << this->state.instances[a.which->at(a.idx)].position << " to " << a.command->data.dest << std::endl;
-        return { this->state.instances[a.which->at(a.idx)].position, a.command->data.dest };
-    });
+        return { this->state.instances[a.which->at(a.idx)].position, a.command->data.dest }; };
+
+    std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
+
+    context->lineSync->sync(idx, lineTmp);
 }
 
 namespace CubeMaps {
     static std::map<VkImage, uint> references = {};
-};
+}
 
 CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     this->context = context;
@@ -4236,9 +4319,9 @@ namespace GuiTextures {
     static FT_Face face;
     static int maxGlyphHeight;
     static Engine *context;
-};
+}
 
-GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; };
+GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format, VkFilter filter) {
     this->context = context;
@@ -4513,7 +4596,7 @@ namespace GuiTextures {
         };
         defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_SRGB);
     }
-};
+}
 
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
     if (count > currentSize[descriptorIndex]) {
@@ -4544,5 +4627,17 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
         // printIfLineUBO(tmp);
         memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
             &tmp, sizeof(T));
+    }
+}
+
+template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, const std::vector<T>& items) {
+    if (items.size() > currentSize[descriptorIndex]) {
+        reallocateBuffer(descriptorIndex, items.size() + 50);
+    }
+    // assume for right now that this updates every valid instance
+    validCount[descriptorIndex] = items.size();
+    for (size_t i = 0; i < items.size(); i++) {
+        memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
+            items.data() + i, sizeof(T));
     }
 }

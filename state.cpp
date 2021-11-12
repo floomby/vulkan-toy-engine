@@ -91,7 +91,7 @@ void AuthoritativeState::doUpdateTick() {
                     //     inst.position = cmd.data.dest;
                     //     inst.commandList.pop_front();
                     // }
-                    Pathgen::applySteering(inst, Pathgen::seek(inst, cmd.data.dest));
+                    Pathgen::arrive(inst, cmd.data.dest);
                     break;
                 case CommandKind::STOP:
                     inst.commandList.clear();

@@ -39,6 +39,11 @@ struct LineUBO {
     alignas(16) glm::vec3 b;
 };
 
+struct LineHolder {
+    std::vector<LineUBO> lines;
+    void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius, const uint segmentCount = 20);
+};
+
 template<typename T> class DescriptorSyncer;
 
 class Engine {
@@ -156,8 +161,10 @@ private:
         MOUSE_NONE,
         MOUSE_PANNING,
         MOUSE_ROTATING,
-        MOUSE_DRAGGING
+        MOUSE_DRAGGING,
+        MOUSE_MOVING_Z
     } mouseAction;
+    bool wasZMoving = false;
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -166,6 +173,10 @@ private:
         float x, y;
         float normedX, normedY;
     } lastMousePosition;
+
+    struct {
+        float x, y, z;
+    } movingToXY;
 
     bool mouseButtonsPressed[8];
     struct MouseEvent {
@@ -331,6 +342,8 @@ private:
     VkBuffer hudBuffer;
     // void createHudBuffers();
 
+    std::list<LineHolder> lineObjects;
+
     DescriptorSyncer<UniformBufferObject> *uniformSync;
     DescriptorSyncer<LineUBO> *lineSync;
     std::vector<VkBuffer> lightingBuffers;
@@ -456,7 +469,7 @@ namespace GuiTextures {
     void initFreetype2(Engine *context);
     int makeTexture(const char *str);
     void setDefaultTexture();
-};
+}
 
 struct instanceZSorter {
     instanceZSorter(Scene *context);
@@ -586,6 +599,7 @@ public:
     }
     void sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func);
     void sync(int descriptorIndex, size_t count, std::function<T ()> func);
+    void sync(int descriptorIndex, const std::vector<T>& items);
     ~DescriptorSyncer() {
         for (int i = 0; i < uniformBuffers.size(); i++)
             vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);

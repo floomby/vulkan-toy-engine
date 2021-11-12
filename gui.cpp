@@ -440,7 +440,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutType::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x00000000, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000ff, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");

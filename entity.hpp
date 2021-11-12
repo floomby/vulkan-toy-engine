@@ -33,12 +33,12 @@ public:
     float maxSpeed = 0.5f;
     float acceleration = 0.1f;
     // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
-    float dOmega = 0.1f;
+    float maxOmega = 0.1f;
     std::string name;
 
     float dv;
     float v_m;
-    float dW_m;
+    float w_m;
 
     void precompute();
     inline float indexToVelocity(int idx) {

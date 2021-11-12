@@ -17,9 +17,6 @@ layout(location = 6) in flat uint inRenderMode;
 
 layout(location = 0) out vec4 outColor;
 
-const float smoothing = 0.5;
-const float boldness = 0.5;
-
 vec4 cubic(float v){
     vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
     vec4 s = n * n * n;
@@ -78,13 +75,15 @@ void main() {
             break;
         case RMODE_TEXT:
             // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
-            float distance = texture(texSampler[inTexIndex], inTexCoord).r;
-            float alpha = smoothstep(boldness - smoothing, boldness + smoothing, distance);
-            // outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
-            outColor = vec4(mix(inColor.rgb, inSecondaryColor.rgb, alpha), alpha);
+            float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
+            float alpha;
             if (inGuiID == inCursorID) {
-                outColor = smoothstep(0.0, 1.0, outColor);
+                alpha = smoothstep(0.05, 0.3, distance);
+            } else {
+                alpha = smoothstep(0.15, 0.35, distance);
             }
+            // outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            outColor = vec4(inColor.rgb, clamp(alpha, 0.0, inColor.a));
             break;
     }
 }

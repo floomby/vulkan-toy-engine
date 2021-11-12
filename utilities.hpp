@@ -130,6 +130,13 @@ namespace std {
         os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z;
         return os;
     }
+
+    inline ostream& operator<<(ostream& os, const glm::quat& qat)
+    {
+        os << " w:" << qat.w << "x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
+        return os;
+        
+    }
 }
 
 typedef void* ResourceID;
@@ -150,3 +157,33 @@ template <typename T> T linmap(T x, T inMin, T inMax, T outMin, T outMax) {
 // #define MOD_CTL     (1 << 1)
 // #define MOD_ALT     (1 << 2)
 // #define MOD_SPACE   (1 << 3)
+
+inline glm::vec3 clampLength(const glm::vec3& v, float max) {
+    auto len = length(v);
+    if (len > max) {
+        return v * (max / len);
+    }
+    return v;
+}
+
+inline glm::vec3 orthogonal(const glm::vec3& v) {
+    float x = abs(v.x);
+    float y = abs(v.y);
+    float z = abs(v.z);
+
+    glm::vec3 other = x < y ? (x < z ? glm::vec3({ 1.0f, 0.0f, 0.0f }) : glm::vec3({0.0f, 0.0f, 1.0f })) : 
+        (y < z ? glm::vec3({0.0f, 1.0f, 0.0f }) : glm::vec3({0.0f, 0.0f, 1.0f }));
+    return cross(v, other);
+}
+
+inline glm::quat rotationVector(const glm::vec3& u, const glm::vec3& v) {
+    float kCosTheta = dot(u, v);
+    float k = sqrt(length2(u) * length2(v));
+
+    if (kCosTheta / k == -1) {
+        // 180 degree rotation around any orthogonal vector
+        return glm::quat(0.0f, normalize(orthogonal(u)));
+    }
+
+    return normalize(glm::quat(kCosTheta + k, cross(u, v)));
+}

@@ -176,7 +176,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     
     ret->maxSpeed = getNumberField("maxSpeed");
     ret->acceleration = getNumberField("acceleration");
-    ret->dOmega = getNumberField("dOmega");
+    ret->maxOmega = getNumberField("maxOmega");
 
     ret->precompute();
 

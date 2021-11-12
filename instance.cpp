@@ -11,7 +11,7 @@ Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sce
     highlight = false;
     commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
     // commandList.push_back({ CommandKind::MOVE, id, {{ 5.0f, 0.0f, 0.0f }, -1 }});
-};
+}
 
 UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
     // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)

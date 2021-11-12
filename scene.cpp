@@ -9,7 +9,7 @@ std::vector<Entity *> Scene::loadEntitiesFromLua(const char *directory) {
         for (const auto & entry : std::filesystem::directory_iterator(directory)) {
             try {
                 ret.push_back(lua.loadEntityFile(entry.path()));
-            } catch(const std::exception& e) {
+            } catch (const std::exception& e) {
                 std::string msg = "Error reading unit (";
                 msg += entry.path();
                 msg += "): ";

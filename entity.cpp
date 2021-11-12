@@ -26,7 +26,7 @@ namespace Entities {
     // const std::array<uint32_t, 6> iconPrimativeIndices = {
     //     0, 1, 3, 3, 1, 2
     // };
-};
+}
 
 Entity::Entity(SpecialEntities entityType) {
     textureWidth = textureHeight = 1;
@@ -54,7 +54,7 @@ Entity::Entity(SpecialEntities entityType) {
 Entity::Entity(const char *name, const char *model, const char *texture, const char *icon)
 : Entity(model, texture, icon) {
     this->name = std::string(name);
-};
+}
 
 Entity::Entity(const char *model, const char *texture, const char *icon) {
     hasConstTexture = false;
@@ -195,8 +195,7 @@ Entity::~Entity() {
 void Entity::precompute() {
     dv = acceleration / Net::ticksPerSecond;
     v_m = maxSpeed  / Net::ticksPerSecond;
-    dW_m = dOmega  / Net::ticksPerSecond;
-    return;
+    w_m = maxOmega  / Net::ticksPerSecond;
 
     float v = 0;
     float d = 0;

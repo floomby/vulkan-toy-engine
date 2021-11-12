@@ -122,7 +122,7 @@ private:
 
 namespace GuiTextures {
     GuiTexture makeGuiTexture(const char *str);
-};
+}
 
 class Gui;
 
