@@ -327,6 +327,11 @@ private:
     std::vector<VkImageView> depthImageViews;
     void createDepthResources();
     void destroyDepthResources();
+    std::vector<VkImage> colorImages;
+    std::vector<VmaAllocation> colorImageAllocations;
+    std::vector<VkImageView> colorImageViews;
+    void createColorResources();
+    void destroyColorResources();
 
     std::vector<VkFramebuffer> swapChainFramebuffers;
     void createFramebuffers();

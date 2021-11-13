@@ -135,6 +135,7 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 
 static const std::vector<const char*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME,
     // My card does not support cubic filtering??? (I am in disbelief, but we can do it in the fragment shader anyways)
     // VK_EXT_FILTER_CUBIC_EXTENSION_NAME
     // I really want to use this, but I can't because nvidia drivers don't support it
@@ -826,7 +827,7 @@ void Engine::createRenderPass() {
 
     VkAttachmentDescription depthAttachment {};
     depthAttachment.format = findDepthFormat();
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.samples = msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -854,15 +855,26 @@ void Engine::createRenderPass() {
     bgAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     bgAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+    VkAttachmentDescription colorAAAttachment {};
+    colorAAAttachment.format = swapChainImageFormat;
+    colorAAAttachment.samples = msaaSamples;
+    colorAAAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAAAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAAAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAAAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAAAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAAAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkAttachmentReference subpass0color = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
     VkAttachmentReference subpass0depth = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference colorAA = { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
     std::array<VkSubpassDescription, 3> subpasses {};
     subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[0].colorAttachmentCount = 1;
-    subpasses[0].pColorAttachments = &subpass0color;
+    subpasses[0].pColorAttachments = &colorAA;
     subpasses[0].pDepthStencilAttachment = &subpass0depth;
-    subpasses[0].pResolveAttachments = nullptr;
+    subpasses[0].pResolveAttachments = &subpass0color;
 
     VkAttachmentReference subpass1color = { 3, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
 
@@ -889,7 +901,7 @@ void Engine::createRenderPass() {
     subpasses[2].pInputAttachments = subpass2inputs;
     // Can we just reuse the depth attachment?
 
-    std::array<VkAttachmentDescription, 4> attachments = { subpassAttachment, depthAttachment, colorAttachment, bgAttachment };
+    std::array<VkAttachmentDescription, 5> attachments = { subpassAttachment, depthAttachment, colorAttachment, bgAttachment, colorAAAttachment };
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = attachments.size();
@@ -1127,7 +1139,7 @@ void Engine::createGraphicsPipelines() {
     VkPipelineMultisampleStateCreateInfo multisampling {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = msaaSamples;
     multisampling.minSampleShading = 1.0f;
     multisampling.pSampleMask = nullptr;
     multisampling.alphaToCoverageEnable = VK_FALSE;
@@ -1211,12 +1223,14 @@ void Engine::createGraphicsPipelines() {
 
     colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.subpass = 1;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_BG]), "Failed to create graphics pipeline.");
 
     colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.pStages = lineShaders;
     pipelineInfo.subpass = 0;
+    multisampling.rasterizationSamples = msaaSamples;
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 
     // I am going to use this soon for drawing pathing lines and stuff in the world
@@ -1242,6 +1256,7 @@ void Engine::createGraphicsPipelines() {
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     pipelineInfo.subpass = 2;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
     VkPipelineVertexInputStateCreateInfo hudVertexInputInfo {};
     hudVertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1517,7 +1532,7 @@ void Engine::createDepthResources() {
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | DEPTH_DEBUG_IMAGE_USAGE;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.samples = msaaSamples;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         VmaAllocationCreateInfo imageAllocCreateInfo = {};
@@ -1527,6 +1542,57 @@ void Engine::createDepthResources() {
         
         depthImageViews[i] = createImageView(depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
         transitionImageLayout(depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    }
+}
+
+void Engine::createColorResources() {
+    colorImages.resize(swapChainImages.size());
+    colorImageAllocations.resize(swapChainImages.size());
+    colorImageViews.resize(swapChainImages.size());
+
+    for (int i = 0; i < swapChainImages.size(); i++) {
+        VkImageCreateInfo imageInfo {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = swapChainExtent.width;
+        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = swapChainImageFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.samples = msaaSamples;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo imageAllocCreateInfo = {};
+        imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &colorImages[i], &colorImageAllocations[i], nullptr);
+        // vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &colorImages[2 * i + 1], &colorImageAllocations[2 * i + 1], nullptr);
+        
+        VkImageViewCreateInfo viewInfo {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = colorImages[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = swapChainImageFormat;
+        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        // The docs said you could just do this, I don't know if there is a downside (might be slower or something)
+        viewInfo.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+        vulkanErrorGuard(vkCreateImageView(device, &viewInfo, nullptr, &colorImageViews[i]), "Unable to create texture image view.");
+        // viewInfo.image = colorImages[2 * i + 1];
+        // vulkanErrorGuard(vkCreateImageView(device, &viewInfo, nullptr, &colorImageViews[2 * i + 1]), "Unable to create texture image view.");
+        // depthImageViews[i] = createImageView(depthImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        // transitionImageLayout(depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     }
 }
 
@@ -1622,9 +1688,16 @@ std::array<int, 256>& Engine::logDepthBufferToFile(std::array<int, 256>& depthHi
 }
 
 void Engine::destroyDepthResources() {
-    for(int i = 0; i < depthImages.size(); i++) {
+    for (int i = 0; i < depthImages.size(); i++) {
         vkDestroyImageView(device, depthImageViews[i], nullptr);
         vmaDestroyImage(memoryAllocator, depthImages[i], depthImageAllocations[i]);
+    }
+}
+
+void Engine::destroyColorResources() {
+    for (int i = 0; i < colorImages.size(); i++) {
+        vkDestroyImageView(device, colorImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, colorImages[i], colorImageAllocations[i]);
     }
 }
 
@@ -1632,11 +1705,12 @@ void Engine::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        std::array<VkImageView, 4> attachments = {
+        std::array<VkImageView, 5> attachments = {
             subpassImageViews[i],
             depthImageViews[i],
             swapChainImageViews[i],
-            bgSubpassImageViews[i]
+            bgSubpassImageViews[i],
+            colorImageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo {};
@@ -1874,6 +1948,7 @@ void Engine::initVulkan() {
     createShadowResources(true);
 
     createDepthResources();
+    createColorResources();
     createFramebuffers();
 
     // this sets the currentScene pointer
@@ -3101,6 +3176,7 @@ void Engine::recreateSwapChain() {
     createRenderPass();
     createGraphicsPipelines();
     createDepthResources();
+    createColorResources();
     createFramebuffers();
     createDescriptors(currentScene->textures, {});
     uniformSync->rebindSyncPoints({{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
@@ -3111,6 +3187,7 @@ void Engine::recreateSwapChain() {
 void Engine::cleanupSwapChain() {
 
     destroyDepthResources();
+    destroyColorResources();
 
     for (auto framebuffer : swapChainFramebuffers)
         vkDestroyFramebuffer(device, framebuffer, nullptr);
