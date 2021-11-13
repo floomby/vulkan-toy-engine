@@ -55,7 +55,6 @@ std::string LuaWrapper::getStringField(const char *key) {
     return std::string(s);
 }
 
-
 GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     std::string filename = std::string(name);
     std::transform(filename.begin(), filename.end(), filename.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -81,7 +80,6 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     ret->width = getNumberField("width");
     ret->kind = (GuiLayoutType)(int)getNumberField("kind");
     ret->color = (uint32_t)getNumberField("color");
-    std::cout << "Color: " << std::hex << ret->color << std::dec << std::endl;
     if (ret->kind == GuiLayoutType::TEXT_BUTTON) {
         ret->text = getStringField("text");
     }
@@ -174,6 +172,27 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     luaName[0] = tolower(luaName[0]);
     auto ret = new Entity(luaName.c_str(), model.c_str(), texture.c_str(), icon.c_str());
     
+    lua_pushstring(luaState, "weapons");
+    lua_gettable(luaState, -2);
+    if (!lua_isnil(luaState, -1)) {
+        if (!lua_istable(luaState, -1))
+            error("Weapons should be a table");
+        int weaponsCount = lua_objlen(luaState, -1);
+
+        int childrenLocation = lua_gettop(luaState);
+        for (int i = 1; i <= weaponsCount; i++) {
+            lua_rawgeti(luaState, -1, i);
+            if (!lua_isstring(luaState, -1))
+                error("Invalid weapon");
+            
+            const char *s = lua_tostring(luaState, -1);
+            size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
+            lua_pop(luaState, 1);
+            ret->weaponNames.push_back(std::string(s));
+        }
+    }
+    lua_pop(luaState, 1);
+    
     ret->maxSpeed = getNumberField("maxSpeed");
     ret->acceleration = getNumberField("acceleration");
     ret->maxOmega = getNumberField("maxOmega");
@@ -183,6 +202,52 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     return ret;
 }
 
+#include "weapon.hpp"
+
+Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
+    std::string luaName = filename;
+    const size_t delim = luaName.find_last_of("\\/");
+    if (std::string::npos != delim) {
+        luaName.erase(0, delim + 1);
+    }
+    const size_t dot = luaName.rfind('.');
+    if (std::string::npos != dot) {
+        luaName.erase(dot);
+    }
+    luaName[0] = toupper(luaName[0]);
+
+    if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
+        error("Could not load gui file: %s", lua_tostring(luaState, -1));
+
+    lua_getglobal(luaState, luaName.c_str());
+    if (!lua_istable(luaState, -1))
+        error("%s should be a table", luaName.c_str());
+
+    WeaponKind kind = static_cast<WeaponKind>((int)getNumberField("kind"));
+
+    std::string model, texture;
+    Weapon *ret;
+
+    switch (kind) {
+        case WeaponKind::PLASMA_CANNON:
+            model = getStringField("model");
+            texture = getStringField("texture");
+
+            ret = new PlasmaCannon(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
+
+            luaName[0] = tolower(luaName[0]);
+
+            ret->entity->maxSpeed = getNumberField("speed");
+            luaName[0] = tolower(luaName[0]);
+            ret->name = luaName;
+
+            return ret;
+        default:
+            throw std::runtime_error("Lua error: unsupported weapon kind.");
+    }
+}
+
+// I am going to use a write a code generator script to generate these bindings
 #include "api.hpp"
 
 static int echoWrapper(lua_State *ls) {
@@ -191,7 +256,17 @@ static int echoWrapper(lua_State *ls) {
     return 0;
 }
 
+static int fireWrapper(lua_State *ls) {
+    Api::test_fire();
+    return 0;
+}
+
 void LuaWrapper::exportEcho() {
     lua_pushcfunction(luaState, echoWrapper);
     lua_setglobal(luaState, "eng_echo");
+}
+
+void LuaWrapper::exportTestFire() {
+    lua_pushcfunction(luaState, fireWrapper);
+    lua_setglobal(luaState, "test_fire");
 }

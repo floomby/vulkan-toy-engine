@@ -27,6 +27,7 @@ CommandGenerator<CommandCoroutineType> ObservableState::getCommandGenerator(std:
 }
 
 void ObservableState::doUpdate(float timeDelta) {
+    // This function is all wrong rn
     return;
     for (auto& inst : instances) {
         if (!inst.commandList.empty()) {
@@ -55,6 +56,7 @@ void ObservableState::doUpdate(float timeDelta) {
 void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     uint highestSynced = 0;
     uint syncIndex = 0;
+    std::scoped_lock(state.lock);
     for (int i = 0; i < instances.size(); i++) {
         if (instances[i].inPlay) {
             if (state.instances[syncIndex].id > instances[i].id) {
@@ -75,9 +77,13 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 #include "pathgen.hpp"
 
 void AuthoritativeState::doUpdateTick() {
-    const float timeDelta = 33.0f / 1000.0f;
+    const float timeDelta = 33.0f / 1000.0f; // seconds
+    std::scoped_lock(lock);
     for (auto& inst : instances) {
-        if (!inst.commandList.empty()) {
+        if (inst.entity->isProjectile) {
+            // TODO Do collision check
+            inst.position += inst.dP * timeDelta;
+        } else if (!inst.commandList.empty()) {
             const auto& cmd = inst.commandList.front();
             // float len;
             // glm::vec3 delta;

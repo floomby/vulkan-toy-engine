@@ -4,12 +4,12 @@
 
 Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
 : id(0), inPlay(inPlay) {
-    // WARNING: This likly will cause problems since the entities are moved by stl code sometimes (change me to just use the index)
+    // TODO I should just make entities non relocatable and non copyable
     this->entity = entity; // !!!!!!!!!! This is problematic
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
     highlight = false;
-    commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
+    // commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
     // commandList.push_back({ CommandKind::MOVE, id, {{ 5.0f, 0.0f, 0.0f }, -1 }});
 }
 
@@ -38,6 +38,6 @@ void Instance::syncToAuthInstance(const Instance& other) {
 }
 
 // NOTE: direction has to be normalized
-bool Instance::intersects(glm::vec3 origin, glm::vec3 direction, float& distance) const {
+bool Instance::intersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const {
     return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }

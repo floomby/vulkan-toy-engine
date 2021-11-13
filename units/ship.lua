@@ -3,6 +3,9 @@ Ship = {
     texture = "textures/spaceship.png",
     icon = "textures/spaceship_icon.png",
     maxSpeed = 7,
-    acceleration = 0.1,
+    acceleration = 0.3,
     maxOmega = 0.2,
+    weapons = {
+        "basic_plasma",
+    }
 }

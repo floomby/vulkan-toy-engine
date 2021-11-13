@@ -31,6 +31,7 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     lua.exportEnumToLua<GuiLayoutType>();
 
     lua.exportEcho();
+    lua.exportTestFire();
 }
 
 Gui::~Gui() {

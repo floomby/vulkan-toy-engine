@@ -94,6 +94,7 @@ layout( push_constant ) uniform constants {
     vec3 pointing;
     int index;
     int type;
+    vec3 teamColor;
 } pushConstants;
 
 const int mode = 1;
@@ -111,6 +112,11 @@ void main() {
             outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
         }
         if (outColor.a < 0.1) discard;
+        return;
+    }
+
+    if (rtype == RINT_PROJECTILE) {
+        outColor = texture(texSampler[pushConstants.index], fragTexCoord);
         return;
     }
 

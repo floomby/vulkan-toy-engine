@@ -78,22 +78,18 @@ void run(EngineSettings& settings) {
   I should probably change it to not be like that
 
 Next steps
- my text rendering with freetype cant render space characters for some reason
- multisampling
+ I am getting worried about the amount of linear algebra (and just stuff in general, but almost everything we do takes linear algebra) we are doing on the cpu in the main render thread
+ multisampling, hdr and bloom
  mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
- world space raycasting and maybe spherecasting
- projectiles
+ world space raycasting and maybe spherecasting (this is the half of projectiles that still needs to be done, most of the work is already there in the form
+   of glm functionallity, but it still needs some work)
+ projectiles (this is half done)
  organized input handling (a new object and associated files to do this)
- gui
-  the text is really bad, I tried bicubic interpolation and this is slightly better, but it is still blurry
-  messaging from the gui to the render thread (probably just use another spsc lockfree queue)
-  a button component (I might just blit the text alpha mask onto a button texture and call that good)
-  yaml reader into layouts - to get to here we still need much work
- shadow pass needs to move to having the abillity to have multiple depth buffers so that the fence for rendering can be moved to the correct spot
- the api exposed in api.hpp needs to be thread safe since we will be calling it from lua
+ gui - I still need some more components, but this seems really low priority right now
  lt - networking
+ my text rendering with freetype cant render space characters for some reason
  the text rendering to texture code is so slow, (Like unbelievably slow, of course I did note that it looked slow when I was writting it in the first place)
- finish the path following code
+ finish the path following/steering code
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
  instance component system or something (or something else as an organizational structure for the proccessing)

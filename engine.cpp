@@ -499,6 +499,8 @@ void Engine::pickPhysicalDevice() {
     physicalDeviceIndices = std::get<3>(std::next(deviceInfos.rbegin(), deviceListOffset)->second);
     // for right now just run at max availible anisotrpic filtering level for textures
     maxSamplerAnisotropy = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.maxSamplerAnisotropy;
+    // same with multisampling
+    msaaSamples = getMaxUsableSampleCount(std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second));
     minUniformBufferOffsetAlignment = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.minUniformBufferOffsetAlignment;
 
     // TODO We should act on these values in case it doesn't support line width and make an error message rather than just try and initalize the device anyways
@@ -509,6 +511,18 @@ void Engine::pickPhysicalDevice() {
     lineWidthGranularity = std::get<1>(std::next(deviceInfos.rbegin(), deviceListOffset)->second).limits.lineWidthGranularity;
 
     if (engineSettings.verbose) std::cout << physicalDeviceIndices.info();
+}
+
+VkSampleCountFlagBits Engine::getMaxUsableSampleCount(const VkPhysicalDeviceProperties& physicalDeviceProperties) {
+    VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+    return VK_SAMPLE_COUNT_1_BIT;
 }
 
 void Engine::setupLogicalDevice() {
@@ -1218,7 +1232,10 @@ void Engine::createGraphicsPipelines() {
     pipelineInfo.pDynamicState = &dynamicState;
 
     pipelineInfo.layout = linePipelineLayout;
-    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]), "Failed to create graphics pipeline.");
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_LINES]),
+        "Failed to create graphics pipeline.");
+    colorBlendAttachment.blendEnable = VK_FALSE;
 
     pipelineInfo.pDynamicState = nullptr;
 
@@ -1922,7 +1939,7 @@ inline glm::vec3 Engine::raycastDevice(std::pair<float, float> normedDevice, glm
     return raycastDevice(normedDevice.first, normedDevice.second, inverseProjection, inverseView);
 }
 
-void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius, const uint segmentCount) {
+void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius, const uint segmentCount, const glm::vec4& color) {
     auto theta = 2.0f * M_PI / (float)segmentCount;
     auto rot = toMat3(rotationVector({ 0.0f, 0.0f, 1.0f }, normal));
     glm::vec3 prev, curr;
@@ -1931,7 +1948,7 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
             prev = center + rot * glm::vec3({ cosf((float)i * theta), sinf((float)i * theta), 0.0f });
         } else {
             curr = center + rot * glm::vec3({ cosf((float)i * theta), sinf((float)i * theta), 0.0f });;
-            lines.push_back({ prev, curr });
+            lines.push_back({ prev, curr, color, color });
             prev = std::move(curr);
         }
     }
@@ -1940,6 +1957,8 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
 void Engine::handleInput() {
+    cursorLines->lines.clear();
+
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
         // if(message.signal == Gui::GUI_CLICKED) {
@@ -2031,7 +2050,6 @@ void Engine::handleInput() {
     cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
     cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
 
-
     // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
     // auto orbitMatrix = glm::toMat3(orbit);
@@ -2055,7 +2073,6 @@ void Engine::handleInput() {
     }
 
     static glm::vec3 zPlaneNormal;
-    static float zd;
 
     MouseEvent mouseEvent;
     while (mouseInput.pop(mouseEvent)) {
@@ -2117,15 +2134,13 @@ void Engine::handleInput() {
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
             if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && planeDist > 0 && !idsSelected.empty()) {
                 mouseAction = MOUSE_MOVING_Z;
-                movingToXY = { planeIntersection.x, planeIntersection.y };
+                movingTo.x = planeIntersection.x;
+                movingTo.y = planeIntersection.y;
                 zPlaneNormal = normalize(cross({ 0.0f, 0.0f, 1.0f }, cross({ 0.0f, 0.0f, 1.0f }, mouseRayNormed)));
-                // std::cout << "x: " << movingToXY.x << " y: " << movingToXY.y << " : " << length(zPlaneNormal) << std::endl;
-                // std::cout << "setting plane normal: " << zPlaneNormal << " plane dist " << planeDist << std::endl;
-                zd = dot(zPlaneNormal, planeIntersection);
             }
         } else if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT && mouseAction == MOUSE_MOVING_Z) {
             for (const auto id : idsSelected) {
-                Api::cmd_move(id, { movingToXY.x, movingToXY.y, movingToXY.z }, InsertionMode::OVERWRITE);
+                Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, InsertionMode::OVERWRITE);
             }
             mouseAction = MOUSE_NONE;
         }
@@ -2190,28 +2205,6 @@ void Engine::handleInput() {
         }
     }
 
-    // // use key presses for now
-    // if (keysPressed[GLFW_KEY_A]) {
-    //     cammera.position = orbitMatrix * (cammera.position - cammera.target) + cammera.target;
-    // }
-    // if (keysPressed[GLFW_KEY_D]) {
-    //     cammera.position = reverseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
-    // }
-    // if (keysPressed[GLFW_KEY_W]) {
-    //     auto newPosition = tiltMatrix * (cammera.position - cammera.target) + cammera.target;
-    //     // avoid gimble problems
-    //     if ((newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
-    //         (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
-    //             cammera.position = newPosition;
-    //     }
-    // }
-    // if (keysPressed[GLFW_KEY_S]) {
-    //     auto newPosition = reverseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
-    //     if ((newPosition.z - cammera.target.z) > cammera.gimbleStop) {
-    //             cammera.position = newPosition;
-    //     }
-    // }
-
     Instance *mousedOver = nullptr;
     float minDistance = std::numeric_limits<float>::max();
 
@@ -2228,59 +2221,37 @@ void Engine::handleInput() {
     if(mousedOver) {
         // mousedOver->highlight() = true;
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
-        lineObjects = {};
     } else {
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
         if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
-            LineHolder circ;
-            circ.addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 2.0f);
-            lineObjects = { circ };
-        } else {
-            lineObjects = {};
-        }
+            cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
+        }// else {
+        //     lineObjects = {};
+        // }
     }
 
     if (mouseAction == MOUSE_MOVING_Z) {
         if (planeIntersectionDenominator != 0.0f) {
             float dist;
-            if (glm::intersectRayPlane(cammera.position, mouseRayNormed, { movingToXY.x, movingToXY.y, 0.0f }, zPlaneNormal, dist)) {
+            if (glm::intersectRayPlane(cammera.position, mouseRayNormed, { movingTo.x, movingTo.y, 0.0f }, zPlaneNormal, dist)) {
                 auto intersection = cammera.position + mouseRayNormed * dist;
-                movingToXY.z = intersection.z;
-                // std::cout << "z: " << movingToXY.z << std::endl;
-                LineHolder circ;
-                circ.addCircle({ movingToXY.x, movingToXY.y, intersection.z }, { 0.0f, 0.0f, 1.0f }, 2.0f);
-                lineObjects = { circ };
+                movingTo.z = intersection.z;
+                cursorLines->addCircle(movingTo, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
+                cursorLines->addCircle({ movingTo.x, movingTo.y, 0 }, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.1f, 0.7f, 0.1f, 1.0f }));
             } else {
                 // std::cout << "bad bad" << std::endl;
             }
-            // float zDenom = glm::dot(mouseRay, zPlaneNormal);
-            // float d;
-            // glm::vec3 intersection;
-            // if (zDenom == 0) {
-                
-            // } else {
-            //     d = - (glm::dot(cammera.position, zPlaneNormal) - zd) / zDenom;
-            //     intersection = cammera.position + mouseRay * d;
-            //     if (d > 0) {
-            //         movingToXY.z = intersection.z;
-            //         LineHolder circ;
-            //         circ.addCircle({ movingToXY.x, movingToXY.y, movingToXY.z }, { 0.0f, 0.0f, 1.0f }, 2.0f);
-            //         lineObjects = { circ };
-            //         // std::cout << "z: " << intersection.z << std::endl;
-            //     }
-            // }
         }
     }
-
 
     lastMousePosition.x = x;
     lastMousePosition.y = y;
 }
 
-instanceZSorter::instanceZSorter(Scene *context)
+InstanceZSorter::InstanceZSorter(Scene *context)
 : context(context) {}
 
-bool instanceZSorter::operator() (int a, int b) {
+bool InstanceZSorter::operator() (int a, int b) {
     return context->state.instances[a].cammeraDistance2 > context->state.instances[b].cammeraDistance2;
 }
 
@@ -2355,6 +2326,11 @@ float Engine::updateScene(int index) {
     uint fullyRenderCount = 0;
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
+        if (currentScene->state.instances[i].entity->isProjectile) {
+            // I will just let the gpu do its thing and not mess about
+            currentScene->state.instances[i].rendered = true;
+            continue;
+        }
         const Entity& entity = *currentScene->state.instances[i].entity;
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
         currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
@@ -2609,9 +2585,12 @@ void Engine::runCurrentScene() {
     updateScene(0);
     vkDeviceWaitIdle(device);
 
-    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})));
+    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})), 1);
 
     iconModelIndex = currentScene->entities["icon"]->modelIndex;
+
+    cursorLines = new LineHolder();
+    lineObjects = { cursorLines };
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -2623,6 +2602,8 @@ void Engine::runCurrentScene() {
             authState.doUpdateTick();
         }
     }
+
+    delete cursorLines;
 
     vkDeviceWaitIdle(device);
 }
@@ -2991,6 +2972,9 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     // This loop indexing will change once the instance allocator changes
     for (int j = 1; j < uniformSync->validCount[index]; j++) {
         if (!currentScene->state.instances[j].rendered) continue;
+        if (!currentScene->state.instances[j].entity->isProjectile) {
+            pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j].team];
+        }
         dynamicOffset = j * uniformSync->uniformSkip;
         if (currentScene->state.instances[j].renderAsIcon) {
             const auto ent = currentScene->state.instances[j].entity;
@@ -3002,7 +2986,11 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
-        pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
+        if (currentScene->state.instances[j].entity->isProjectile) {
+            pushConstants.renderType = RINT_PROJECTILE;
+        } else {
+            pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
+        }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         // 0th instance is always the skybox
         pushConstants.textureIndex = currentScene->state.instances[j].entity->textureIndex;
@@ -4022,11 +4010,13 @@ InternalTexture& InternalTexture::operator=(InternalTexture&& other) noexcept {
     return *this;
 }
 
+#include "unit_ai.hpp"
+
 Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>> entities, std::array<const char *, 6> skyboxImages)
-: skybox(context, skyboxImages), zSorter(instanceZSorter(this)) {
+: skybox(context, skyboxImages), zSorter(InstanceZSorter(this)) {
     this->context = context;
     auto icon = new Entity(ENT_ICON);
-    for(const auto& entityData : entities) {
+    for (const auto& entityData : entities) {
         auto entity = new Entity(get<0>(entityData), get<1>(entityData), get<2>(entityData));
         this->entities.insert({ std::string(get<3>(entityData)), entity });
         if (entity->hasTexture) {
@@ -4041,8 +4031,21 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
     this->entities.insert({ std::string("icon"), icon });
     missingIcon = textures.size();
     textures.push_back(InternalTexture(context, { icon->textureHeight, icon->textureWidth, icon->textureChannels, icon->texturePixels }));
+    auto weapons = loadWeaponsFromLua("weapons");
+    for (const auto& weapon : weapons) {
+        if (weapon->hasEntity()) {
+            // this->entities.insert({ weapon->entity->name, weapon->entity });
+            // I think they should all have textures?
+            if (weapon->entity->hasTexture) {
+                weapon->entity->textureIndex = textures.size();
+                textures.push_back(InternalTexture(context, { weapon->entity->textureHeight, weapon->entity->textureWidth,
+                    weapon->entity->textureChannels, weapon->entity->texturePixels }));
+            }
+        }
+        this->weapons.insert({ weapon->name, weapon });
+    }
     auto ents = loadEntitiesFromLua("units");
-    for(const auto& entity : ents) {
+    for (const auto& entity : ents) {
         this->entities.insert({ entity->name, entity });
         if (entity->hasTexture) {
             entity->textureIndex = textures.size();
@@ -4054,6 +4057,19 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
             // stbi_write_bmp("debug_dump.png", entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels);
             textures.push_back(InternalTexture(context, { entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels }));
         }
+        // Populate the weapon vector
+        for (auto& weapon : entity->weaponNames) {
+            std::cout << "!!!!!:" << weapon << std::endl;
+            if (this->weapons.contains(weapon)) {
+                entity->weapons.push_back(this->weapons[weapon]);
+            } else {
+                std::cerr << "Weapon not found: " << weapon << std::endl;
+            }
+        }
+    }
+    for (const auto& [name, ent] : this->entities) {
+        ent->ai = new UnitAI(ent);
+        unitAIs.push_back(ent->ai);
     }
 }
 
@@ -4095,21 +4111,26 @@ void Scene::updateUniforms(int idx) {
 
     auto cmdGen = state.getCommandGenerator(&inPlayIndices);
 
-    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder x) -> size_t { 
-        return s + x.lines.size();
+    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder *x) -> size_t { 
+        return s + x->lines.size();
     });
     // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
     std::vector<LineUBO> lineTmp(commandCount + lineObjectSize);
 
     for (const auto&  lineHolder : context->lineObjects) {
-        lineTmp.insert(lineTmp.end(), lineHolder.lines.begin(), lineHolder.lines.end());
+        lineTmp.insert(lineTmp.end(), lineHolder->lines.begin(), lineHolder->lines.end());
     }
 
     auto commandLines = [&] () -> LineUBO {
         cmdGen.next();
         auto a = cmdGen.value();
         // std::cout << "From " << this->state.instances[a.which->at(a.idx)].position << " to " << a.command->data.dest << std::endl;
-        return { this->state.instances[a.which->at(a.idx)].position, a.command->data.dest }; };
+        return {
+            this->state.instances[a.which->at(a.idx)].position,
+            a.command->data.dest, 
+            { 0.3f, 1.0f, 0.3f, 1.0f }, 
+            { 0.3f, 1.0f, 0.3f, 1.0f }
+        };};
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
 

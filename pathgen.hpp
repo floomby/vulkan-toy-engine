@@ -16,7 +16,7 @@ namespace Pathgen {
         inst.position += inst.dP;
 
         auto rot = rotationVector({ 1.0f, 0.0f, 0.0f}, steeringAcceleration);
-        auto wantedAngular = log(rot * inverse(inst.heading));
+        // auto wantedAngular = log(rot * inverse(inst.heading));
         inst.heading = slerp(inst.heading, rot, 0.05f);
 
         // inst.heading = normalize(glm::quat({1.0, steeringAcceleration.x, steeringAcceleration.y, steeringAcceleration.z }));
@@ -31,9 +31,11 @@ namespace Pathgen {
     void arrive(Instance& inst, const glm::vec3& dest) {
         auto offset = dest - inst.position;
         auto dist = length(offset);
-        auto ramped = inst.entity->maxSpeed * (dist / *inst.entity->brakingCurve.rend() * 2.f);
+        // I need to figure out the braking distance, clearly doing the integration to find the straigh approach braking distance was not the right thing
+        auto ramped = inst.entity->maxSpeed * (dist / 100.0f);
         auto clipped = std::min(ramped, inst.entity->maxSpeed);
         auto desired = (clipped / dist) * offset;
+        // std::cout << desired - inst.dP << std::endl;
         applySteering(inst, desired - inst.dP);
     }
 }

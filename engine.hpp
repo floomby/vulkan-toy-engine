@@ -37,11 +37,14 @@ struct EngineSettings {
 struct LineUBO {
     alignas(16) glm::vec3 a;
     alignas(16) glm::vec3 b;
+    alignas(16) glm::vec4 aColor;
+    alignas(16) glm::vec4 bColor;
 };
 
 struct LineHolder {
     std::vector<LineUBO> lines;
-    void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius, const uint segmentCount = 20);
+    void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius,
+        const uint segmentCount = 20, const glm::vec4& color = glm::vec4({ 1.0f, 1.0f, 1.0f, 1.0f }));
 };
 
 template<typename T> class DescriptorSyncer;
@@ -99,6 +102,7 @@ private:
         glm::vec3 normedPointing;
         glm::uint32_t textureIndex;
         glm::uint32_t renderType;
+        glm::vec3 teamColor;
     } pushConstants;
 
     Utilities::ViewProjPosNearFar lightingData;
@@ -108,6 +112,8 @@ private:
     bool guiOutOfDate = false;
     Gui *gui = nullptr;
 
+    int teamIAm = 1;
+
     struct Cammera {
         const float minZoom2 = 1.0, maxZoom2 = 400.0;
         const float gimbleStop = 0.1;
@@ -116,7 +122,6 @@ private:
         glm::vec3 position;
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
-        uint32_t when;
         struct {
             glm::mat4 view_1;
             glm::mat4 proj_1;
@@ -134,6 +139,8 @@ private:
 
     // Maybe shove these all in a struct to help organize them
     float maxSamplerAnisotropy;
+    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkSampleCountFlagBits getMaxUsableSampleCount(const VkPhysicalDeviceProperties& physicalDeviceProperties);
     template<typename T> size_t calculateUniformSkipForUBO() {
         return sizeof(T) / minUniformBufferOffsetAlignment + (sizeof(T) % minUniformBufferOffsetAlignment ? minUniformBufferOffsetAlignment : 0);
     }
@@ -174,9 +181,7 @@ private:
         float normedX, normedY;
     } lastMousePosition;
 
-    struct {
-        float x, y, z;
-    } movingToXY;
+    glm::vec3 movingTo;
 
     bool mouseButtonsPressed[8];
     struct MouseEvent {
@@ -342,7 +347,8 @@ private:
     VkBuffer hudBuffer;
     // void createHudBuffers();
 
-    std::list<LineHolder> lineObjects;
+    std::list<LineHolder *> lineObjects;
+    LineHolder *cursorLines;
 
     DescriptorSyncer<UniformBufferObject> *uniformSync;
     DescriptorSyncer<LineUBO> *lineSync;
@@ -471,15 +477,31 @@ namespace GuiTextures {
     void setDefaultTexture();
 }
 
-struct instanceZSorter {
-    instanceZSorter(Scene *context);
+struct InstanceZSorter {
+    InstanceZSorter(Scene *context);
     bool operator() (int a, int b);
 private:
     Scene *context;
 };
 
+// I don't know if I want to z sort the lines to do transparency in the lines
+// The graphics pipeline is configured with blending enabled and the line coloring
+// ubos support transparency
+// struct LineZSorter {
+//     LineZSorter(Scene *context);
+//     bool operator() (const LineUBO& a, const LineUBO& b);
+// private:
+//     Scene *context;
+// };
+
 class Scene {
 public:
+    static constexpr std::array<glm::vec3, 3> teamColors = {{ 
+        { 1.0f, 1.0f, 1.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f }
+    }};
+
     // vertex and index offsets for the model
     Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>>, std::array<const char *, 6> skyboxImages);
     ~Scene();
@@ -501,6 +523,7 @@ public:
 
     // Right now these are public so the engine can see them to copy them to vram
     std::map<std::string, Entity *> entities;
+    std::map<std::string, Weapon *> weapons;
     std::vector<InternalTexture> textures;
     std::vector<SceneModelInfo> models;
 
@@ -515,11 +538,14 @@ public:
     
     void updateUniforms(int idx);
 
-    instanceZSorter zSorter;
+    std::vector<UnitAI *> unitAIs;
+
+    InstanceZSorter zSorter;
 private:
     Engine* context;
 
     std::vector<Entity *> loadEntitiesFromLua(const char *directory);
+    std::vector<Weapon *> loadWeaponsFromLua(const char *directory);
 };
 
 struct TextureCreationData {

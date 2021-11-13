@@ -187,3 +187,11 @@ inline glm::quat rotationVector(const glm::vec3& u, const glm::vec3& v) {
 
     return normalize(glm::quat(kCosTheta + k, cross(u, v)));
 }
+
+inline glm::vec3 quatToDirection(const glm::quat& q) {
+    return {
+        2.0f * (q.x * q.z - q.w * q.y),
+        2.0f * (q.y * q.z + q.w * q.x),
+        1.0f - 2.0f * (q.x * q.x + q.y * q.y)
+    };
+}

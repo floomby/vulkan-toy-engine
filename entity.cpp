@@ -28,27 +28,91 @@ namespace Entities {
     // };
 }
 
-Entity::Entity(SpecialEntities entityType) {
-    textureWidth = textureHeight = 1;
-    textureChannels = Entities::dummyTexture.size();
-    texturePixels = (stbi_uc *)Entities::dummyTexture.data();
+Entity::Entity(SpecialEntities entityType, const char *name, const char *model, const char *texture) {
+    switch (entityType) {
+        case ENT_ICON:
+            textureWidth = textureHeight = 1;
+            textureChannels = Entities::dummyTexture.size();
+            texturePixels = (stbi_uc *)Entities::dummyTexture.data();
 
-    // 0 1
-    // 3 2
-    vertices = std::vector<Utilities::Vertex>({{
-        { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-        { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-        { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
-        { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
-    }});
-    indices = std::vector<uint32_t>({
-        0, 1, 3, 3, 1, 2
-    });
+            // 0 1
+            // 3 2
+            vertices = std::vector<Utilities::Vertex>({{
+                { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+                { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
+                { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
+                { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
+            }});
+            indices = std::vector<uint32_t>({
+                0, 1, 3, 3, 1, 2
+            });
 
-    boundingRadius = sqrtf(2);
-    hasConstTexture = true;
-    hasTexture = true;
-    hasIcon = false;
+            boundingRadius = sqrtf(2);
+            hasConstTexture = true;
+            hasTexture = true;
+            hasIcon = false;
+            isProjectile = false;
+            break;
+        case ENT_PROJECTILE:
+            this->name = std::string(name);
+            hasConstTexture = false;
+            hasTexture = true;
+            hasIcon = false;
+            isProjectile = true;
+            texturePixels = stbi_load(texture, &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
+            if (!texturePixels) throw std::runtime_error("Failed to load texture image.");
+
+            tinyobj::attrib_t attrib;
+            std::vector<tinyobj::shape_t> shapes;
+            std::vector<tinyobj::material_t> materials;
+            std::string warn, err;
+
+            if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, model))
+                throw std::runtime_error(std::string("Unable to load model: ") + warn + " : " + err);
+
+            std::unordered_map<Utilities::Vertex, uint32_t> uniqueVertices {};
+
+            float d2max = 0;
+
+            for(const auto& shape : shapes) {
+                for (const auto& index : shape.mesh.indices) {
+                    Utilities::Vertex vertex {};
+
+                    vertex.pos = {
+                        attrib.vertices[3 * index.vertex_index + 0],
+                        attrib.vertices[3 * index.vertex_index + 1],
+                        attrib.vertices[3 * index.vertex_index + 2]
+                    };
+
+                    vertex.texCoord = {
+                        attrib.texcoords[2 * index.texcoord_index + 0],
+                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                    };
+
+                    vertex.color = { 1.0f, 1.0f, 1.0f };
+
+                    vertex.normal = {
+                        attrib.normals[3 * index.normal_index + 0],
+                        attrib.normals[3 * index.normal_index + 1],
+                        attrib.normals[3 * index.normal_index + 2]
+                    };
+
+                    if (uniqueVertices.count(vertex) == 0) {
+                        uniqueVertices[vertex] = vertices.size();
+                        vertices.push_back(vertex);
+                    }
+
+                    indices.push_back(uniqueVertices[vertex]);
+
+                    float d2 = dot(vertex.pos, vertex.pos);
+                    if (d2 > d2max) d2max = d2;
+                }
+            }
+
+            boundingRadius = sqrtf(d2max);
+
+            break;
+    }
 }
 
 Entity::Entity(const char *name, const char *model, const char *texture, const char *icon)
@@ -56,7 +120,8 @@ Entity::Entity(const char *name, const char *model, const char *texture, const c
     this->name = std::string(name);
 }
 
-Entity::Entity(const char *model, const char *texture, const char *icon) {
+Entity::Entity(const char *model, const char *texture, const char *icon)
+: isProjectile(false) {
     hasConstTexture = false;
     if (hasTexture = strlen(texture)) {
         texturePixels = stbi_load(texture, &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
@@ -68,7 +133,8 @@ Entity::Entity(const char *model, const char *texture, const char *icon) {
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, model)) throw std::runtime_error(std::string("Unable to load model: ") + warn + err);
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, model))
+        throw std::runtime_error(std::string("Unable to load model: ") + warn + " : " + err);
 
     std::unordered_map<Utilities::Vertex, uint32_t> uniqueVertices {};
 
@@ -124,68 +190,74 @@ std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
 }
 
 // such boilerplate (Yeah, I should have done it differently and managed the resources seperately with a shared_ptr or something)
-Entity::Entity(const Entity& other) {
-    textureWidth = other.textureWidth;
-    textureHeight = other.textureHeight;
-    textureChannels = other.textureChannels;
-    hasConstTexture = other.hasConstTexture;
-    iconWidth = other.iconWidth;
-    iconHeight = other.iconHeight;
-    iconChannels = other.iconChannels;
-    hasIcon = other.hasIcon;
-    hasTexture = other.hasTexture;
-    textureIndex = other.textureIndex;
-    iconIndex = other.iconIndex;
-    vertices = other.vertices;
-    indices = other.indices;
-    brakingCurve = other.brakingCurve;
-    // I am not sure about this code (we may need to check the image channle count)
-    if (hasConstTexture) {
-        texturePixels = other.texturePixels;
-    } else if (hasTexture) {
-        texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * textureChannels));
-        if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-        memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * textureChannels);
-    }
-    if (hasIcon) {
-        iconPixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(iconHeight * iconWidth * iconChannels));
-        if (!iconPixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-        memcpy(iconPixels, other.iconPixels, iconHeight * iconWidth * iconChannels);
-    }
-}
+// Entity::Entity(const Entity& other) {
+//     textureWidth = other.textureWidth;
+//     textureHeight = other.textureHeight;
+//     textureChannels = other.textureChannels;
+//     hasConstTexture = other.hasConstTexture;
+//     iconWidth = other.iconWidth;
+//     iconHeight = other.iconHeight;
+//     iconChannels = other.iconChannels;
+//     hasIcon = other.hasIcon;
+//     hasTexture = other.hasTexture;
+//     textureIndex = other.textureIndex;
+//     iconIndex = other.iconIndex;
+//     vertices = other.vertices;
+//     indices = other.indices;
+//     isProjectile = other.isProjectile;
+//     weaponKind = other.weaponKind;
+//     brakingCurve = other.brakingCurve;
+//     weapons = other.weapons;
+//     // I am not sure about this code (we may need to check the image channle count)
+//     if (hasConstTexture) {
+//         texturePixels = other.texturePixels;
+//     } else if (hasTexture) {
+//         texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * textureChannels));
+//         if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
+//         memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * textureChannels);
+//     }
+//     if (hasIcon) {
+//         iconPixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(iconHeight * iconWidth * iconChannels));
+//         if (!iconPixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
+//         memcpy(iconPixels, other.iconPixels, iconHeight * iconWidth * iconChannels);
+//     }
+// }
 
-Entity::Entity(Entity&& other) noexcept
-: texturePixels(std::exchange(other.texturePixels, nullptr)), iconPixels(std::exchange(other.iconPixels, nullptr)), textureWidth(other.textureWidth),
-textureChannels(other.textureChannels), textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)),
-boundingRadius(other.boundingRadius), hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight),
-iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex),
-brakingCurve(std::move(other.brakingCurve))
-{}
+// Entity::Entity(Entity&& other) noexcept
+// : texturePixels(std::exchange(other.texturePixels, nullptr)), iconPixels(std::exchange(other.iconPixels, nullptr)), textureWidth(other.textureWidth),
+// textureChannels(other.textureChannels), textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)),
+// boundingRadius(other.boundingRadius), hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight),
+// iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex),
+// isProjectile(other.isProjectile), brakingCurve(std::move(other.brakingCurve)), weaponKind(other.weaponKind), weapons(std::move(other.weapons))
+// {}
 
-Entity& Entity::operator=(const Entity& other) {
-    return *this = Entity(other);
-}
+// Entity& Entity::operator=(const Entity& other) {
+//     return *this = Entity(other);
+// }
 
-Entity& Entity::operator=(Entity&& other) noexcept {
-    std::swap(texturePixels, other.texturePixels);
-    std::swap(iconPixels, other.iconPixels);
-    textureWidth = other.textureWidth;
-    textureHeight = other.textureHeight;
-    textureChannels = other.textureChannels;
-    hasConstTexture = other.hasConstTexture;
-    iconWidth = other.iconWidth;
-    iconHeight = other.iconHeight;
-    iconChannels = other.iconChannels;
-    hasIcon = other.hasIcon;
-    hasTexture = other.hasTexture;
-    textureIndex = other.textureIndex;
-    iconIndex = other.iconIndex;
-    vertices = std::move(other.vertices);
-    indices = std::move(other.indices);
-    brakingCurve = std::move(brakingCurve);
-    boundingRadius = other.boundingRadius;
-    return *this;
-}
+// Entity& Entity::operator=(Entity&& other) noexcept {
+//     std::swap(texturePixels, other.texturePixels);
+//     std::swap(iconPixels, other.iconPixels);
+//     textureWidth = other.textureWidth;
+//     textureHeight = other.textureHeight;
+//     textureChannels = other.textureChannels;
+//     hasConstTexture = other.hasConstTexture;
+//     iconWidth = other.iconWidth;
+//     iconHeight = other.iconHeight;
+//     iconChannels = other.iconChannels;
+//     hasIcon = other.hasIcon;
+//     hasTexture = other.hasTexture;
+//     textureIndex = other.textureIndex;
+//     iconIndex = other.iconIndex;
+//     vertices = std::move(other.vertices);
+//     indices = std::move(other.indices);
+//     brakingCurve = std::move(brakingCurve);
+//     boundingRadius = other.boundingRadius;
+//     isProjectile = other.isProjectile;
+//     weaponKind = other.weaponKind;
+//     weapons = std::move(other.weapons);
+//     return *this;
+// }
 
 Entity::~Entity() {
     if (hasTexture && !hasConstTexture && texturePixels) STBI_FREE(texturePixels);

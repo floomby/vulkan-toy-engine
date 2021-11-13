@@ -12,6 +12,7 @@ layout( push_constant ) uniform constants {
     vec3 pointing;
     int index;
     int type;
+    vec3 teamColor;
 } pushConstants;
 
 void main() {

@@ -2,13 +2,16 @@
 
 #include "net.hpp"
 #include "utilities.hpp"
+#include "weapon.hpp"
 
 typedef unsigned char stbi_uc;
 
 enum SpecialEntities {
     ENT_ICON,
+    ENT_PROJECTILE
 };
 
+class UnitAI;
 
 // TODO It would seem good to support empty entities (ie. no model)
 class Entity {
@@ -16,15 +19,15 @@ class Entity {
     friend class Engine;
     friend class Scene;
 public:
-    Entity(SpecialEntities entityType);
+    Entity(SpecialEntities entityType, const char *name = "", const char *model = "", const char *texture = "");
     Entity(const char *model, const char *texture = "", const char *icon = "");
     Entity(const char *name, const char *model, const char *texture, const char *icon);
     std::vector<uint32_t> mapOffsetToIndices(size_t offset);
 
-    Entity(const Entity& other);
-    Entity(Entity&& other) noexcept;
-    Entity& operator=(const Entity& other);
-    Entity& operator=(Entity&& other) noexcept;
+    Entity(const Entity& other) = delete;
+    Entity(Entity&& other) noexcept = delete;
+    Entity& operator=(const Entity& other) = delete;
+    Entity& operator=(Entity&& other) noexcept = delete;
     ~Entity();
     // temp stuff
     float boundingRadius;
@@ -39,6 +42,14 @@ public:
     float dv;
     float v_m;
     float w_m;
+
+    bool isProjectile;
+    WeaponKind weaponKind;
+
+    std::vector<std::string> weaponNames;
+    std::vector<Weapon *> weapons;
+
+    UnitAI *ai;
 
     void precompute();
     inline float indexToVelocity(int idx) {

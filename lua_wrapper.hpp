@@ -55,6 +55,7 @@ struct GuiLayoutNode {
 #include <iostream>
 
 class Entity;
+class Weapon;
 
 class LuaWrapper {
 public:
@@ -75,8 +76,10 @@ public:
 
     GuiLayoutNode *loadGuiFile(const char *name);
     Entity *loadEntityFile(const std::string& filename);
+    Weapon *loadWeaponFile(const std::string& filename);
     void callFunction(int index);
     void exportEcho();
+    void exportTestFire();
 private:
     void error(const char *fmt, ...);
     float getNumberField(const char *key);

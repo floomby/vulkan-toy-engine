@@ -6,6 +6,10 @@ local function centerSelected()
     print("You need to make the api bindings")
 end
 
+local function testFire()
+    test_fire()
+end
+
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
     x = -1.0,
@@ -44,9 +48,9 @@ Hud = {
             y = 0.875,
             width = 0.5,
             height = 0.1,
-            onClick = click,
+            onClick = testFire,
             kind = GuiLayoutType__TEXT_BUTTON,
-            text = "ClickMe2",
+            text = "Fire",
             color = 0x000000ff,
             -- children = {}
         }
