@@ -13,8 +13,7 @@ enum class InsertionMode {
     COUNT
 };
 
-// For right now I am making the lua bindings by hand, but I will probably make a code generator in some scripting language for making the bindings in the future
-// I can use the __PRETTY_FUNCTION__ compiler feature to get the types easily
+// I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace 
 class Api {
 public:
     Api() = delete;

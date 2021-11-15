@@ -79,7 +79,7 @@ void run(EngineSettings& settings) {
 
 Next steps
  I am getting worried about the amount of linear algebra (and just stuff in general, but almost everything we do takes linear algebra) we are doing on the cpu in the main render thread
- multisampling, hdr and bloom
+ shader multisampling
  mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
  world space raycasting and maybe spherecasting (this is the half of projectiles that still needs to be done, most of the work is already there in the form
    of glm functionallity, but it still needs some work)
@@ -92,10 +92,9 @@ Next steps
  finish the path following/steering code
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
- instance component system or something (or something else as an organizational structure for the proccessing)
+ I would like bloom, idk if this means I need hdr color attachements or what
  lt - better model library (assimp?)
- lt - emmisivity maps would be cool
- pcf filtering for shadows - I did this and it is better for sure, but still looks like crap
+ cube mapping for lights and calculating shadows with them would be cool
  dynamic backface culling (Idk if this is a thing, the hardware supports it, but my prefunctory perusing through the vulkan docs did not show this was availible)
    It might be one of those things that on some hardware would require rebuilding the pipeline and trigger shader recompilation and therefore might not be in the standard
    or fix normals for skybox geometry

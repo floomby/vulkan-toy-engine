@@ -7,7 +7,7 @@ local function centerSelected()
 end
 
 local function testFire()
-    test_fire()
+    pcall(test_fire)
 end
 
 -- for text buttons it ignores the width field and just makes the width based on what the text says

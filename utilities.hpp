@@ -167,9 +167,9 @@ inline glm::vec3 clampLength(const glm::vec3& v, float max) {
 }
 
 inline glm::vec3 orthogonal(const glm::vec3& v) {
-    float x = abs(v.x);
-    float y = abs(v.y);
-    float z = abs(v.z);
+    float x = fabsf(v.x);
+    float y = fabsf(v.y);
+    float z = fabsf(v.z);
 
     glm::vec3 other = x < y ? (x < z ? glm::vec3({ 1.0f, 0.0f, 0.0f }) : glm::vec3({0.0f, 0.0f, 1.0f })) : 
         (y < z ? glm::vec3({0.0f, 1.0f, 0.0f }) : glm::vec3({0.0f, 0.0f, 1.0f }));

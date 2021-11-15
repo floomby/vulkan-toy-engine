@@ -1,8 +1,25 @@
 #include "lua_wrapper.hpp"
 
-LuaWrapper::LuaWrapper() {
+static int wrap_exceptions(lua_State *ls, lua_CFunction f)
+{
+    try {
+        return f(ls);
+    // } catch (const char *s) {
+    //     lua_pushstring(ls, s);
+    } catch (const std::exception& e) {
+        lua_pushstring(ls, e.what());
+    }
+    return lua_error(ls);
+}
+
+LuaWrapper::LuaWrapper(bool rethrowExceptions) {
     luaState = luaL_newstate();
     luaL_openlibs(luaState);
+    if (rethrowExceptions) {
+        lua_pushlightuserdata(luaState, (void *)wrap_exceptions);
+        luaJIT_setmode(luaState, -1, LUAJIT_MODE_WRAPCFUNC|LUAJIT_MODE_ON);
+        lua_pop(luaState, 1);
+    }
 }
 
 LuaWrapper::~LuaWrapper() {
@@ -179,7 +196,6 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
             error("Weapons should be a table");
         int weaponsCount = lua_objlen(luaState, -1);
 
-        int childrenLocation = lua_gettop(luaState);
         for (int i = 1; i <= weaponsCount; i++) {
             lua_rawgeti(luaState, -1, i);
             if (!lua_isstring(luaState, -1))
@@ -248,25 +264,25 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
 }
 
 // I am going to use a write a code generator script to generate these bindings
-#include "api.hpp"
+// #include "api.hpp"
 
-static int echoWrapper(lua_State *ls) {
-    luaL_checkstring(ls, 1);
-    Api::eng_echo(lua_tostring(ls, 1));
-    return 0;
-}
+// static int echoWrapper(lua_State *ls) {
+//     luaL_checkstring(ls, 1);
+//     Api::eng_echo(lua_tostring(ls, 1));
+//     return 0;
+// }
 
-static int fireWrapper(lua_State *ls) {
-    Api::test_fire();
-    return 0;
-}
+// static int fireWrapper(lua_State *ls) {
+//     Api::test_fire();
+//     return 0;
+// }
 
-void LuaWrapper::exportEcho() {
-    lua_pushcfunction(luaState, echoWrapper);
-    lua_setglobal(luaState, "eng_echo");
-}
+// void LuaWrapper::exportEcho() {
+//     lua_pushcfunction(luaState, echoWrapper);
+//     lua_setglobal(luaState, "eng_echo");
+// }
 
-void LuaWrapper::exportTestFire() {
-    lua_pushcfunction(luaState, fireWrapper);
-    lua_setglobal(luaState, "test_fire");
-}
+// void LuaWrapper::exportTestFire() {
+//     lua_pushcfunction(luaState, fireWrapper);
+//     lua_setglobal(luaState, "test_fire");
+// }

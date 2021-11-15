@@ -16,7 +16,8 @@
 // };
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
-: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
+: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth),
+lua(LuaWrapper(true)) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });
@@ -30,8 +31,7 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
 
     lua.exportEnumToLua<GuiLayoutType>();
 
-    lua.exportEcho();
-    lua.exportTestFire();
+    lua.apiExport();
 }
 
 Gui::~Gui() {

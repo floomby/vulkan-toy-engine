@@ -8,8 +8,11 @@ GLSL = $(wildcard shaders/*.frag) $(wildcard shaders/*.vert)
 
 # engine: entry.cpp engine.cpp engine.hpp entity.cpp entity.hpp instance.hpp instance.cpp gui.cpp gui.hpp
 # g++ $(CFLAGS) -o result entry.cpp engine.cpp entity.cpp instance.cpp gui.cpp $(LDFLAGS)
-engine: $(OBJ)
+engine: bindings.o $(OBJ)
 	g++ $^ $(CFLAGS) -o result $(LDFLAGS)
+
+bindings.o: lua/bindings.cpp
+	g++ $(CFLAGS) -o $@ -c $<
 
 %.o: %.cpp
 	g++ $(CFLAGS) -o $@ -c $<
@@ -19,10 +22,14 @@ engine: $(OBJ)
 shaders: $(GLSL) shaders/render_modes.h 
 	cd shaders && ./compile.sh
 
+lua/bindings.cpp: api.hpp
+	ruby lua_binding_gen.rb > lua/bindings.cpp
+
+
 .PHONY: clean check_formats
 
 clean:
-	rm -f result $(OBJ) $(DEP)
+	rm -f result $(OBJ) $(DEP) lua/bindings.cpp
 
 # needs ImageMagik
 check_formats: $(wildcard textures/*.png)

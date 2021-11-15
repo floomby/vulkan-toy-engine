@@ -59,7 +59,7 @@ class Weapon;
 
 class LuaWrapper {
 public:
-    LuaWrapper();
+    LuaWrapper(bool rethrowExceptions = false);
     ~LuaWrapper();
 
     template<typename E> void exportEnumToLua() {
@@ -78,8 +78,9 @@ public:
     Entity *loadEntityFile(const std::string& filename);
     Weapon *loadWeaponFile(const std::string& filename);
     void callFunction(int index);
-    void exportEcho();
-    void exportTestFire();
+    // void exportEcho();
+    // void exportTestFire();
+    void apiExport();
 private:
     void error(const char *fmt, ...);
     float getNumberField(const char *key);
