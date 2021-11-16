@@ -44,7 +44,7 @@ public:
     float v_m;
     float w_m;
 
-    bool isProjectile;
+    bool isProjectile, isUnit;
     WeaponKind weaponKind;
 
     std::vector<std::string> weaponNames;

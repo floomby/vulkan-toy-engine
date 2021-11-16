@@ -4,18 +4,17 @@
 
 Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
 : id(0), inPlay(inPlay) {
-    // TODO I should just make entities non relocatable and non copyable
-    this->entity = entity; // !!!!!!!!!! This is problematic
+    this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
-    highlight = false;
-    // commandList.push_back({ CommandKind::MOVE, id, {{ 0.0f, 5.0f, 0.0f }, id }});
-    // commandList.push_back({ CommandKind::MOVE, id, {{ 5.0f, 0.0f, 0.0f }, -1 }});
+
+    weapons.reserve(entity->weapons.size());
+    for (auto& weapon : entity->weapons) {
+        weapons.push_back(WeaponInstance(weapon));
+    }
 }
 
-UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
-    // I read that this is bad to do as it adds much to the memory cost of doing draws (it makes sense though)
-    // probably fine for right now, but probably should be changed to something else
+UniformBufferObject *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
     if (renderAsIcon) {
         auto clipCoord = projView * glm::vec4(position.x, position.y, position.z, 1.0);
 
@@ -24,7 +23,6 @@ UniformBufferObject *Instance::state(const glm::mat4& view, const glm::mat4& pro
     } else {
         _state.model = translate(position) * glm::toMat4(heading);
     }
-    // position.z -= 0.01f;
     _state.normal = transpose(inverse(view * _state.model));
     return &_state;
 }
@@ -38,6 +36,6 @@ void Instance::syncToAuthInstance(const Instance& other) {
 }
 
 // NOTE: direction has to be normalized
-bool Instance::intersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const {
+bool Instance::rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const {
     return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }

@@ -2286,7 +2286,7 @@ void Engine::handleInput() {
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
         if (!currentScene->state.instances[i].inPlay) continue;
         float distance;
-        if(currentScene->state.instances[i].intersects(cammera.position, mouseRayNormed, distance)) {
+        if(currentScene->state.instances[i].rayIntersects(cammera.position, mouseRayNormed, distance)) {
             // !!!! potentially a pointer geting invalidated
             if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
         }
@@ -4115,13 +4115,13 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
     auto weapons = loadWeaponsFromLua("weapons");
     for (const auto& weapon : weapons) {
         if (weapon->hasEntity()) {
-            // this->entities.insert({ weapon->entity->name, weapon->entity });
             // I think they should all have textures?
             if (weapon->entity->hasTexture) {
                 weapon->entity->textureIndex = textures.size();
                 textures.push_back(InternalTexture(context, { weapon->entity->textureHeight, weapon->entity->textureWidth,
                     weapon->entity->textureChannels, weapon->entity->texturePixels }));
             }
+            this->entities.insert({ weapon->entity->name, weapon->entity.get() });
         }
         this->weapons.insert({ weapon->name, weapon });
     }
@@ -4133,14 +4133,11 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
             textures.push_back(InternalTexture(context, { entity->textureHeight, entity->textureWidth, entity->textureChannels, entity->texturePixels }));
         }
         if (entity->hasIcon) {
-            // std::cout << "!!!!Here: " << textures.size() << std::endl;
             entity->iconIndex = textures.size();
-            // stbi_write_bmp("debug_dump.png", entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels);
             textures.push_back(InternalTexture(context, { entity->iconHeight, entity->iconWidth, entity->iconChannels, entity->iconPixels }));
         }
         // Populate the weapon vector
         for (auto& weapon : entity->weaponNames) {
-            std::cout << "!!!!!:" << weapon << std::endl;
             if (this->weapons.contains(weapon)) {
                 entity->weapons.push_back(this->weapons[weapon]);
             } else {
@@ -4173,10 +4170,9 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(int idx) {
-    // auto view_1proj_1 = inverse(context->pushConstants.view) * inverse(context->pushConstants.projection);
     float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
     context->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> UniformBufferObject * {
-        return this->state.instances[n].state(context->pushConstants.view, context->cammera.cached.projView, context->cammera.cached.view_1Proj_1, aspectRatio,
+        return this->state.instances[n].getUBO(context->pushConstants.view, context->cammera.cached.projView, context->cammera.cached.view_1Proj_1, aspectRatio,
             context->cammera.minClip, context->cammera.maxClip);
     });
 
@@ -4201,7 +4197,6 @@ void Scene::updateUniforms(int idx) {
     auto commandLines = [&] () -> LineUBO {
         cmdGen.next();
         auto a = cmdGen.value();
-        // std::cout << "From " << this->state.instances[a.which->at(a.idx)].position << " to " << a.command->data.dest << std::endl;
         return {
             this->state.instances[a.which->at(a.idx)].position,
             a.command->data.dest, 
@@ -4671,7 +4666,7 @@ namespace GuiTextures {
             it++;
         }
 
-        // stbi_write_png("glyph.png", maxTextWidth, maxGlyphHeight * 2, 1, textTextureBuffer, maxTextWidth);
+        stbi_write_png("glyph.png", maxTextWidth, maxGlyphHeight * 2, 1, textTextureBuffer, maxTextWidth);
 
         return pen.x + maxGlyphHeight / 2;
     }
@@ -4696,6 +4691,12 @@ namespace GuiTextures {
     }
 }
 
+template<typename T> void printIfLineUBO(T obj) {
+    if constexpr (std::is_same<T, LineUBO>::value)
+        std::cout << obj.a << " - " << obj.b << std::endl;
+}
+
+// probably can combine these 2 function with some clever template code but I don't want to spend the brainpower now
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
     if (count > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, count + 50);
@@ -4708,12 +4709,6 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     }
 }
 
-template<typename T> void printIfLineUBO(T obj) {
-    if constexpr (std::is_same<T, LineUBO>::value)
-        std::cout << obj.a << " - " << obj.b << std::endl;
-}
-
-// // probably can combine these 2 function with some clever template code but I don't want to spend the brainpower now
 template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T ()> func) {
     if (count > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, count + 50);

@@ -48,14 +48,14 @@ public:
 
     SceneModelInfo* sceneModelInfo;
 
-    UniformBufferObject *state(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
+    UniformBufferObject *getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
 
-    bool intersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
+    bool rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
     InternalTexture* texture;
 
     bool renderAsIcon = false;
     float cammeraDistance2;
-    bool highlight, rendered;
+    bool highlight = false, rendered;
 
     bool inPlay;
     bool orphaned = false;
@@ -67,6 +67,9 @@ public:
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::quat heading;
     std::list<Command> commandList;
+
+    Target target;
+    std::vector<WeaponInstance> weapons;
 private:
     UniformBufferObject _state;
 };

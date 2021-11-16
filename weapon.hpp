@@ -8,6 +8,7 @@ class Entity;
 
 class Target {
 public:
+    Target();
     Target(const glm::vec3& location);
     Target(Instance *instance);
     bool isLocation = false;
@@ -38,4 +39,15 @@ public:
     virtual void fire(const glm::vec3& position, const glm::vec3& direction);
     virtual bool hasEntity();
 private:
+};
+
+class WeaponInstance {
+public:
+    WeaponInstance(Weapon *weapon);
+    Weapon *instanceOf;
+    // Target target;
+    // void aquireTarget(/* needs some argements*/);
+    float timeSinceFired;
+    void fire(const glm::vec3& position);
+    // glm::vec3 realativePosition;
 };

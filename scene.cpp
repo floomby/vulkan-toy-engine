@@ -76,7 +76,8 @@ void Scene::initUnitAIs(LuaWrapper *lua, const char* directory) {
 
 Scene::~Scene() {
     for (auto& [name, ent] : entities) {
-        delete ent;
+        // Projectile entities are managed by the weapon class they belong with (they are also a shared ptr anyways)
+        if (!ent->isProjectile) delete ent;
     }
 
     for (auto& [name, weapon] : weapons) {

@@ -94,6 +94,7 @@ Next steps
  unit ais
  I need to make teamcolors work (It takes doing the model textures slightly differently, alpha regions will correspond to the team color, the functionallity is there in the
  rendering code, but not it the shader yet)
+ tooltips
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
  I would like bloom, idk if this means I need hdr color attachements or what

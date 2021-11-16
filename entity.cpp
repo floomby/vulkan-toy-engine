@@ -28,7 +28,8 @@ namespace Entities {
     // };
 }
 
-Entity::Entity(SpecialEntities entityType, const char *name, const char *model, const char *texture) {
+Entity::Entity(SpecialEntities entityType, const char *name, const char *model, const char *texture)
+: isUnit(false) {
     switch (entityType) {
         case ENT_ICON:
             textureWidth = textureHeight = 1;
@@ -121,7 +122,7 @@ Entity::Entity(const char *name, const char *model, const char *texture, const c
 }
 
 Entity::Entity(const char *model, const char *texture, const char *icon)
-: isProjectile(false) {
+: isProjectile(false), isUnit(true) {
     hasConstTexture = false;
     if (hasTexture = strlen(texture)) {
         texturePixels = stbi_load(texture, &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);
@@ -189,85 +190,15 @@ std::vector<uint32_t> Entity::mapOffsetToIndices(size_t offset) {
     return ret;
 }
 
-// such boilerplate (Yeah, I should have done it differently and managed the resources seperately with a shared_ptr or something)
-// Entity::Entity(const Entity& other) {
-//     textureWidth = other.textureWidth;
-//     textureHeight = other.textureHeight;
-//     textureChannels = other.textureChannels;
-//     hasConstTexture = other.hasConstTexture;
-//     iconWidth = other.iconWidth;
-//     iconHeight = other.iconHeight;
-//     iconChannels = other.iconChannels;
-//     hasIcon = other.hasIcon;
-//     hasTexture = other.hasTexture;
-//     textureIndex = other.textureIndex;
-//     iconIndex = other.iconIndex;
-//     vertices = other.vertices;
-//     indices = other.indices;
-//     isProjectile = other.isProjectile;
-//     weaponKind = other.weaponKind;
-//     brakingCurve = other.brakingCurve;
-//     weapons = other.weapons;
-//     // I am not sure about this code (we may need to check the image channle count)
-//     if (hasConstTexture) {
-//         texturePixels = other.texturePixels;
-//     } else if (hasTexture) {
-//         texturePixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(textureHeight * textureWidth * textureChannels));
-//         if (!texturePixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-//         memcpy(texturePixels, other.texturePixels, textureHeight * textureWidth * textureChannels);
-//     }
-//     if (hasIcon) {
-//         iconPixels = reinterpret_cast<stbi_uc *>(STBI_MALLOC(iconHeight * iconWidth * iconChannels));
-//         if (!iconPixels) throw std::runtime_error("Unable to allocate stbi copy buffer");
-//         memcpy(iconPixels, other.iconPixels, iconHeight * iconWidth * iconChannels);
-//     }
-// }
-
-// Entity::Entity(Entity&& other) noexcept
-// : texturePixels(std::exchange(other.texturePixels, nullptr)), iconPixels(std::exchange(other.iconPixels, nullptr)), textureWidth(other.textureWidth),
-// textureChannels(other.textureChannels), textureHeight(other.textureHeight), vertices(std::move(other.vertices)), indices(std::move(other.indices)),
-// boundingRadius(other.boundingRadius), hasConstTexture(other.hasConstTexture), iconChannels(other.iconChannels), iconHeight(other.iconHeight),
-// iconWidth(other.iconWidth), hasIcon(other.hasIcon), hasTexture(other.hasTexture), textureIndex(other.textureIndex), iconIndex(iconIndex),
-// isProjectile(other.isProjectile), brakingCurve(std::move(other.brakingCurve)), weaponKind(other.weaponKind), weapons(std::move(other.weapons))
-// {}
-
-// Entity& Entity::operator=(const Entity& other) {
-//     return *this = Entity(other);
-// }
-
-// Entity& Entity::operator=(Entity&& other) noexcept {
-//     std::swap(texturePixels, other.texturePixels);
-//     std::swap(iconPixels, other.iconPixels);
-//     textureWidth = other.textureWidth;
-//     textureHeight = other.textureHeight;
-//     textureChannels = other.textureChannels;
-//     hasConstTexture = other.hasConstTexture;
-//     iconWidth = other.iconWidth;
-//     iconHeight = other.iconHeight;
-//     iconChannels = other.iconChannels;
-//     hasIcon = other.hasIcon;
-//     hasTexture = other.hasTexture;
-//     textureIndex = other.textureIndex;
-//     iconIndex = other.iconIndex;
-//     vertices = std::move(other.vertices);
-//     indices = std::move(other.indices);
-//     brakingCurve = std::move(brakingCurve);
-//     boundingRadius = other.boundingRadius;
-//     isProjectile = other.isProjectile;
-//     weaponKind = other.weaponKind;
-//     weapons = std::move(other.weapons);
-//     return *this;
-// }
-
 Entity::~Entity() {
     if (hasTexture && !hasConstTexture && texturePixels) STBI_FREE(texturePixels);
     if (hasIcon && iconPixels) STBI_FREE(iconPixels);
 }
 
 void Entity::precompute() {
-    dv = acceleration / Net::ticksPerSecond;
-    v_m = maxSpeed  / Net::ticksPerSecond;
-    w_m = maxOmega  / Net::ticksPerSecond;
+    dv = acceleration * Net::secondsPerTick;
+    v_m = maxSpeed  * Net::secondsPerTick;
+    w_m = maxOmega  * Net::secondsPerTick;
 
     float v = 0;
     float d = 0;

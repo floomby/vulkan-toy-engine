@@ -77,36 +77,43 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 #include "pathgen.hpp"
 
 void AuthoritativeState::doUpdateTick() {
-    const float timeDelta = 33.0f / 1000.0f; // seconds
+    const float timeDelta = Net::secondsPerTick;
     std::scoped_lock(lock);
     for (auto& inst : instances) {
         assert(inst.inPlay);
         if (inst.entity->isProjectile) {
-            // TODO Do collision check
             inst.position += inst.dP * timeDelta;
         } else if (!inst.commandList.empty()) {
+            // TODO projectile vs unit collision check
             const auto& cmd = inst.commandList.front();
-            // float len;
-            // glm::vec3 delta;
+            float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    // delta = cmd.data.dest - inst.position;
-                    // len = length(delta);
-                    // if (len > inst.entity->maxSpeed * timeDelta) {
-                    //     inst.position += (inst.entity->maxSpeed * timeDelta / len) * delta;
-                    // } else {
-                    //     inst.position = cmd.data.dest;
-                    //     inst.commandList.pop_front();
-                    // }
-                    Pathgen::arrive(inst, cmd.data.dest);
+                    distance = Pathgen::arrive(inst, cmd.data.dest);
+                    if (inst.commandList.size() > 1) {
+                        if (distance < Pathgen::arrivalDeltaContinuing) {
+                            inst.commandList.pop_front();
+                        }
+                    } else {
+                        if (distance < Pathgen::arrivalDeltaStopping) {
+                            inst.commandList.pop_front();
+                        }
+                    }
                     break;
                 case CommandKind::STOP:
                     inst.commandList.clear();
                     break;
             }
+            // TODO Do unit vs unit collision check and repulsion deltas
+        } else if (inst.entity->isUnit) {
+            Pathgen::stop(inst);
         }
         for (const auto& ai : inst.entity->ais) {
             ai->run(inst);
+        }
+        for (auto& weapon : inst.weapons) {
+            // TODO Weapon targeting
+            weapon.fire(inst.position);
         }
     }
 }
