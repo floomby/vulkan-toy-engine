@@ -6,6 +6,16 @@
 
 class Entity;
 
+class Target {
+public:
+    Target(const glm::vec3& location);
+    Target(Instance *instance);
+    bool isLocation = false;
+    bool isUnit = false;
+    glm::vec3 location;
+    Instance *instance;
+};
+
 class Weapon {
 public:
     virtual void fire(const glm::vec3& position, const glm::vec3& direction) = 0;

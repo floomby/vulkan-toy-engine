@@ -76,6 +76,7 @@ void run(EngineSettings& settings) {
  complexity of order line drawing was going to be really high
  one wierd thing is how the lighting works, the blin phong lighting model I was using was using a point light, but I am using orthographic lighting for the shadows
   I should probably change it to not be like that
+ I should move to using cmake or something for the building
 
 Next steps
  I am getting worried about the amount of linear algebra (and just stuff in general, but almost everything we do takes linear algebra) we are doing on the cpu in the main render thread
@@ -90,10 +91,13 @@ Next steps
  my text rendering with freetype cant render space characters for some reason
  the text rendering to texture code is so slow, (Like unbelievably slow, of course I did note that it looked slow when I was writting it in the first place)
  finish the path following/steering code
+ unit ais
+ I need to make teamcolors work (It takes doing the model textures slightly differently, alpha regions will correspond to the team color, the functionallity is there in the
+ rendering code, but not it the shader yet)
 
  not crittical - collider class so I can support aabb and sphere and importantly obb coliders
  I would like bloom, idk if this means I need hdr color attachements or what
- lt - better model library (assimp?)
+ lt - better model library?
  cube mapping for lights and calculating shadows with them would be cool
  dynamic backface culling (Idk if this is a thing, the hardware supports it, but my prefunctory perusing through the vulkan docs did not show this was availible)
    It might be one of those things that on some hardware would require rebuilding the pipeline and trigger shader recompilation and therefore might not be in the standard
@@ -116,5 +120,5 @@ Bugfixxy stuff
   something leading to the warning about the vertex shader not having the buffer completely filled, and one where the buffer gets corrupted leading to
   inncorrect textures being used)
 
- get the api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
+ get the nvidia api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
 */

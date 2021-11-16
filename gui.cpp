@@ -15,9 +15,9 @@
 //     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
 // };
 
-Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
+Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context, LuaWrapper *lua)
 : context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth),
-lua(LuaWrapper(true)) {
+lua(lua) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });
@@ -29,9 +29,7 @@ lua(LuaWrapper(true)) {
     whichBuffer = 0;
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
-    lua.exportEnumToLua<GuiLayoutType>();
-
-    lua.apiExport();
+    lua->exportEnumToLua<GuiLayoutType>();
 }
 
 Gui::~Gui() {
@@ -376,7 +374,7 @@ void GuiComponent::resizeVertices() {
 
 void GuiComponent::click(float x, float y) {
     if (luaHandlers.contains("onClick"))
-        context->lua.callFunction(luaHandlers["onClick"]);
+        context->lua->callFunction(luaHandlers["onClick"]);
 }
 
 // Arguably I should just do this at the same time as maping the textures
@@ -424,13 +422,8 @@ void GuiLabel::resizeVertices() {
 //     context->rebuildBuffer();
 // }
 
-// Panel::Panel(const char *filename)
-// : root(YAML::LoadFile(filename)) {
-//     // build the tree
-// }
-
 GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
-    auto tree = lua.loadGuiFile(name.c_str());
+    auto tree = lua->loadGuiFile(name.c_str());
     return fromLayout(tree, baseLayer);
 }
 
@@ -441,7 +434,8 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutType::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000ff, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000ff, { tree->x, tree->y },
+                { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");

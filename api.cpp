@@ -66,6 +66,11 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
 
 #include <iostream>
 
+void Api::cmd_setTargetLocation(Instance *instance, const glm::vec3& location) {
+    std::scoped_lock(context->authState.lock);
+    std::cout << "I am here: " << instance->position << std::endl;
+}
+
 void Api::eng_echo(const char *message) {
     std::string msg(">>");
     msg += message;

@@ -2647,7 +2647,10 @@ void Engine::runCurrentScene() {
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
-    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this);
+    lua = new LuaWrapper(true);
+    lua->apiExport();
+    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
+    currentScene->initUnitAIs(lua, "unitai");
 
     // we need to get stuff for the first frame on the device
     currentScene->updateUniforms(0);
@@ -3263,6 +3266,7 @@ Engine::~Engine() {
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
     delete gui;
+    delete lua;
     cleanup();
 }
 
@@ -4143,10 +4147,6 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
                 std::cerr << "Weapon not found: " << weapon << std::endl;
             }
         }
-    }
-    for (const auto& [name, ent] : this->entities) {
-        ent->ai = new UnitAI(ent);
-        unitAIs.push_back(ent->ai);
     }
 }
 

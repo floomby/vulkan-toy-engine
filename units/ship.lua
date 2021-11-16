@@ -7,5 +7,8 @@ Ship = {
     maxOmega = 0.2,
     weapons = {
         "basic_plasma",
+    },
+    unitAIs = {
+        "shooter_tester"
     }
 }

@@ -16,3 +16,9 @@ void PlasmaCannon::fire(const glm::vec3& position, const glm::vec3& normedDirect
 bool PlasmaCannon::hasEntity() {
     return true;
 }
+
+Target::Target(const glm::vec3& location)
+: isLocation(true), location(location) {}
+
+Target::Target(Instance *instance)
+: isUnit(true), instance(instance) {}

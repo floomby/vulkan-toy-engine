@@ -1,6 +1,7 @@
 #pragma once
 
 #include "net.hpp"
+#include "unit_ai.hpp"
 #include "utilities.hpp"
 #include "weapon.hpp"
 
@@ -49,10 +50,11 @@ public:
     std::vector<std::string> weaponNames;
     std::vector<Weapon *> weapons;
 
-    UnitAI *ai;
+    std::vector<std::string> unitAINames;
+    std::vector<UnitAI *> ais;
 
     void precompute();
-    inline float indexToVelocity(int idx) {
+    inline float indexToVelocity(uint idx) {
         return float(idx * (idx + 1) >> 1) * dv;
     }
     inline float velocityToIndex(float velocity) {

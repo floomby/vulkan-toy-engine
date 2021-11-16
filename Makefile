@@ -6,8 +6,6 @@ OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
 GLSL = $(wildcard shaders/*.frag) $(wildcard shaders/*.vert)
 
-# engine: entry.cpp engine.cpp engine.hpp entity.cpp entity.hpp instance.hpp instance.cpp gui.cpp gui.hpp
-# g++ $(CFLAGS) -o result entry.cpp engine.cpp entity.cpp instance.cpp gui.cpp $(LDFLAGS)
 engine: bindings.o $(OBJ)
 	g++ $^ $(CFLAGS) -o result $(LDFLAGS)
 
@@ -22,7 +20,7 @@ bindings.o: lua/bindings.cpp
 shaders: $(GLSL) shaders/render_modes.h 
 	cd shaders && ./compile.sh
 
-lua/bindings.cpp: api.hpp
+lua/bindings.cpp: api.hpp lua_binding_gen.rb
 	ruby lua_binding_gen.rb > lua/bindings.cpp
 
 

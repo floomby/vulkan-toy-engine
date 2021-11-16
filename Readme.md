@@ -5,7 +5,7 @@
 I should just use cmake or something, but I didn't do that yet.
 
  * gcc 10 or newer
- * freetype 2.11.0 or newer - We need sdf rendering, but the version which ships with ubuntu was not this new. I built from their git repo and it worked fine. We don't need harfbuz so no need to worry that on ubuntu this is too old for using in the freetype and just letting it be disabled is fine.
+ * freetype 2.11.0 or newer - We need sdf rendering, but the version which ships with ubuntu was not this new. I built from their git repo and it worked fine. We don't need harfbuz so no need to worry that on ubuntu this is too old for using in the freetype build and just letting it be disabled is fine.
  * LuaJIT - I also built this from their git repo. I did not use the ubuntu version as I read on luajit's website that this was inadvisable.
  * shaderc - We don't need to link to anything in this, but we do need their glsl compiler. Another one may work, but I am not sure as I use some features I know are not in vanilla glsl. I built this from their github repo.
  * The vulkan sdk - I aquired this by adding the lunarg repo and installing with apt. (Technically all you need are the headers, which you can get without the whole sdk, and libvulkan, again which you can get without the whole sdk. Having vkconfig though is very usefull and this is in the sdk.)

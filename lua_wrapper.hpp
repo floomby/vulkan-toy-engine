@@ -56,8 +56,10 @@ struct GuiLayoutNode {
 
 class Entity;
 class Weapon;
+class UnitAI;
 
 class LuaWrapper {
+    friend class UnitAI;
 public:
     LuaWrapper(bool rethrowExceptions = false);
     ~LuaWrapper();
@@ -81,6 +83,7 @@ public:
     // void exportEcho();
     // void exportTestFire();
     void apiExport();
+    void loadFile(const std::string& filename);
 private:
     void error(const char *fmt, ...);
     float getNumberField(const char *key);

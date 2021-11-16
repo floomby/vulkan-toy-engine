@@ -1,11 +1,23 @@
 #pragma once
 
-#include "entity.hpp"
+#include <string>
+
+class Instance;
+class LuaWrapper;
 
 class UnitAI {
 public:
-    UnitAI(Entity *whatFor);
-    void runAI();
+    UnitAI(const std::string& name, LuaWrapper *lua);
+
+    UnitAI(const UnitAI& other) = delete;
+    UnitAI(UnitAI&& other) noexcept = delete;
+    UnitAI& operator=(const UnitAI& other) = delete;
+    UnitAI& operator=(UnitAI&& other) noexcept = delete;
+
+    void run(Instance& instance);
+
+    std::string name;
 private:
-    Entity *entity;
+    std::string luaName;
+    LuaWrapper *lua;
 };

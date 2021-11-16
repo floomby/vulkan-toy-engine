@@ -80,6 +80,7 @@ void AuthoritativeState::doUpdateTick() {
     const float timeDelta = 33.0f / 1000.0f; // seconds
     std::scoped_lock(lock);
     for (auto& inst : instances) {
+        assert(inst.inPlay);
         if (inst.entity->isProjectile) {
             // TODO Do collision check
             inst.position += inst.dP * timeDelta;
@@ -103,6 +104,9 @@ void AuthoritativeState::doUpdateTick() {
                     inst.commandList.clear();
                     break;
             }
+        }
+        for (const auto& ai : inst.entity->ais) {
+            ai->run(inst);
         }
     }
 }

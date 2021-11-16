@@ -15,7 +15,7 @@ source = RbGCCXML.parse("api.hpp", :cxxflags => ["-std=c++20"])
 
 class BindingGenerator
     @@enums = ["InsertionMode"]
-    @@classes = ["Entity"]
+    @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
 
     def initialize(name, rettype, argtypes)
@@ -57,7 +57,7 @@ END
     for (int i = 1; i <= 3; i++) {
         lua_rawgeti(ls, #{i + 1}, i);
         luaL_checknumber(ls, -1);
-        v#{i}[i] = lua_tonumber(ls, -1);
+        v#{i}[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     #{argtype} a#{i}(v#{i}[0], v#{i}[1], v#{i}[2]);
@@ -70,7 +70,7 @@ END
     for (int i = 1; i <= 4; i++) {
         lua_rawgeti(ls, #{i + 1}, i);
         luaL_checknumber(ls, -1);
-        v#{i}[i] = lua_tonumber(ls, -1);
+        v#{i}[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     #{argtype} a#{i}(v#{i}[0], v#{i}[1], v#{i}[2], v#{i}[3]);
@@ -124,6 +124,7 @@ END
 end
 
 puts <<-END
+// This is an auto generated file changes can be overwritten durring build process
 #include "../lua_wrapper.hpp"
 #include "../api.hpp"
 

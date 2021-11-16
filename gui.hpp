@@ -192,8 +192,10 @@ private:
 
 class GuiLabel : public GuiComponent {
 public:
-    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers);
-    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1,
+        int layer, std::map<std::string, int> luaHandlers);
+    GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height,
+        int layer, std::map<std::string, int> luaHandlers);
     std::string message;
 
     // virtual void click(float x, float y);
@@ -245,7 +247,7 @@ public:
 
 class Gui {
 public:
-    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context);
+    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context, LuaWrapper *lua);
     ~Gui();
 
     // These should be automatically deleted, but I want to be sure
@@ -322,7 +324,7 @@ public:
     void rebuildBuffer();
 
     GuiComponent *fromFile(std::string name, int baseLayer);
-    LuaWrapper lua;
+    LuaWrapper *lua;
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;

@@ -1,8 +1,12 @@
 #pragma once
 
+// One of the big things about this code is that this class is storing information pertinent to rendering as well
+// as the information about the game state of this object, I have no idea if this is good or not (I suspect it is the later)
+
 #include <coroutine>
 #include <list>
 #include "entity.hpp"
+#include "team.hpp"
 
 typedef uint32_t InstanceID;
 
@@ -24,8 +28,6 @@ struct Command {
     InstanceID id;
     CommandData data;
 };
-
-// typedef std::list<std::pair<Command, uint32_t>> CommandList;
 
 class InternalTexture;
 
@@ -59,7 +61,7 @@ public:
     bool orphaned = false;
     InstanceID id;
     Entity *entity;
-    int team = 0; // default to team 0 which is gaia
+    TeamID team = 0; // default to team 0 which is gaia
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);

@@ -109,6 +109,7 @@ public:
     inline std::vector<Instance>::iterator getInstance(InstanceID id) {
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
     }
+    std::vector<Team> teams;
 };
 
 class ObservableState {

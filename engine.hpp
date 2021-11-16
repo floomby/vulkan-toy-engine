@@ -9,10 +9,12 @@
 #include "instance.hpp"
 #include "gui.hpp"
 #include "state.hpp"
+#include "team.hpp"
 #include "net.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
 #include <set>
+
 
 #define VMA_DEBUG_LOG(format, ...) do { \
     printf(format, ##__VA_ARGS__); \
@@ -112,7 +114,7 @@ private:
     bool guiOutOfDate = false;
     Gui *gui = nullptr;
 
-    int teamIAm = 1;
+    TeamID teamIAm = 1;
 
     struct Cammera {
         const float minZoom2 = 1.0, maxZoom2 = 400.0;
@@ -456,6 +458,8 @@ private:
     // for debugging
     void writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename, int idx);
     void doShadowDebugWrite();
+
+    LuaWrapper *lua;
 };
 
 class CubeMap {
@@ -529,6 +533,7 @@ public:
     // Right now these are public so the engine can see them to copy them to vram
     std::map<std::string, Entity *> entities;
     std::map<std::string, Weapon *> weapons;
+    std::map<std::string, UnitAI *> ais;
     std::vector<InternalTexture> textures;
     std::vector<SceneModelInfo> models;
 
@@ -543,9 +548,9 @@ public:
     
     void updateUniforms(int idx);
 
-    std::vector<UnitAI *> unitAIs;
-
     InstanceZSorter zSorter;
+
+    void initUnitAIs(LuaWrapper *lua, const char *directory);
 private:
     Engine* context;
 

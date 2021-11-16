@@ -3,6 +3,7 @@
 #include "utilities.hpp"
 
 class Entity;
+class Instance;
 
 class Engine;
 
@@ -25,4 +26,5 @@ public:
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection);
     static void eng_echo(const char *message);
     static void test_fire();
+    static void cmd_setTargetLocation(Instance *instance, const glm::vec3& location);
 };

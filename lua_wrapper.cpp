@@ -208,6 +208,25 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
         }
     }
     lua_pop(luaState, 1);
+    lua_pushstring(luaState, "unitAIs");
+    lua_gettable(luaState, -2);
+    if (!lua_isnil(luaState, -1)) {
+        if (!lua_istable(luaState, -1))
+            error("unitAIs should be a table");
+        int unitAICount = lua_objlen(luaState, -1);
+
+        for (int i = 1; i <= unitAICount; i++) {
+            lua_rawgeti(luaState, -1, i);
+            if (!lua_isstring(luaState, -1))
+                error("Invalid unit ai");
+            
+            const char *s = lua_tostring(luaState, -1);
+            size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
+            lua_pop(luaState, 1);
+            ret->unitAINames.push_back(std::string(s));
+        }
+    }
+    lua_pop(luaState, 1);
     
     ret->maxSpeed = getNumberField("maxSpeed");
     ret->acceleration = getNumberField("acceleration");
@@ -261,6 +280,11 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
         default:
             throw std::runtime_error("Lua error: unsupported weapon kind.");
     }
+}
+
+void LuaWrapper::loadFile(const std::string& filename) {
+    if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
+        error("Could not load file: %s", lua_tostring(luaState, -1));
 }
 
 // I am going to use a write a code generator script to generate these bindings

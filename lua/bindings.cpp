@@ -1,3 +1,4 @@
+// This is an auto generated file changes can be overwritten durring build process
 #include "../lua_wrapper.hpp"
 #include "../api.hpp"
 
@@ -10,7 +11,7 @@ static int cmd_moveWrapper(lua_State *ls) {
     for (int i = 1; i <= 3; i++) {
         lua_rawgeti(ls, 2, i);
         luaL_checknumber(ls, -1);
-        v1[i] = lua_tonumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     glm::vec3 a1(v1[0], v1[1], v1[2]);
@@ -48,7 +49,7 @@ static int eng_createInstanceWrapper(lua_State *ls) {
     for (int i = 1; i <= 3; i++) {
         lua_rawgeti(ls, 2, i);
         luaL_checknumber(ls, -1);
-        v1[i] = lua_tonumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     glm::vec3 a1(v1[0], v1[1], v1[2]);
@@ -58,7 +59,7 @@ static int eng_createInstanceWrapper(lua_State *ls) {
     for (int i = 1; i <= 4; i++) {
         lua_rawgeti(ls, 3, i);
         luaL_checknumber(ls, -1);
-        v2[i] = lua_tonumber(ls, -1);
+        v2[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
@@ -82,7 +83,7 @@ static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     for (int i = 1; i <= 3; i++) {
         lua_rawgeti(ls, 2, i);
         luaL_checknumber(ls, -1);
-        v1[i] = lua_tonumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     glm::vec3 a1(v1[0], v1[1], v1[2]);
@@ -92,7 +93,7 @@ static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     for (int i = 1; i <= 3; i++) {
         lua_rawgeti(ls, 3, i);
         luaL_checknumber(ls, -1);
-        v2[i] = lua_tonumber(ls, -1);
+        v2[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
     glm::vec3 a2(v2[0], v2[1], v2[2]);
@@ -127,6 +128,28 @@ static void test_fireExport(lua_State *ls) {
     lua_setglobal(ls, "test_fire");
 }
 
+static int cmd_setTargetLocationWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v1;
+    if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 2, i);
+        luaL_checknumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a1(v1[0], v1[1], v1[2]);
+    Api::cmd_setTargetLocation(a0, a1);
+    return 0;
+}
+
+static void cmd_setTargetLocationExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_setTargetLocationWrapper);
+    lua_setglobal(ls, "cmd_setTargetLocation");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -134,4 +157,5 @@ void LuaWrapper::apiExport() {
     eng_createBallisticProjectileExport(luaState);
     eng_echoExport(luaState);
     test_fireExport(luaState);
+    cmd_setTargetLocationExport(luaState);
 }
