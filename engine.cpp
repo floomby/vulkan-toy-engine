@@ -665,6 +665,8 @@ void Engine::createSwapChain() {
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
+
+    concurrentFrames = 2;
 }
 
 VkImageView Engine::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
@@ -790,7 +792,7 @@ void Engine::createImageViews() {
 }
 
 void Engine::destroyImageViews() {
-    for(int i = 0; i < concurrentFrames; i++) {
+    for(int i = 0; i < subpassImageViews.size(); i++) {
         vkDestroyImageView(device, subpassImageViews[i], nullptr);
         vmaDestroyImage(memoryAllocator, subpassImages[i], bgSubpassImageAllocations[i]);
         vkDestroyImageView(device, bgSubpassImageViews[i], nullptr);
@@ -3106,7 +3108,7 @@ void Engine::updateLightingDescriptors(int index, const Utilities::ViewProjPosNe
 
 void Engine::allocateCommandBuffers() {
     // We called setup code incorrectly if these are not equal
-    assert(concurrentFrames == swapChainFramebuffers.size());
+    // assert(concurrentFrames == swapChainFramebuffers.size());
     commandBuffers.resize(concurrentFrames);
     transferCommandBuffers.resize(concurrentFrames);
 
@@ -3358,10 +3360,12 @@ void Engine::recreateSwapChain() {
     uniformSync->rebindSyncPoints({{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
     writeHudDescriptors();
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
+
+    drawTooltip = false;
+    for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *GuiTextures::defaultTexture);
 }
 
 void Engine::cleanupSwapChain() {
-
     destroyDepthResources();
     destroyColorResources();
 
@@ -3384,6 +3388,7 @@ void Engine::cleanupSwapChain() {
 
     vkDestroySwapchainKHR(device, swapChain, nullptr);
 
+    // TODO Resizing should not destroy the descriptor pools, this is stupid and not needed
     vkDestroyDescriptorPool(device, mainPass.descriptorPool, nullptr);
     vkDestroyDescriptorPool(device, hudDescriptorPool, nullptr);
 }
