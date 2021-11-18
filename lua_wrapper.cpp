@@ -39,8 +39,8 @@ void LuaWrapper::error(const char *fmt, ...) {
     throw std::runtime_error(msg);
 }
 
-float LuaWrapper::getNumberField(const char *key) {
-    float result;
+double LuaWrapper::getNumberField(const char *key) {
+    double result;
     lua_pushstring(luaState, key);
     lua_gettable(luaState, -2);
     if (!lua_isnumber(luaState, -1))

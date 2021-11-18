@@ -80,7 +80,7 @@ void run(EngineSettings& settings) {
  I should move to using cmake or something for the building
 
 Next steps
- I am getting worried about the amount of linear algebra (and just stuff in general, but almost everything we do takes linear algebra) we are doing on the cpu in the main render thread
+ lua bindings for returns, specifically vectors of instances
  shader multisampling
  mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
  world space raycasting and maybe spherecasting (this is the half of projectiles that still needs to be done, most of the work is already there in the form

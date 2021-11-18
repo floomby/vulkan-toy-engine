@@ -5,6 +5,7 @@
 layout(input_attachment_index = 0, set = 0, binding = 0) uniform subpassInput inputColor;
 layout(input_attachment_index = 0, set = 0, binding = 1) uniform subpassInput iconColor;
 layout(binding = 2) uniform sampler2D texSampler[128];
+layout(binding = 3) uniform sampler2D tooltipTexture;
 
 layout(location = 0) in vec4 inColor;
 layout(location = 1) in vec4 inSecondaryColor;
@@ -32,7 +33,6 @@ vec4 textureBicubic(sampler2D smplr, vec2 texCoords){
     vec2 invTexSize = 1.0 / texSize;
 
     texCoords = texCoords * texSize - 0.5;
-
 
     vec2 fxy = fract(texCoords);
     texCoords -= fxy;
@@ -65,6 +65,7 @@ vec4 getSubpassPixel() {
 }
 
 void main() {
+    float distance, alpha;
     switch (inRenderMode) {
         case RMODE_NONE:
             outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
@@ -75,15 +76,21 @@ void main() {
             break;
         case RMODE_TEXT:
             // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
-            float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
-            float alpha;
+            distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             if (inGuiID == inCursorID) {
-                alpha = smoothstep(0.05, 0.3, distance);
+                alpha = smoothstep(0.05, 0.28, distance);
             } else {
-                alpha = smoothstep(0.15, 0.35, distance);
+                alpha = smoothstep(0.12, 0.32, distance);
             }
             // outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
+            outColor = vec4(inSecondaryColor.rgb, clamp(alpha, 0.0, inSecondaryColor.a));
+            // outColor = vec4(mix(inSecondaryColor.rgb, outColor.rgb, 1.0 - alpha), alpha);
+            break;
+        case RMODE_TOOLTIP:
+            distance = textureBicubic(tooltipTexture, inTexCoord).r;
+            alpha = smoothstep(0.12, 0.32, distance);
             outColor = vec4(inColor.rgb, clamp(alpha, 0.0, inColor.a));
+            outColor = vec4(mix(outColor.rgb, inSecondaryColor.rgb, 1.0 - alpha), max(alpha, inSecondaryColor.a));
             break;
     }
 }

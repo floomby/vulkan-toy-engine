@@ -11,9 +11,6 @@
 #include <thread>
 #include <queue>
 
-// I am not sure about using yaml for the gui layout stuff (xml might be better because I could specify a schema and validate it easily)
-// #include <yaml-cpp/yaml.h>
-
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
 
@@ -93,7 +90,6 @@ struct GuiVertex {
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-// bleh, this foward declaration, everything is bleeding together
 class Engine;
 
 class GuiTexture {
@@ -212,6 +208,7 @@ public:
 // Does this even make sense or is it just needlessly complicating things?
 struct GuiPushConstant {
     glm::vec2 dragBox[2];
+    glm::vec2 tooltipBox[2];
     glm::uint32_t guiID;
 };
 
@@ -274,11 +271,7 @@ public:
     void setDragBox(std::pair<float, float> c0, std::pair<float, float> c1);
     void setCursorID(uint32_t id);
 
-    GuiPushConstant *pushConstant();
-    // I see no reason to need to lock the constants since the worst we can do is create a slight obliqueness which last 1 frame
-    // in the drag box and that is even pretty unlikely
-    // void lockPushConstant();
-    // void unlockPushConstant();
+    GuiPushConstant pushConstant;
 
     enum GuiAction {
         GUI_ADD,
@@ -314,8 +307,8 @@ public:
     void submitCommand(GuiCommand command);
     boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
-    static const int dummyCompomentCount = 2;
-    static const int dummyVertexCount = dummyCompomentCount * 6;
+    static const uint dummyCompomentCount = 3;
+    static const uint dummyVertexCount = dummyCompomentCount * 6;
     int width, height;
     int idCounter = 0;
 
@@ -331,7 +324,6 @@ private:
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
 
     // std::mutex constantMutex;
-    GuiPushConstant _pushConstant;
     std::mutex dataMutex;
     std::map<uint32_t, uint> idToBuffer;
     std::vector<GuiVertex> vertices;
@@ -357,12 +349,4 @@ private:
     void destroyBuffer(int index);
 
     Engine *context;
-};
-
-class Panel {
-public:
-    Panel(const char *filename);
-
-private:
-    // YAML::Node root;
 };

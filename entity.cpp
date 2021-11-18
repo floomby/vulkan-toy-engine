@@ -13,19 +13,6 @@ namespace Entities {
     const std::array<unsigned char, 4> dummyTexture = {
         0x70, 0x50, 0x60, 0xff
     };
-
-    // 0 1
-    // 3 2
-    // const std::array<Utilities::Vertex, 4> iconPrimativeVertices = {{
-    //     { { -1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-    //     { {  1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 0.0f }, { 0.0f, 0.0f, 1.0f } },
-    //     { {  1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } },
-    //     { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
-    // }};
-
-    // const std::array<uint32_t, 6> iconPrimativeIndices = {
-    //     0, 1, 3, 3, 1, 2
-    // };
 }
 
 Entity::Entity(SpecialEntities entityType, const char *name, const char *model, const char *texture)

@@ -137,7 +137,7 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 
 static const std::vector<const char*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME,
+    // VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME,
     VK_KHR_MAINTENANCE2_EXTENSION_NAME,
     // My card does not support cubic filtering??? (I am in disbelief, but we can do it in the fragment shader anyways)
     // VK_EXT_FILTER_CUBIC_EXTENSION_NAME
@@ -222,7 +222,7 @@ void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int
     // std::cout << "Mouse handler tid: " << gettid() << std::endl;
     if (action == GLFW_PRESS) {
         auto what = new GuiCommandData();
-        what->id = engine->gui->pushConstant()->guiID;
+        what->id = engine->gui->pushConstant.guiID;
         what->position.x.asFloat = engine->lastMousePosition.normedX;
         what->position.y.asFloat = engine->lastMousePosition.normedY;
         what->flags = mods;
@@ -1034,7 +1034,14 @@ void Engine::createDescriptorSetLayout() {
     hudTextures.pImmutableSamplers = nullptr;
     hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
-    std::array<VkDescriptorSetLayoutBinding, 3> hudBindings = { hudColorInput, hudIconInput, hudTextures };
+    VkDescriptorSetLayoutBinding tooltipTexture {};
+    tooltipTexture.binding = 3;
+    tooltipTexture.descriptorCount = 1;
+    tooltipTexture.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    tooltipTexture.pImmutableSamplers = nullptr;
+    tooltipTexture.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 4> hudBindings = { hudColorInput, hudIconInput, hudTextures, tooltipTexture };
     VkDescriptorSetLayoutCreateInfo hudLayout {};
     hudLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     hudLayout.bindingCount = hudBindings.size();
@@ -2614,7 +2621,7 @@ void Engine::drawFrame() {
     } 
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);    
     
-    gui->pushConstant()->guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
+    gui->pushConstant.guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
 
     // This relies on the fence to stay synchronized
     if (shadow.debugWritePending)
@@ -2714,6 +2721,10 @@ void Engine::destroyLightingBuffers() {
     }
 }
 
+namespace GuiTextures {
+    static GuiTexture *defaultTexture;
+}
+
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
@@ -2789,6 +2800,13 @@ void Engine::runCurrentScene() {
     cursorLines = new LineHolder();
     lineObjects = { cursorLines };
 
+    gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
+    gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
+
+    for (int i = 0; i < concurrentFrames; i++) {
+        setTooltipTexture(i, *GuiTextures::defaultTexture);
+    }
+
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
@@ -2842,13 +2860,15 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
     poolSizes[4].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[4].descriptorCount = concurrentFrames;
 
-    std::array<VkDescriptorPoolSize, 3> hudPoolSizes;
+    std::array<VkDescriptorPoolSize, 4> hudPoolSizes;
     hudPoolSizes[0].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     hudPoolSizes[0].descriptorCount = concurrentFrames;
     hudPoolSizes[1].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     hudPoolSizes[1].descriptorCount = concurrentFrames;
     hudPoolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     hudPoolSizes[2].descriptorCount = engineSettings.maxHudTextures * concurrentFrames;
+    hudPoolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    hudPoolSizes[3].descriptorCount = concurrentFrames;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2962,10 +2982,6 @@ void Engine::createDescriptors(const std::vector<InternalTexture>& textures, con
     }
 }
 
-namespace GuiTextures {
-    static GuiTexture *defaultTexture;
-}
-
 void Engine::writeHudDescriptors() {
     hudDescriptorNeedsRewrite.resize(concurrentFrames);
 
@@ -3063,6 +3079,25 @@ void Engine::rewriteHudDescriptors(int index) {
     hudDescriptorWrites[0].pImageInfo = hudTextureInfos.data();
 
     vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
+}
+
+// Idk if this should be gui or engine (probably engine since it needs syncronization to the draws)
+void Engine::setTooltipTexture(int index, const GuiTexture& texture) {
+    VkDescriptorImageInfo tooltipTextureInfo;
+    tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    tooltipTextureInfo.imageView = texture.textureImageView;
+    tooltipTextureInfo.sampler = texture.textureSampler;
+
+    VkWriteDescriptorSet descriptorWrite {};
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = hudDescriptorSets[index];
+    descriptorWrite.dstBinding = 3;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &tooltipTextureInfo;
+
+    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 }
 
 void Engine::updateLightingDescriptors(int index, const Utilities::ViewProjPosNearFar& data) {
@@ -3226,7 +3261,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
     vkCmdDrawIndexed(buffer, currentScene->state.instances.data()->sceneModelInfo->indexCount, 1,
-            currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
+        currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -3247,10 +3282,28 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
-    // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
-    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), gui->pushConstant());
+    uint guiVertexCountToDraw;
+    if (!guiOutOfDate) {
+        guiVertexCountToDraw = hudVertexCount;
+        if (!drawTooltip) {
+            gui->pushConstant.tooltipBox[0] = { 0.0f, 0.0f };
+            gui->pushConstant.tooltipBox[1] = { 0.0f, 0.0f };
+        } else {
+            // figure out where we need to draw the tooltip box
+        }
+    } else {
+        if (!drawTooltip) {
+            guiVertexCountToDraw = Gui::dummyVertexCount - 6;
+        } else {
+            // figure out where we need to draw the tooltip box
+            guiVertexCountToDraw = Gui::dummyVertexCount;
+        }
+    }
 
-    vkCmdDraw(buffer, guiOutOfDate ? Gui::dummyVertexCount : hudVertexCount, 1, 0, 0);
+    // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
+    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), &gui->pushConstant);
+
+    vkCmdDraw(buffer, guiVertexCountToDraw, 1, 0, 0);
 
     vkCmdEndRenderPass(buffer);
 
@@ -4269,7 +4322,7 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
 }
 
 void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading) {
-    if (!models.size()) throw std::runtime_error("Please make the model buffers before adding instances.");
+    assert(models.size());
     auto ent = entities[name];
     state.instances.push_back(Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, false));
     state.instances.back().position = std::move(position);

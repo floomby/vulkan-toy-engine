@@ -86,7 +86,7 @@ public:
     void loadFile(const std::string& filename);
 private:
     void error(const char *fmt, ...);
-    float getNumberField(const char *key);
+    double getNumberField(const char *key);
     bool getFunctionField(const char *key);
     std::string getStringField(const char *key);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);

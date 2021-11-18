@@ -40,7 +40,7 @@ Hud = {
             onClick = click,
             kind = GuiLayoutType__TEXT_BUTTON,
             text = "ClickMe",
-            color = 0x000000ff,
+            color = 0x800000ff,
             -- children = {}
         },
         {

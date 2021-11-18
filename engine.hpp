@@ -183,6 +183,7 @@ private:
         MOUSE_MOVING_Z
     } mouseAction;
     bool wasZMoving = false;
+    bool drawTooltip = false;
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -376,6 +377,7 @@ private:
     size_t hudVertexCount;
     std::map<uint32_t, uint> guiIdToBufferIndex;
     VkBuffer hudBuffer;
+    void setTooltipTexture(int index, const GuiTexture& texture);
     // void createHudBuffers();
 
     std::list<LineHolder *> lineObjects;
@@ -590,7 +592,6 @@ public:
 
     // std::vector<Instance> instances;
     ObservableState state;
-    std::map<std::string, Panel> panels;
     
     void updateUniforms(int idx);
 

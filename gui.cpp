@@ -85,32 +85,20 @@ std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, 
 
 void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
     // dragBox = rectangle(c0, c1, { 0.0f, 1.0f, 0.0f, 0.3f }, 1);
-    _pushConstant.dragBox[0].x = c0.first;
-    _pushConstant.dragBox[0].y = c0.second;
-    _pushConstant.dragBox[1].x = c1.first;
-    _pushConstant.dragBox[1].y = c1.second;
+    pushConstant.dragBox[0].x = c0.first;
+    pushConstant.dragBox[0].y = c0.second;
+    pushConstant.dragBox[1].x = c1.first;
+    pushConstant.dragBox[1].y = c1.second;
 }
 
+// These setter methods are silly
 void Gui::setCursorID(uint32_t id) {
-    _pushConstant.guiID = id;
+    pushConstant.guiID = id;
 }
 
 void Gui::submitCommand(GuiCommand command) {
     guiCommands.push(command);
 }
-
-// I had a reason for this silly looking thing, but it kind of went away I think
-GuiPushConstant *Gui::pushConstant() {
-    return &_pushConstant;
-}
-
-// void Gui::lockPushConstant() {
-//     constantMutex.lock();
-// }
-
-// void Gui::unlockPushConstant() {
-//     constantMutex.unlock();
-// }
 
 void Gui::pollChanges() {
     bool terminate = false;
@@ -159,8 +147,6 @@ void Gui::pollChanges() {
         std::this_thread::yield();
     }
 }
-
-// RGBA is the order
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
 // TODO Fix this
@@ -434,7 +420,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutType::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000ff, { tree->x, tree->y },
+            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         default:
