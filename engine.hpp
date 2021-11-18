@@ -15,13 +15,15 @@
 #include <boost/lockfree/spsc_queue.hpp>
 #include <set>
 
-
+#ifndef DONT_PRINT_MEMORY_LOG
 #define VMA_DEBUG_LOG(format, ...) do { \
     printf(format, ##__VA_ARGS__); \
     printf("\n"); \
 } while(false)
+#endif
 
 class Scene;
+class GlyphCache;
 
 struct EngineSettings {
     bool useConcurrentTransferQueue;
@@ -34,6 +36,7 @@ struct EngineSettings {
     bool extremelyVerbose;
     size_t maxTextures;
     size_t maxHudTextures;
+    size_t maxGlyphTextures;
 };
 
 struct LineUBO {
@@ -41,6 +44,11 @@ struct LineUBO {
     alignas(16) glm::vec3 b;
     alignas(16) glm::vec4 aColor;
     alignas(16) glm::vec4 bColor;
+};
+
+struct OffsetUBO {
+    glm::uint32_t x;
+    glm::uint32_t y;
 };
 
 struct LineHolder {
@@ -58,6 +66,7 @@ class Engine {
     friend class GuiTexture;
     friend class Scene;
     friend class Api;
+    friend class GlyphCache;
 
     friend class DescriptorSyncer<UniformBufferObject>;
     friend class DescriptorSyncer<LineUBO>;
@@ -294,19 +303,31 @@ private:
     VkDescriptorSetLayout hudDescriptorLayout;
     void createDescriptorSetLayout();
 
+    VkShaderModule createShaderModule(const std::vector<char>& code);
     VkPipelineLayout pipelineLayout;
     VkPipelineLayout linePipelineLayout;
     VkPipelineLayout hudPipelineLayout;
     enum {
-        GP_BG = 0,
+        GP_BG,
         GP_WORLD,
         GP_LINES,
         GP_HUD,
         GP_COUNT
     };
     std::array<VkPipeline, GP_COUNT> graphicsPipelines;
-    VkShaderModule createShaderModule(const std::vector<char>& code);
     void createGraphicsPipelines();
+    enum {
+        CP_SDF_BLIT,
+        CP_COUNT
+    };
+    std::array<VkPipelineLayout, CP_COUNT> computePipelineLayouts;
+    std::array<VkPipeline, CP_COUNT> computePipelines;
+    std::array<VkDescriptorSetLayout, CP_COUNT> computeSetLayouts;
+    std::array<VkDescriptorPool, CP_COUNT> computePools;
+    std::array<VkDescriptorSet, CP_COUNT> computeSets;
+    void createComputeResources();
+    void destroyComputeResources();
+
 
     VkCommandPool commandPool;
     VkCommandPool transferCommandPool;
@@ -327,6 +348,9 @@ private:
     std::vector<VkImage> depthImages;
     std::vector<VmaAllocation> depthImageAllocations;
     std::vector<VkImageView> depthImageViews;
+    std::vector<VkImage> depthGuiImages;
+    std::vector<VmaAllocation> depthGuiImageAllocations;
+    std::vector<VkImageView> depthGuiImageViews;
     void createDepthResources();
     void destroyDepthResources();
     std::vector<VkImage> colorImages;
@@ -460,6 +484,7 @@ private:
     void doShadowDebugWrite();
 
     LuaWrapper *lua;
+    GlyphCache *glyphCache;
 };
 
 class CubeMap {
@@ -485,6 +510,27 @@ namespace GuiTextures {
     int makeTexture(const char *str);
     void setDefaultTexture();
 }
+
+// We won't cache control charecters as this makes no sense
+class GlyphCache {
+public:
+    GlyphCache(Engine *context, const std::vector<char16_t>& glyphsWanted);
+    ~GlyphCache();
+
+    struct GlyphData {
+        uint width;
+        GuiTexture onGpu;
+        uint descriptorIndex;
+    };
+    std::map<char16_t, GlyphData> glyphDatum;
+    uint bufferWidth;
+
+    void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
+private:
+    GuiTexture *defaultGlyph;
+    static constexpr uint defaultGlyphWidth = 16;
+    Engine *context;
+};
 
 struct InstanceZSorter {
     InstanceZSorter(Scene *context);

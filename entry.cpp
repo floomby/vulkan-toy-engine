@@ -45,6 +45,7 @@ int main(int argc, char **argv) {
     }
     settings.maxTextures = 1024;
     settings.maxHudTextures = 128;
+    settings.maxGlyphTextures = 128;
 
     try {
         run(settings);

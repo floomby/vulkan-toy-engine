@@ -98,7 +98,8 @@ class Engine;
 
 class GuiTexture {
 public:
-    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format, VkFilter = VK_FILTER_LINEAR);
+    GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format,
+        VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool dontCreateSampler = false);
     GuiTexture(const GuiTexture&);
     GuiTexture& operator=(const GuiTexture&);
     GuiTexture(GuiTexture&& other) noexcept;

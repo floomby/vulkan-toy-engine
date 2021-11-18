@@ -1,7 +1,9 @@
+#ifndef DONT_PRINT_MEMORY_LOG
 #define VMA_DEBUG_LOG(format, ...) do { \
     printf(format, ##__VA_ARGS__); \
     printf("\n"); \
 } while(false)
+#endif
 
 #define VMA_IMPLEMENTATION
 #include "libs/vk_mem_alloc.h"
@@ -136,6 +138,7 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 static const std::vector<const char*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME,
+    VK_KHR_MAINTENANCE2_EXTENSION_NAME,
     // My card does not support cubic filtering??? (I am in disbelief, but we can do it in the fragment shader anyways)
     // VK_EXT_FILTER_CUBIC_EXTENSION_NAME
     // I really want to use this, but I can't because nvidia drivers don't support it
@@ -814,6 +817,7 @@ VkFormat Engine::findDepthFormat() {
         VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+// This is confussing to me at this point, stuff is named poorly
 void Engine::createRenderPass() {
     VkAttachmentDescription colorAttachment {};
     colorAttachment.format = swapChainImageFormat;
@@ -835,10 +839,20 @@ void Engine::createRenderPass() {
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depthGuiAttachment {};
+    depthGuiAttachment.format = findDepthFormat();
+    depthGuiAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthGuiAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthGuiAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthGuiAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthGuiAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthGuiAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthGuiAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentDescription subpassAttachment {};
     subpassAttachment.format = swapChainImageFormat;
     subpassAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    subpassAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    subpassAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     subpassAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     subpassAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     subpassAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -868,6 +882,7 @@ void Engine::createRenderPass() {
     VkAttachmentReference subpass0color = { 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
     VkAttachmentReference subpass0depth = { 1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
     VkAttachmentReference colorAA = { 4, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
+    VkAttachmentReference guiDepthReference { 5, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL };
 
     std::array<VkSubpassDescription, 3> subpasses {};
     subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -895,13 +910,20 @@ void Engine::createRenderPass() {
     subpasses[2].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[2].colorAttachmentCount = 1;
     subpasses[2].pColorAttachments = &subpass2color;
-    subpasses[2].pDepthStencilAttachment = &subpass0depth;
+    subpasses[2].pDepthStencilAttachment = &guiDepthReference;
     subpasses[2].pResolveAttachments = nullptr;
     subpasses[2].inputAttachmentCount = 2;
     subpasses[2].pInputAttachments = subpass2inputs;
     // Can we just reuse the depth attachment?
 
-    std::array<VkAttachmentDescription, 5> attachments = { subpassAttachment, depthAttachment, colorAttachment, bgAttachment, colorAAAttachment };
+    std::array<VkAttachmentDescription, 6> attachments = { 
+        subpassAttachment,
+        depthAttachment,
+        colorAttachment, 
+        bgAttachment,
+        colorAAAttachment,
+        depthGuiAttachment
+    };
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = attachments.size();
@@ -1311,6 +1333,88 @@ void Engine::createGraphicsPipelines() {
     vkDestroyShaderModule(device, hudVertShaderModule, nullptr);
 }
 
+void Engine::createComputeResources() {
+    std::array<VkDescriptorSetLayoutBinding, 2> layoutBindings;
+
+    layoutBindings[0].binding = 0;
+    layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    layoutBindings[0].descriptorCount = engineSettings.maxGlyphTextures;
+    layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    layoutBindings[1].binding = 1;
+    layoutBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    layoutBindings[1].descriptorCount = 1;
+    layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo setLayoutCreateInfo {};
+    setLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    setLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
+    setLayoutCreateInfo.pBindings = layoutBindings.data();
+
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &setLayoutCreateInfo, nullptr, &computeSetLayouts[CP_SDF_BLIT]), "Failed to create descriptor set layout.");
+
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo {};
+    pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutCreateInfo.setLayoutCount = 1;
+    pipelineLayoutCreateInfo.pSetLayouts = &computeSetLayouts[CP_SDF_BLIT];
+
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &computePipelineLayouts[CP_SDF_BLIT]), "Failed to create pipeline layout.");
+
+    auto sdfBlitCode = Utilities::readFile("shaders/sdf_blit.spv");
+    VkShaderModule sdfBlitShader = createShaderModule(sdfBlitCode);
+
+    VkComputePipelineCreateInfo pipelineCreateInfo{};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineCreateInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    pipelineCreateInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    pipelineCreateInfo.stage.module = sdfBlitShader;
+
+    pipelineCreateInfo.stage.pName = "main";
+    pipelineCreateInfo.layout = computePipelineLayouts[CP_SDF_BLIT];
+
+    vulkanErrorGuard(vkCreateComputePipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &computePipelines[CP_SDF_BLIT]),
+        "Failed to create compute pipeline.");
+
+    vkDestroyShaderModule(device, sdfBlitShader, nullptr);
+
+    std::array<VkDescriptorPoolSize, 2> poolSizes;
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    poolSizes[0].descriptorCount = engineSettings.maxGlyphTextures;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    poolSizes[1].descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = poolSizes.size();
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = concurrentFrames;
+
+    vulkanErrorGuard(vkCreateDescriptorPool(device, &poolInfo, nullptr, &computePools[CP_SDF_BLIT]), "Failed to create descriptor pool.");
+
+    VkDescriptorSetAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = computePools[CP_SDF_BLIT];
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &computeSetLayouts[CP_SDF_BLIT];
+
+    vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, &computeSets[CP_SDF_BLIT]), "Failed to allocate descriptor sets.");
+}
+
+void Engine::destroyComputeResources() {
+    for (auto &dp : computePools) {
+        vkDestroyDescriptorPool(device, dp, nullptr);
+    }
+    for (auto& pl : computePipelines) {
+        vkDestroyPipeline(device, pl, nullptr);
+    }
+    for (auto& pll : computePipelineLayouts) {
+        vkDestroyPipelineLayout(device, pll, nullptr);
+    }
+    for (auto& dsl : computeSetLayouts) {
+        vkDestroyDescriptorSetLayout(device, dsl, nullptr);
+    }
+}
+
 // Remember that all the command buffers from a pool must be accessed from the same thread
 void Engine::createCommandPools() {
     VkCommandPoolCreateInfo poolInfo {};
@@ -1494,6 +1598,9 @@ void Engine::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout
 }
 
 void Engine::createDepthResources() {
+    depthGuiImages.resize(swapChainImages.size());
+    depthGuiImageAllocations.resize(swapChainImages.size());
+    depthGuiImageViews.resize(swapChainImages.size());
     depthImages.resize(swapChainImages.size());
     depthImageAllocations.resize(swapChainImages.size());
     depthImageViews.resize(swapChainImages.size());
@@ -1542,6 +1649,12 @@ void Engine::createDepthResources() {
         
         depthImageViews[i] = createImageView(depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
         transitionImageLayout(depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &depthGuiImages[i], &depthGuiImageAllocations[i], nullptr);
+        
+        depthGuiImageViews[i] = createImageView(depthGuiImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        transitionImageLayout(depthGuiImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     }
 }
 
@@ -1691,6 +1804,8 @@ void Engine::destroyDepthResources() {
     for (int i = 0; i < depthImages.size(); i++) {
         vkDestroyImageView(device, depthImageViews[i], nullptr);
         vmaDestroyImage(memoryAllocator, depthImages[i], depthImageAllocations[i]);
+        vkDestroyImageView(device, depthGuiImageViews[i], nullptr);
+        vmaDestroyImage(memoryAllocator, depthGuiImages[i], depthGuiImageAllocations[i]);
     }
 }
 
@@ -1705,12 +1820,13 @@ void Engine::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        std::array<VkImageView, 5> attachments = {
+        std::array<VkImageView, 6> attachments = {
             subpassImageViews[i],
             depthImageViews[i],
             swapChainImageViews[i],
             bgSubpassImageViews[i],
-            colorImageViews[i]
+            colorImageViews[i],
+            depthGuiImageViews[i]
         };
 
         VkFramebufferCreateInfo framebufferInfo {};
@@ -1940,6 +2056,7 @@ void Engine::initVulkan() {
     createRenderPass();
 
     createDescriptorSetLayout();
+    createComputeResources();
     createGraphicsPipelines();
     createCommandPools();
 
@@ -2649,6 +2766,8 @@ void Engine::runCurrentScene() {
     writeHudDescriptors();
     lua = new LuaWrapper(true);
     lua->apiExport();
+    glyphCache = new GlyphCache(this, {});
+    glyphCache->writeDescriptors(computeSets[CP_SDF_BLIT], 0);
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
     currentScene->initUnitAIs(lua, "unitai");
 
@@ -2976,7 +3095,7 @@ void Engine::allocateCommandBuffers() {
 
 #include "shaders/render_modes.h"
 
-// I am sorry what I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
+// I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
 // cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
     const VkDescriptorSet& hudDescriptorSet, int index) {
@@ -3027,11 +3146,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
 
-    std::array<VkClearValue, 4> clearValues = {};
+    std::array<VkClearValue, 6> clearValues = {};
     clearValues[0].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
     clearValues[1].depthStencil = { 1.0f, 0 };
     clearValues[2].color = {{ 0.0f, 0.0f, 0.0f, 1.0f }};
     clearValues[3].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
+    clearValues[4].color = {{ 0.0f, 0.0f, 0.0f, 0.0f }};
+    clearValues[5].depthStencil = { 1.0f, 0 };
+
 
     renderPassInfo.clearValueCount = clearValues.size();
     renderPassInfo.pClearValues = clearValues.data();
@@ -3108,27 +3230,25 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkClearAttachment depthClear;
-    depthClear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    depthClear.colorAttachment = 0;
-    depthClear.clearValue.depthStencil = { 1.0f, 0 };
+    // VkClearAttachment depthClear;
+    // depthClear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    // depthClear.colorAttachment = 0;
+    // depthClear.clearValue.depthStencil = { 1.0f, 0 };
 
-    VkClearRect depthClearRect;
-    depthClearRect.rect.offset = { 0, 0 };
-    depthClearRect.rect.extent = swapChainExtent;
-    depthClearRect.baseArrayLayer = 0;
-    depthClearRect.layerCount = 1;
+    // VkClearRect depthClearRect;
+    // depthClearRect.rect.offset = { 0, 0 };
+    // depthClearRect.rect.extent = swapChainExtent;
+    // depthClearRect.baseArrayLayer = 0;
+    // depthClearRect.layerCount = 1;
 
-    vkCmdClearAttachments(buffer, 1, &depthClear, 1, &depthClearRect);
+    // vkCmdClearAttachments(buffer, 1, &depthClear, 1, &depthClearRect);
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_HUD]);
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
-    // gui->lockPushConstant();
     // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
     vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), gui->pushConstant());
-    // gui->unlockPushConstant();
 
     vkCmdDraw(buffer, guiOutOfDate ? Gui::dummyVertexCount : hudVertexCount, 1, 0, 0);
 
@@ -3218,6 +3338,8 @@ void Engine::cleanupSwapChain() {
 void Engine::cleanup() {
     cleanupSwapChain();
 
+    destroyComputeResources();
+
     destroyLightingBuffers();
     delete lineSync;
     delete uniformSync;
@@ -3266,6 +3388,7 @@ Engine::~Engine() {
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
     delete gui;
+    delete glyphCache;
     delete lua;
     cleanup();
 }
@@ -3383,8 +3506,6 @@ void Engine::createShadowResources(bool createDebugging) {
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.depthBiasClamp = 0.0f;
     rasterizer.depthBiasEnable = VK_TRUE;
-    // rasterizer.depthBiasConstantFactor = 9.25f;
-    // rasterizer.depthBiasSlopeFactor = 3.75f;
 
     VkPipelineMultisampleStateCreateInfo multisampling {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -4416,7 +4537,8 @@ namespace GuiTextures {
 
 GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
-GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format, VkFilter filter) {
+GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
+    VkFormat format, VkFilter filter, bool useRenderQueue, bool dontCreateSampler) {
     this->context = context;
     widenessRatio = (float)width / height;
 
@@ -4438,6 +4560,11 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     for (int i = 0; i < height; i++)
         memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * 4 * channels);
 
+    // (dontCreateSampler ? VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : 0)
+
+    VkImageUsageFlags imageUsage = dontCreateSampler ?
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT : VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     imageInfo.imageType = VK_IMAGE_TYPE_2D ;
     imageInfo.extent.width = width;
@@ -4448,7 +4575,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     imageInfo.format = format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.usage = imageUsage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0;
@@ -4459,7 +4586,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
-    VkCommandBuffer commandBuffer = context->beginSingleTimeCommands(context->guiCommandPool);
+    VkCommandBuffer commandBuffer = useRenderQueue ? context->beginSingleTimeCommands() : context->beginSingleTimeCommands(context->guiCommandPool);
 
     VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
     imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -4493,24 +4620,35 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    if (!dontCreateSampler) {
+        imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageMemoryBarrier.image = textureImage;
+        imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-    vkCmdPipelineBarrier(
-        commandBuffer,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &imageMemoryBarrier);
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &imageMemoryBarrier);
+    } // I probably need to transition the image again, but I can't really tell to what right now (I might get an error in the shader which will help me, but
+    // the shader is not written yet)
 
-    context->endSingleTimeCommands(commandBuffer, context->guiCommandPool, context->guiGraphicsQueue);
+    if (useRenderQueue) {
+        context->endSingleTimeCommands(commandBuffer);
+    } else {
+        context->endSingleTimeCommands(commandBuffer, context->guiCommandPool, context->guiGraphicsQueue);
+    }
 
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
+
+    VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
+    imageViewUsage.pNext = nullptr;
+    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
 
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     textureImageViewInfo.image = textureImage;
@@ -4521,9 +4659,15 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.subresourceRange.levelCount = 1;
     textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
     textureImageViewInfo.subresourceRange.layerCount = 1;
+    textureImageViewInfo.pNext = dontCreateSampler ? &imageViewUsage : nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
 
     GuiTextures::references.insert({ textureImage, 1 });
+
+    if (dontCreateSampler) {
+        textureSampler = VK_NULL_HANDLE;
+        return;
+    }
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -4554,7 +4698,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
 GuiTexture::~GuiTexture() {
     if (--GuiTextures::references[textureImage] == 0) {
-        vkDestroySampler(context->device, textureSampler, nullptr);
+        if (textureSampler) vkDestroySampler(context->device, textureSampler, nullptr);
         vkDestroyImageView(context->device, textureImageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
         GuiTextures::references.erase(textureImage);
@@ -4605,6 +4749,8 @@ ResourceID GuiTexture::resourceID() {
 // This font stuff is ultrajank
 // It may seem less than ideal that we render to a buffer like this, but indeed this is how freetype does things anyways, with this psuedo global state
 namespace GuiTextures {
+    static std::mutex ftLock;
+
     static void *textTextureBuffer;
     void destroyTextTextureBuffer() {
         ::operator delete(textTextureBuffer);
@@ -4614,6 +4760,7 @@ namespace GuiTextures {
     // I know what you are thinking...
     //  ...that this should be an object since I practically gave it a destructor with the atexit bit
     void initFreetype2(Engine *context) {
+        std::scoped_lock(ftLock);
         GuiTextures::context = context;
         FT_Error error = FT_Init_FreeType(&library);
         if (error) throw std::runtime_error("Unable to initialize freetype.");
@@ -4666,12 +4813,13 @@ namespace GuiTextures {
             it++;
         }
 
-        stbi_write_png("glyph.png", maxTextWidth, maxGlyphHeight * 2, 1, textTextureBuffer, maxTextWidth);
+        // stbi_write_png("glyph.png", maxTextWidth, maxGlyphHeight * 2, 1, textTextureBuffer, maxTextWidth);
 
         return pen.x + maxGlyphHeight / 2;
     }
 
     GuiTexture makeGuiTexture(const char *str) {
+        std::scoped_lock(ftLock);
         int width = makeTexture(str);
 
         // tbh I have no idea how to sharpen the text correctly
@@ -4733,4 +4881,77 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, const s
         memcpy(static_cast<unsigned char *>(uniformBufferAllocations[descriptorIndex]->GetMappedData()) + i * uniformSkip,
             items.data() + i, sizeof(T));
     }
+}
+
+GlyphCache::GlyphCache(Engine *context, const std::vector<char16_t>& glyphsWanted) 
+: context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2) {
+    std::scoped_lock(GuiTextures::ftLock);
+    memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
+    defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth, 
+        GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
+    uint index = 0;
+    for (const auto& glyphCode : glyphsWanted) {
+        FT_Vector pen;
+        pen.x = GuiTextures::maxGlyphHeight / 2;
+        pen.y = GuiTextures::maxGlyphHeight / 2;
+        memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
+
+        FT_UInt charCode = FT_Get_Char_Index(GuiTextures::face, glyphCode);
+        FT_Error error = FT_Load_Glyph(GuiTextures::face, charCode, 0);
+        if (error) throw std::runtime_error("Unable to load glyph.");
+        error = FT_Render_Glyph(GuiTextures::face->glyph, FT_RENDER_MODE_SDF);
+        if (error) throw std::runtime_error("Unable to render glyph.");
+
+        // TODO Clean this up
+        for(int i = 0; i < GuiTextures::face->glyph->bitmap.rows; i++)
+            for(int j = 0; j < abs(GuiTextures::face->glyph->bitmap.pitch); j++)
+                // Ah, silent failures... the best kind (it should be obvious in context though)
+                if (GuiTextures::face->glyph->bitmap_left + pen.x + j < GuiTextures::maxTextWidth)
+                    *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j) = 
+                        std::max(*(GuiTextures::face->glyph->bitmap.buffer + i * abs(GuiTextures::face->glyph->bitmap.pitch) + j),
+                            *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j));
+
+        pen.x += GuiTextures::face->glyph->advance.x >> 6;
+
+        int imageWidth = pen.x + GuiTextures::maxGlyphHeight / 2;
+
+        // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
+        // and maybe it might mater if the gui wants to do gpu stuff in setup up at the same time
+        glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), GuiTexture(context, GuiTextures::textTextureBuffer, imageWidth, 
+            GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true), index++ }});
+    }
+}
+
+void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
+    std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
+
+    std::vector<VkDescriptorImageInfo> textureInfo(context->engineSettings.maxGlyphTextures);
+
+    for (const auto& [code, data] : glyphDatum) {
+        textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        textureInfo[data.descriptorIndex].imageView = textureRefs[data.descriptorIndex].textureImageView;
+        textureInfo[data.descriptorIndex].sampler = textureRefs[data.descriptorIndex].textureSampler;
+        // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
+        // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
+    }
+    // TODO, replace this with a texture that represents an error character
+    for (int i = glyphDatum.size(); i < context->engineSettings.maxGlyphTextures; i++) {
+        textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        textureInfo[i].imageView = defaultGlyph->textureImageView;
+        // textureInfo[i].sampler = GuiTextures::defaultTexture->textureSampler;
+    }
+
+    descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet = set;
+    descriptorWrites[0].dstBinding = binding;
+    descriptorWrites[0].dstArrayElement = 0;
+    descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrites[0].descriptorCount = textureInfo.size();
+    descriptorWrites[0].pImageInfo = textureInfo.data();
+
+    vkUpdateDescriptorSets(context->device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
+}
+
+GlyphCache::~GlyphCache() {
+    delete defaultGlyph;
 }

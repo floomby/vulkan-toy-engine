@@ -20,6 +20,11 @@ layout( push_constant ) uniform constants {
     vec3 teamColor;
 } pushConstants;
 
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inColor;
+layout(location = 2) in vec2 inTexCoord;
+layout(location = 3) in vec3 inVertNormal;
+
 void main() {
     gl_Position = pushConstants.projection * pushConstants.view * vec4((bool(gl_VertexIndex % 2) ? inCoords.a : inCoords.b ), 1.0);
     outColor = (bool(gl_VertexIndex % 2) ? inCoords.aColor : inCoords.bColor );

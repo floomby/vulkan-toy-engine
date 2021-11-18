@@ -1,10 +1,10 @@
-CFLAGS = -std=c++20 -Ofast -ggdb -DBOOST_STACKTRACE_USE_BACKTRACE -Ilibs/freetype/freetype/include -Ilibs/freetype/freetype/build/include -MMD -fcoroutines -pedantic
+CFLAGS = -std=c++20 -Ofast -ggdb -DBOOST_STACKTRACE_USE_BACKTRACE -Ilibs/freetype/freetype/include -Ilibs/freetype/freetype/build/include -MMD -fcoroutines -pedantic -DDONT_PRINT_MEMORY_LOG
 LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -lboost_program_options -lbacktrace $(shell pwd)/lua/LuaJIT/src/libluajit.a $(shell pwd)/libs/freetype/freetype/build/libfreetype.a -lz -lpng16 -lbrotlidec -lbrotlicommon
 
 SRC = $(wildcard *.cpp)
 OBJ = $(SRC:.cpp=.o)
 DEP = $(OBJ:.o=.d)
-GLSL = $(wildcard shaders/*.frag) $(wildcard shaders/*.vert)
+GLSL = $(wildcard shaders/*.frag) $(wildcard shaders/*.vert) $(wildcard shaders/*.comp)
 
 engine: bindings.o $(OBJ)
 	g++ $^ $(CFLAGS) -o result $(LDFLAGS)
