@@ -13,6 +13,8 @@
 #include "net.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
+#include <codecvt>
+#include <locale>
 #include <set>
 
 #ifndef DONT_PRINT_MEMORY_LOG
@@ -59,6 +61,26 @@ struct LineHolder {
 
 template<typename T> class DescriptorSyncer;
 
+class Engine;
+
+class TooltipResource {
+public:
+    TooltipResource(Engine *context, uint height, uint width);
+    ~TooltipResource();
+    void writeDescriptor(VkDescriptorSet set);
+
+    TooltipResource(const TooltipResource& other) = delete;
+    TooltipResource(TooltipResource&& other) noexcept = delete;
+    TooltipResource& operator=(const TooltipResource& other) = delete;
+    TooltipResource& operator=(TooltipResource&& other) noexcept = delete;
+
+    VkImage image;
+    VmaAllocation allocation;
+    VkImageView imageView;
+private:
+    Engine *context;
+};
+
 class Engine {
     // Mmmm, tasty spahgetti
     friend class InternalTexture;
@@ -67,6 +89,7 @@ class Engine {
     friend class Scene;
     friend class Api;
     friend class GlyphCache;
+    friend class TooltipResource;
 
     friend class DescriptorSyncer<UniformBufferObject>;
     friend class DescriptorSyncer<LineUBO>;
@@ -184,6 +207,8 @@ private:
     } mouseAction;
     bool wasZMoving = false;
     bool drawTooltip = false;
+    std::shared_ptr<TooltipResource> makeTooltip(const std::string& str);
+    std::shared_ptr<TooltipResource> tooltipResource;
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -329,6 +354,9 @@ private:
     void createComputeResources();
     void destroyComputeResources();
 
+    VkBuffer sdfUBOBuffer;
+    VmaAllocation sdfUBOAllocation;
+    VkFence sdfBlitFence;
 
     VkCommandPool commandPool;
     VkCommandPool transferCommandPool;
@@ -343,6 +371,8 @@ private:
     VkCommandBuffer beginSingleTimeCommands(VkCommandPool pool);
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
     void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue);
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence fence);
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue, VkFence fence);
     bool hasStencilComponent(VkFormat format);
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
 
@@ -513,10 +543,20 @@ namespace GuiTextures {
     void setDefaultTexture();
 }
 
+#define MAX_GLYPHS_PER_DISPATCH 50
+
+struct IndexWidthUBO {
+    glm::uint32_t writeCount;
+    glm::uint32_t pixelOffset;
+    glm::uint32_t totalWidth;
+    glm::uint32_t index[MAX_GLYPHS_PER_DISPATCH];
+    glm::uint32_t width[MAX_GLYPHS_PER_DISPATCH];
+};
+
 // We won't cache control charecters as this makes no sense
 class GlyphCache {
 public:
-    GlyphCache(Engine *context, const std::vector<char16_t>& glyphsWanted);
+    GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted);
     ~GlyphCache();
 
     struct GlyphData {
@@ -524,10 +564,14 @@ public:
         GuiTexture onGpu;
         uint descriptorIndex;
     };
-    std::map<char16_t, GlyphData> glyphDatum;
+    std::map<char32_t, GlyphData> glyphDatum;
     uint bufferWidth;
+    uint height;
 
     void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
+    uint writeUBO(IndexWidthUBO *buffer, const std::string& str);
+
+    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
 private:
     GuiTexture *defaultGlyph;
     static constexpr uint defaultGlyphWidth = 16;
@@ -668,7 +712,8 @@ public:
             bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
             bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-            if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
+            if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i,
+                uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
                 throw std::runtime_error("Unable to allocate memory for uniform buffers.");
 
             info.buffer = uniformBuffers[i];
@@ -712,7 +757,8 @@ private:
         bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
-        if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + idx, uniformBufferAllocations.data() + idx, nullptr) != VK_SUCCESS)
+        if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + idx,
+            uniformBufferAllocations.data() + idx, nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to allocate memory for uniform buffers.");
 
         currentSize[idx] = newSize;

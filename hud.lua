@@ -33,13 +33,13 @@ Hud = {
         --     color = 0x000000ff,
         -- },
         {
-            x = -0.9,
+            x = 0.7,
             y = 0.75,
             width = 0.5,
             height = 0.1,
             onClick = click,
             kind = GuiLayoutType__TEXT_BUTTON,
-            text = "ClickMe",
+            text = "Click!!!",
             color = 0x800000ff,
             -- children = {}
         },

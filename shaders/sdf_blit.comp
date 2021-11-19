@@ -1,8 +1,18 @@
 #version 450
 
 layout(set = 0, binding = 0, r8) uniform readonly image2D sdfGlyphs[128];
-layout(set = 0, binding = 0, r8) uniform writeonly image2D resultImage; 
+layout(set = 0, binding = 1, r8) uniform writeonly image2D resultImage;
+layout(set = 0, binding = 2) uniform IndexWidthUBO {
+    uint writeCount;
+    uint pixelOffset;
+    uint totalWidth;
+    uint index[50];
+    uint width[50];
+} glyphsUBO;
 
 void main() {
-    
+    for (int i = 0; i < glyphsUBO.totalWidth; i++) {
+        ivec2 coord = ivec2(gl_GlobalInvocationID.x, i);
+        imageStore(resultImage, coord, vec4(0.5, 0.5, 0.5, 1.0));
+    }
 }

@@ -15,11 +15,13 @@
 #include "engine.hpp"
 #include "entity.hpp"
 
+#include <codecvt>
 #include <chrono>
 #include <csignal>
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <locale>
 #include <numeric>
 #include <map>
 #include <sstream>
@@ -1343,7 +1345,7 @@ void Engine::createGraphicsPipelines() {
 }
 
 void Engine::createComputeResources() {
-    std::array<VkDescriptorSetLayoutBinding, 2> layoutBindings;
+    std::array<VkDescriptorSetLayoutBinding, 3> layoutBindings;
 
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1355,19 +1357,26 @@ void Engine::createComputeResources() {
     layoutBindings[1].descriptorCount = 1;
     layoutBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
+    layoutBindings[2].binding = 2;
+    layoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layoutBindings[2].descriptorCount = 1;
+    layoutBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
     VkDescriptorSetLayoutCreateInfo setLayoutCreateInfo {};
     setLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     setLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
     setLayoutCreateInfo.pBindings = layoutBindings.data();
 
-    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &setLayoutCreateInfo, nullptr, &computeSetLayouts[CP_SDF_BLIT]), "Failed to create descriptor set layout.");
+    vulkanErrorGuard(vkCreateDescriptorSetLayout(device, &setLayoutCreateInfo, nullptr, &computeSetLayouts[CP_SDF_BLIT]),
+        "Failed to create descriptor set layout.");
 
     VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo {};
     pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutCreateInfo.setLayoutCount = 1;
     pipelineLayoutCreateInfo.pSetLayouts = &computeSetLayouts[CP_SDF_BLIT];
 
-    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &computePipelineLayouts[CP_SDF_BLIT]), "Failed to create pipeline layout.");
+    vulkanErrorGuard(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &computePipelineLayouts[CP_SDF_BLIT]),
+        "Failed to create pipeline layout.");
 
     auto sdfBlitCode = Utilities::readFile("shaders/sdf_blit.spv");
     VkShaderModule sdfBlitShader = createShaderModule(sdfBlitCode);
@@ -1386,11 +1395,13 @@ void Engine::createComputeResources() {
 
     vkDestroyShaderModule(device, sdfBlitShader, nullptr);
 
-    std::array<VkDescriptorPoolSize, 2> poolSizes;
+    std::array<VkDescriptorPoolSize, 3> poolSizes;
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes[0].descriptorCount = engineSettings.maxGlyphTextures;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes[1].descriptorCount = 1;
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[2].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1407,6 +1418,39 @@ void Engine::createComputeResources() {
     allocInfo.pSetLayouts = &computeSetLayouts[CP_SDF_BLIT];
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &allocInfo, &computeSets[CP_SDF_BLIT]), "Failed to allocate descriptor sets.");
+
+    VkFenceCreateInfo sdfFenceInfo {};
+    sdfFenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+    vulkanErrorGuard(vkCreateFence(device, &sdfFenceInfo, nullptr, &sdfBlitFence), "Failed to create compute fence.");
+
+    VkBufferCreateInfo sdfUBOInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    sdfUBOInfo.size = sizeof(IndexWidthUBO);
+    sdfUBOInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+    VmaAllocationCreateInfo sdfUBOAllocationInfo = {};
+    sdfUBOAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    sdfUBOAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    if (vmaCreateBuffer(memoryAllocator, &sdfUBOInfo, &sdfUBOAllocationInfo, &sdfUBOBuffer, &sdfUBOAllocation, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Unable to allocate memory for sdf uniform buffers.");
+
+    VkDescriptorBufferInfo sdfUBOBufferInfo {};
+    sdfUBOBufferInfo.buffer = sdfUBOBuffer;
+    sdfUBOBufferInfo.offset = 0;
+    sdfUBOBufferInfo.range = sizeof(IndexWidthUBO);
+
+    VkWriteDescriptorSet sdfUBOdescriptorWrite {};
+
+    sdfUBOdescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    sdfUBOdescriptorWrite.dstSet = computeSets[CP_SDF_BLIT];
+    sdfUBOdescriptorWrite.dstBinding = 2;
+    sdfUBOdescriptorWrite.dstArrayElement = 0;
+    sdfUBOdescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    sdfUBOdescriptorWrite.descriptorCount = 1;
+    sdfUBOdescriptorWrite.pBufferInfo = &sdfUBOBufferInfo;
+
+    vkUpdateDescriptorSets(device, 1, &sdfUBOdescriptorWrite, 0, nullptr);
 }
 
 void Engine::destroyComputeResources() {
@@ -1422,6 +1466,8 @@ void Engine::destroyComputeResources() {
     for (auto& dsl : computeSetLayouts) {
         vkDestroyDescriptorSetLayout(device, dsl, nullptr);
     }
+    vkDestroyFence(device, sdfBlitFence, nullptr);
+    vmaDestroyBuffer(memoryAllocator, sdfUBOBuffer, sdfUBOAllocation);
 }
 
 // Remember that all the command buffers from a pool must be accessed from the same thread
@@ -1518,12 +1564,15 @@ VkCommandBuffer Engine::beginSingleTimeCommands(VkCommandPool pool) {
     return commandBuffer;
 }
 
+void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence fence) {
+    endSingleTimeCommands(commandBuffer, commandPool, graphicsQueue, fence);
+}
+
 void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
     endSingleTimeCommands(commandBuffer, commandPool, graphicsQueue);
 }
 
 void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue) {
-    // std::cout << "using pool: " << std::hex << pool << "   and queue: " << queue << std::endl;
     vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo {};
@@ -1533,6 +1582,19 @@ void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool 
 
     vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(queue);
+
+    vkFreeCommandBuffers(device, pool, 1, &commandBuffer);
+}
+
+void Engine::endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue, VkFence fence) {
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(queue, 1, &submitInfo, fence);
 
     vkFreeCommandBuffers(device, pool, 1, &commandBuffer);
 }
@@ -2155,6 +2217,24 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
+std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
+    uint width = glyphCache->writeUBO((IndexWidthUBO *)sdfUBOAllocation->GetMappedData(), str);
+
+    auto ret = std::make_shared<TooltipResource>(this, glyphCache->height, width);
+    ret.get()->writeDescriptor(computeSets[CP_SDF_BLIT]);
+
+    auto buffer = beginSingleTimeCommands(guiCommandPool);
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines[CP_SDF_BLIT]);
+    vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayouts[CP_SDF_BLIT], 0, 1, &computeSets[CP_SDF_BLIT], 0, nullptr);
+    vkCmdDispatch(buffer, glyphCache->height, 1, 1);
+
+    // endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue, sdfBlitFence);
+    endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue);
+
+    return ret;
+}
+
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
 void Engine::handleInput() {
@@ -2200,6 +2280,7 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_I) {
                 // shadow.makeSnapshot = true;
+                tooltipResource = makeTooltip("aA");
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
@@ -2725,8 +2806,10 @@ void Engine::destroyLightingBuffers() {
 
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
+    static const std::string glyphsToCache = "aA";
 }
 
+// This function is a shmorgishborg of random stuff
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
     createModelBuffers();
@@ -2779,8 +2862,15 @@ void Engine::runCurrentScene() {
     writeHudDescriptors();
     lua = new LuaWrapper(true);
     lua->apiExport();
-    glyphCache = new GlyphCache(this, {});
+
+    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+    std::vector<char32_t> glyphsToCache;
+    for (const auto& chr : converter.from_bytes(GuiTextures::glyphsToCache)) {
+        glyphsToCache.push_back(chr);
+    }
+    glyphCache = new GlyphCache(this, glyphsToCache);
     glyphCache->writeDescriptors(computeSets[CP_SDF_BLIT], 0);
+
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
     currentScene->initUnitAIs(lua, "unitai");
 
@@ -3442,6 +3532,7 @@ Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
     textureRefs.clear();
+    tooltipResource.reset();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
@@ -4941,8 +5032,9 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, const s
     }
 }
 
-GlyphCache::GlyphCache(Engine *context, const std::vector<char16_t>& glyphsWanted) 
+GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted) 
 : context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2) {
+    height = GuiTextures::maxGlyphHeight + 2 * bufferWidth;
     std::scoped_lock(GuiTextures::ftLock);
     memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
     defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth, 
@@ -4976,7 +5068,7 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char16_t>& glyphsWante
         // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
         // and maybe it might mater if the gui wants to do gpu stuff in setup up at the same time
         glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), GuiTexture(context, GuiTextures::textTextureBuffer, imageWidth, 
-            GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true), index++ }});
+            height, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true), index++ }});
     }
 }
 
@@ -4987,8 +5079,8 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 
     for (const auto& [code, data] : glyphDatum) {
         textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[data.descriptorIndex].imageView = textureRefs[data.descriptorIndex].textureImageView;
-        textureInfo[data.descriptorIndex].sampler = textureRefs[data.descriptorIndex].textureSampler;
+        textureInfo[data.descriptorIndex].imageView = data.onGpu.textureImageView;
+        textureInfo[data.descriptorIndex].sampler = VK_NULL_HANDLE;
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
     }
@@ -4996,7 +5088,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
     for (int i = glyphDatum.size(); i < context->engineSettings.maxGlyphTextures; i++) {
         textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         textureInfo[i].imageView = defaultGlyph->textureImageView;
-        // textureInfo[i].sampler = GuiTextures::defaultTexture->textureSampler;
+        textureInfo[i].sampler = VK_NULL_HANDLE;
     }
 
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -5010,6 +5102,96 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
     vkUpdateDescriptorSets(context->device, descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
 }
 
+// returns the width of the needed buffer
+uint GlyphCache::writeUBO(IndexWidthUBO *buffer, const std::string& str) {
+    uint width = 0;
+    auto wstr = converter.from_bytes(str);
+    int index = 0;
+    for (const auto& chr : wstr) {
+        if (!glyphDatum.contains(chr)) {
+            std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
+            // TODO continuing is not the correct behavior, priting an error character should be correct
+            continue;
+        }
+        const auto& data = glyphDatum.at(chr);
+        buffer->index[index] = data.descriptorIndex;
+        buffer->width[index] = data.width;
+        width += data.width;
+        index++;
+    }
+    buffer->writeCount = index;
+    buffer->pixelOffset = bufferWidth;
+    buffer->totalWidth = width + 2 * bufferWidth;
+    return width + 2 * bufferWidth;
+}
+
 GlyphCache::~GlyphCache() {
     delete defaultGlyph;
+}
+
+TooltipResource::TooltipResource(Engine *context, uint height, uint width)
+: context(context) {
+    VkDeviceSize imageSize = width * height;
+
+    VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = VK_FORMAT_R8_UNORM;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0;
+
+    VmaAllocationCreateInfo imageAllocCreateInfo = {};
+    imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Unable to create image");
+
+    VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
+    imageViewUsage.pNext = nullptr;
+    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+
+    VkImageViewCreateInfo imageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    imageViewInfo.image = image;
+    imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewInfo.format = VK_FORMAT_R8_UNORM;
+    imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewInfo.subresourceRange.baseMipLevel = 0;
+    imageViewInfo.subresourceRange.levelCount = 1;
+    imageViewInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewInfo.subresourceRange.layerCount = 1;
+    imageViewInfo.pNext = nullptr;
+    vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
+}
+
+TooltipResource::~TooltipResource() {
+    vkDestroyImageView(context->device, imageView, nullptr);
+    vmaDestroyImage(context->memoryAllocator, image, allocation);
+}
+
+void TooltipResource::writeDescriptor(VkDescriptorSet set) {
+    VkWriteDescriptorSet descriptorWrite {};
+
+    VkDescriptorImageInfo textureInfo {};
+
+    textureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    textureInfo.imageView = imageView;
+    textureInfo.sampler = VK_NULL_HANDLE;
+
+    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrite.dstSet = set;
+    descriptorWrite.dstBinding = 1;
+    descriptorWrite.dstArrayElement = 0;
+    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrite.descriptorCount = 1;
+    descriptorWrite.pImageInfo = &textureInfo;
+
+    vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
 }

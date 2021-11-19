@@ -80,6 +80,7 @@ void run(EngineSettings& settings) {
  I should move to using cmake or something for the building
 
 Next steps
+ finish making the engine configurator ruby thing (to keep the 3 parts of the building in sync), there are too many magic values just floating around
  lua bindings for returns, specifically vectors of instances
  shader multisampling
  mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
