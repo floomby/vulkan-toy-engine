@@ -63,7 +63,7 @@ template<typename T> class DescriptorSyncer;
 
 class Engine;
 
-class TooltipResource {
+class TooltipResource : public Textured {
 public:
     TooltipResource(Engine *context, uint height, uint width);
     ~TooltipResource();
@@ -74,16 +74,20 @@ public:
     TooltipResource& operator=(const TooltipResource& other) = delete;
     TooltipResource& operator=(TooltipResource&& other) noexcept = delete;
 
+    virtual void makeSampler();
+
     VkImage image;
     VmaAllocation allocation;
-    VkImageView imageView;
+    VkFence fence;
+
+    static VkSampler sampler_;
 private:
     Engine *context;
 };
 
 class Engine {
     // Mmmm, tasty spahgetti
-    friend class InternalTexture;
+    friend class EntityTexture;
     friend class CubeMap;
     friend class GuiTexture;
     friend class Scene;
@@ -369,10 +373,11 @@ private:
         VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t mipLevels = 1);
     VkCommandBuffer beginSingleTimeCommands();
     VkCommandBuffer beginSingleTimeCommands(VkCommandPool pool);
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue);
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence fence);
-    void endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue, VkFence fence);
+    // I could use raii pattern to autofree stuff like the way scoped_lock works (Idk what is best, I don't think to hard about it)
+    std::function<void (void)> endSingleTimeCommands(VkCommandBuffer commandBuffer);
+    std::function<void (void)> endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue);
+    std::function<void (void)> endSingleTimeCommands(VkCommandBuffer commandBuffer, VkFence fence);
+    std::function<void (void)> endSingleTimeCommands(VkCommandBuffer commandBuffer, VkCommandPool pool, VkQueue queue, VkFence fence);
     bool hasStencilComponent(VkFormat format);
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels = 1);
 
@@ -407,7 +412,7 @@ private:
     size_t hudVertexCount;
     std::map<uint32_t, uint> guiIdToBufferIndex;
     VkBuffer hudBuffer;
-    void setTooltipTexture(int index, const GuiTexture& texture);
+    void setTooltipTexture(int index, const Textured& texture);
     // void createHudBuffers();
 
     std::list<LineHolder *> lineObjects;
@@ -426,7 +431,7 @@ private:
     std::vector<VkDescriptorSet> hudDescriptorSets;
     std::vector<bool> descriptorDirty; // I think I am not actually using this
     // I do not like the way I am doing this
-    void createDescriptors(const std::vector<InternalTexture>& textures, const std::vector<GuiTexture>& hudTextures);
+    void createMainDescriptors(const std::vector<EntityTexture>& textures, const std::vector<GuiTexture>& hudTextures);
     void writeHudDescriptors();
     std::vector<bool> hudDescriptorNeedsRewrite;
     void rewriteHudDescriptors(int index);
@@ -626,7 +631,7 @@ public:
     std::map<std::string, Entity *> entities;
     std::map<std::string, Weapon *> weapons;
     std::map<std::string, UnitAI *> ais;
-    std::vector<InternalTexture> textures;
+    std::vector<EntityTexture> textures;
     std::vector<SceneModelInfo> models;
 
     void makeBuffers();
@@ -654,17 +659,17 @@ struct TextureCreationData {
     unsigned char *pixels;
 };
 
-class InternalTexture {
+class EntityTexture {
 public:
     int mipLevels, width, height, channels;
     
-    InternalTexture(Engine *context, TextureCreationData creationData);
+    EntityTexture(Engine *context, TextureCreationData creationData);
 
-    InternalTexture(const InternalTexture&);
-    InternalTexture& operator=(const InternalTexture&);
-    InternalTexture(InternalTexture&& other) noexcept;
-    InternalTexture& operator=(InternalTexture&& other) noexcept;
-    ~InternalTexture();
+    EntityTexture(const EntityTexture&);
+    EntityTexture& operator=(const EntityTexture&);
+    EntityTexture(EntityTexture&& other) noexcept;
+    EntityTexture& operator=(EntityTexture&& other) noexcept;
+    ~EntityTexture();
 
     // I guess we need to make these public
     VkSampler textureSampler;

@@ -92,7 +92,7 @@ struct GuiVertex {
 
 class Engine;
 
-class GuiTexture {
+class GuiTexture : public Textured {
 public:
     GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format,
         VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool dontCreateSampler = false);
@@ -105,12 +105,12 @@ public:
     ResourceID resourceID();
     bool operator==(const GuiTexture& other) const;
 
-    VkSampler textureSampler;
-    VkImageView textureImageView;
-
     void syncTexturesToGPU(const std::vector<GuiTexture *>& textures);
     static GuiTexture *defaultTexture();
     float widenessRatio;
+
+    virtual void makeSampler();
+    void makeComputable();
 private:
     VkImage textureImage;
     VmaAllocation textureAllocation;

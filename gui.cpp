@@ -432,3 +432,11 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
     }
     return ret;
 }
+
+Textured::Textured()
+: imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE) {}
+
+void GuiTexture::makeSampler() {
+    if (sampler) return;
+    throw std::runtime_error("Gui textured created with no sampler do not have sampler creation implemented yet");
+}

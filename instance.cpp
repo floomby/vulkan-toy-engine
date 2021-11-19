@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-Instance::Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
+Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
 : id(0), inPlay(inPlay) {
     this->entity = entity;
     this->texture = texture;

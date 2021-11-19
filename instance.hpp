@@ -29,7 +29,7 @@ struct Command {
     CommandData data;
 };
 
-class InternalTexture;
+class EntityTexture;
 
 // Information about the model storage in vram
 struct SceneModelInfo {
@@ -43,7 +43,7 @@ struct UniformBufferObject {
 
 class Instance {
 public:
-    Instance(Entity* entity, InternalTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept;
+    Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept;
     void syncToAuthInstance(const Instance& other);
 
     SceneModelInfo* sceneModelInfo;
@@ -51,7 +51,7 @@ public:
     UniformBufferObject *getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
 
     bool rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
-    InternalTexture* texture;
+    EntityTexture* texture;
 
     bool renderAsIcon = false;
     float cammeraDistance2;

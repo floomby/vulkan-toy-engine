@@ -16,7 +16,7 @@ class UnitAI;
 
 // TODO It would seem good to support empty entities (ie. no model)
 class Entity {
-    friend class InternalTexture;
+    friend class EntityTexture;
     friend class Engine;
     friend class Scene;
 public:

@@ -195,3 +195,11 @@ inline glm::vec3 quatToDirection(const glm::quat& q) {
         1.0f - 2.0f * (q.x * q.x + q.y * q.y)
     };
 }
+
+class Textured {
+public:
+    Textured();
+    VkImageView imageView;
+    VkSampler sampler;
+    virtual void makeSampler() = 0;
+};
