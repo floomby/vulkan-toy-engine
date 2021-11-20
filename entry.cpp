@@ -80,6 +80,7 @@ void run(EngineSettings& settings) {
  I should move to using cmake or something for the building
 
 Next steps
+ I should probably remove the multisampling from the shadow pass (I don't think it really does anything for us, just uses more gpu resources)
  finish making the engine configurator ruby thing (to keep the 3 parts of the building in sync), there are too many magic values just floating around
  lua bindings for returns, specifically vectors of instances
  shader multisampling

@@ -1050,14 +1050,14 @@ void Engine::createDescriptorSetLayout() {
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     // Anisotropic filtering is irrelevant on this as we view it straight on every time
-    samplerInfo.anisotropyEnable = VK_FALSE;
-    // samplerInfo.maxAnisotropy = maxSamplerAnisotropy;
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.maxAnisotropy = maxSamplerAnisotropy;
 
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.maxLod = 1.0f;
     samplerInfo.mipLodBias = 0.0f;
@@ -1371,7 +1371,7 @@ void Engine::createGraphicsPipelines() {
 }
 
 void Engine::createComputeResources() {
-    std::array<VkDescriptorSetLayoutBinding, 3> layoutBindings;
+    std::array<VkDescriptorSetLayoutBinding, 4> layoutBindings;
 
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1387,6 +1387,11 @@ void Engine::createComputeResources() {
     layoutBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layoutBindings[2].descriptorCount = 1;
     layoutBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    layoutBindings[3].binding = 3;
+    layoutBindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layoutBindings[3].descriptorCount = 1;
+    layoutBindings[3].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     VkDescriptorSetLayoutCreateInfo setLayoutCreateInfo {};
     setLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1421,13 +1426,15 @@ void Engine::createComputeResources() {
 
     vkDestroyShaderModule(device, sdfBlitShader, nullptr);
 
-    std::array<VkDescriptorPoolSize, 3> poolSizes;
+    std::array<VkDescriptorPoolSize, 4> poolSizes;
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes[0].descriptorCount = engineSettings.maxGlyphTextures;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes[1].descriptorCount = 1;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[2].descriptorCount = 1;
+    poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[3].descriptorCount = 1;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1451,7 +1458,7 @@ void Engine::createComputeResources() {
     vulkanErrorGuard(vkCreateFence(device, &sdfFenceInfo, nullptr, &sdfBlitFence), "Failed to create compute fence.");
 
     VkBufferCreateInfo sdfUBOInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    sdfUBOInfo.size = sizeof(IndexWidthUBO);
+    sdfUBOInfo.size = sizeof(GlyphInfoUBO);
     sdfUBOInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VmaAllocationCreateInfo sdfUBOAllocationInfo = {};
@@ -1464,7 +1471,7 @@ void Engine::createComputeResources() {
     VkDescriptorBufferInfo sdfUBOBufferInfo {};
     sdfUBOBufferInfo.buffer = sdfUBOBuffer;
     sdfUBOBufferInfo.offset = 0;
-    sdfUBOBufferInfo.range = sizeof(IndexWidthUBO);
+    sdfUBOBufferInfo.range = sizeof(GlyphInfoUBO);
 
     VkWriteDescriptorSet sdfUBOdescriptorWrite {};
 
@@ -2248,7 +2255,7 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
 }
 
 std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
-    uint width = glyphCache->writeUBO((IndexWidthUBO *)sdfUBOAllocation->GetMappedData(), str);
+    uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
 
     auto ret = std::make_shared<TooltipResource>(this, glyphCache->height, width);
     ret.get()->writeDescriptor(computeSets[CP_SDF_BLIT]);
@@ -2307,13 +2314,19 @@ std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
 
     // std::raise(SIGTRAP);
 
-    // wtf is this, the queue should be idle at this point
     vkDeviceWaitIdle(device);
 
     for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *ret.get());
 
     return ret;
 }
+
+namespace GuiTextures {
+    static GuiTexture *defaultTexture;
+    static const std::string glyphsToCache = "aA";
+}
+
+// VkImageView lastCreatedView;
 
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
@@ -2367,20 +2380,43 @@ void Engine::handleInput() {
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
+                for (int i = 0; i < concurrentFrames; i++) {
+                    VkDescriptorImageInfo tooltipTextureInfo;
+                    tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+                    // tooltipTextureInfo.imageView = GuiTextures::defaultTexture->imageView;
+                    // tooltipTextureInfo.imageView = lastCreatedView;
+                    tooltipTextureInfo.sampler = TooltipResource::sampler_;
+
+                    VkWriteDescriptorSet descriptorWrite {};
+                    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descriptorWrite.dstSet = hudDescriptorSets[i];
+                    descriptorWrite.dstBinding = 3;
+                    descriptorWrite.dstArrayElement = 0;
+                    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    descriptorWrite.descriptorCount = 1;
+                    descriptorWrite.pImageInfo = &tooltipTextureInfo;
+
+                    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+                }
+
+                gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
+                gui->pushConstant.tooltipBox[1] = { 0.2, 0.2 };
+                drawTooltip = true;
+
                 // shadow.makeSnapshot = true;
                 // std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
-                std::vector<uint32_t> v = {0, 1};
-                int count = currentScene->state.commandCount(v);
+                // std::vector<uint32_t> v = {0, 1};
+                // int count = currentScene->state.commandCount(v);
 
-                std::cout << "Count: " << count << std::endl;
+                // std::cout << "Count: " << count << std::endl;
 
-                auto cmdGen = currentScene->state.getCommandGenerator(&v);
+                // auto cmdGen = currentScene->state.getCommandGenerator(&v);
 
-                for (int i = 0; i < count; i++) {
-                    cmdGen.next();
-                    auto a = cmdGen.value();
-                    std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
-                }
+                // for (int i = 0; i < count; i++) {
+                //     cmdGen.next();
+                //     auto a = cmdGen.value();
+                //     std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
+                // }
             }
             if (keyEvent.key == GLFW_KEY_Y) {
                 GuiCommandData *what3 = new GuiCommandData();
@@ -2887,11 +2923,6 @@ void Engine::destroyLightingBuffers() {
     }
 }
 
-namespace GuiTextures {
-    static GuiTexture *defaultTexture;
-    static const std::string glyphsToCache = "aA";
-}
-
 // This function is a shmorgishborg of random stuff
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
@@ -2899,7 +2930,7 @@ void Engine::runCurrentScene() {
     allocateLightingBuffers();
     createMainDescriptors(currentScene->textures, {});
     createShadowDescriptorSets();
-    uniformSync = new DescriptorSyncer<UniformBufferObject>(this, {{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
+    uniformSync = new DynUBOSyncer<UniformBufferObject>(this, {{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
 
     VkDescriptorPoolSize linePoolSize {};
     linePoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -2924,7 +2955,7 @@ void Engine::runCurrentScene() {
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &lineAllocInfo, mainPass.lineDescriptorSets.data()), "Failed to allocate descriptor sets.");
     
-    lineSync = new DescriptorSyncer<LineUBO>(this, {{ &mainPass.lineDescriptorSets, 0 }});
+    lineSync = new DynUBOSyncer<LineUBO>(this, {{ &mainPass.lineDescriptorSets, 0 }});
 
     allocateCommandBuffers();
     initSynchronization();
@@ -3258,14 +3289,14 @@ void Engine::rewriteHudDescriptors(int index) {
 
 // Idk if this should be gui or engine (probably engine since it needs syncronization to the draws)
 void Engine::setTooltipTexture(int index, const Textured& texture) {
-    if (!texture.sampler) {
-
-    }
-
     VkDescriptorImageInfo tooltipTextureInfo;
     tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     tooltipTextureInfo.imageView = texture.imageView;
     tooltipTextureInfo.sampler = texture.sampler;
+
+    // tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    // tooltipTextureInfo.imageView = glyphCache->glyphDatum.crbegin()->second.onGpu.imageView;
+    // tooltipTextureInfo.sampler = TooltipResource::sampler_;
 
     VkWriteDescriptorSet descriptorWrite {};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -4775,7 +4806,8 @@ namespace GuiTextures {
 GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
-    VkFormat format, VkFilter filter, bool useRenderQueue, bool dontCreateSampler) {
+    VkFormat format, VkFilter filter, bool useRenderQueue, bool createStorageView) {
+    
     this->context = context;
     widenessRatio = (float)width / height;
 
@@ -4794,13 +4826,12 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
         &stagingBufferAllocation, &stagingBufferAllocationInfo) != VK_SUCCESS)
             throw std::runtime_error("Unable to allocate memory for texture.");
 
-    for (int i = 0; i < height; i++)
-        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * 4 * channels);
+    for (int i = 0; i < height; i++) {
+        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * channels);
+    }
 
-    // (dontCreateSampler ? VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : 0)
-
-    VkImageUsageFlags imageUsage = dontCreateSampler ?
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT : VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    VkImageUsageFlags imageUsage = createStorageView ?
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT : VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     imageInfo.imageType = VK_IMAGE_TYPE_2D ;
@@ -4815,7 +4846,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     imageInfo.usage = imageUsage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.flags = 0;
+    imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -4857,7 +4888,8 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    if (!dontCreateSampler) {
+    // Assume we will access this in the compute shader
+    if (!createStorageView) {
         imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageMemoryBarrier.image = textureImage;
@@ -4872,8 +4904,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
             0, nullptr,
             0, nullptr,
             1, &imageMemoryBarrier);
-    } // I probably need to transition the image again, but I can't really tell to what right now (I might get an error in the shader which will help me, but
-    // the shader is not written yet)
+    }
 
     if (useRenderQueue) {
         context->endSingleTimeCommands(commandBuffer);
@@ -4885,7 +4916,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
     imageViewUsage.pNext = nullptr;
-    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
 
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     textureImageViewInfo.image = textureImage;
@@ -4896,12 +4927,21 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.subresourceRange.levelCount = 1;
     textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
     textureImageViewInfo.subresourceRange.layerCount = 1;
-    textureImageViewInfo.pNext = dontCreateSampler ? &imageViewUsage : nullptr;
+    textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
+
+    // if (format == VK_FORMAT_R8_UNORM)
+    // textureImageViewInfo.format = VK_FORMAT_R8_SRGB;
+    // vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &lastCreatedView), "Unable to create texture image view.");
 
     GuiTextures::references.insert({ textureImage, 1 });
 
-    if (dontCreateSampler) {
+    storageView = VK_NULL_HANDLE;
+    if (createStorageView) {
+        // lastCreatedView = imageView;
+        // ????? Idk it works somehow anyways
+        textureImageViewInfo.pNext = nullptr;
+        vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &storageView), "Unable to create texture image view.");
         sampler = VK_NULL_HANDLE;
         return;
     }
@@ -4936,6 +4976,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 GuiTexture::~GuiTexture() {
     if (--GuiTextures::references[textureImage] == 0) {
         if (sampler) vkDestroySampler(context->device, sampler, nullptr);
+        if (storageView) vkDestroyImageView(context->device, storageView, nullptr);
         vkDestroyImageView(context->device, imageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
         GuiTextures::references.erase(textureImage);
@@ -4949,6 +4990,7 @@ GuiTexture::GuiTexture(const GuiTexture& other) {
     textureAllocation = other.textureAllocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
+    storageView = other.storageView;
     GuiTextures::references[textureImage]++;
 }
 
@@ -4957,7 +4999,7 @@ GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
 }
 
 GuiTexture::GuiTexture(GuiTexture&& other) noexcept
-: widenessRatio(other.widenessRatio),
+: widenessRatio(other.widenessRatio), storageView(other.storageView),
 textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
 {
     imageView = other.imageView;
@@ -4972,6 +5014,7 @@ GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     textureAllocation = other.textureAllocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
+    storageView = other.storageView;
     return *this;
 }
 
@@ -5115,7 +5158,7 @@ template<typename T> void printIfLineUBO(T obj) {
 }
 
 // probably can combine these 2 function with some clever template code but I don't want to spend the brainpower now
-template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
+template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func) {
     if (count > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, count + 50);
     }
@@ -5127,7 +5170,7 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     }
 }
 
-template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T ()> func) {
+template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, size_t count, std::function<T ()> func) {
     if (count > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, count + 50);
     }
@@ -5141,7 +5184,7 @@ template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, size_t 
     }
 }
 
-template<typename T> void DescriptorSyncer<T>::sync(int descriptorIndex, const std::vector<T>& items) {
+template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, const std::vector<T>& items) {
     if (items.size() > currentSize[descriptorIndex]) {
         reallocateBuffer(descriptorIndex, items.size() + 50);
     }
@@ -5186,7 +5229,10 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         pen.x += GuiTextures::face->glyph->advance.x >> 6;
 
         int imageWidth = pen.x + GuiTextures::maxGlyphHeight / 2;
+        // std::cout << "width: " << imageWidth << ":" << height << std::endl;
 
+        // stbi_write_png("glyph.png", GuiTextures::maxTextWidth, GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::textTextureBuffer, GuiTextures::maxTextWidth);
+        
         // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
         // and maybe it might mater if the gui wants to do gpu stuff in setup up at the same time
         auto tex = GuiTexture(context, GuiTextures::textTextureBuffer, imageWidth, height, 1, GuiTextures::maxTextWidth,
@@ -5194,16 +5240,18 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         tex.makeComputable();
         glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), std::move(tex), index++ }});
     }
+    syncer = nullptr;
 }
 
 void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
+    if (!syncer) syncer = new SSBOSyncer<IndexWidthSSBO>(context, {{ set,  3 }});
     std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
 
     std::vector<VkDescriptorImageInfo> textureInfo(context->engineSettings.maxGlyphTextures);
 
     for (const auto& [code, data] : glyphDatum) {
         textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[data.descriptorIndex].imageView = data.onGpu.imageView;
+        textureInfo[data.descriptorIndex].imageView = data.onGpu.storageView;
         textureInfo[data.descriptorIndex].sampler = VK_NULL_HANDLE;
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
@@ -5211,7 +5259,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
     // TODO, replace this with a texture that represents an error character
     for (int i = glyphDatum.size(); i < context->engineSettings.maxGlyphTextures; i++) {
         textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[i].imageView = defaultGlyph->imageView;
+        textureInfo[i].imageView = defaultGlyph->storageView;
         textureInfo[i].sampler = VK_NULL_HANDLE;
     }
 
@@ -5227,30 +5275,38 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 }
 
 // returns the width of the needed buffer
-uint GlyphCache::writeUBO(IndexWidthUBO *buffer, const std::string& str) {
+uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str) {
     uint width = 0;
     auto wstr = converter.from_bytes(str);
     int index = 0;
+    IndexWidthSSBO *buf = nullptr;
     for (const auto& chr : wstr) {
+        buf = syncer->ensureSize(buf, index);
         if (!glyphDatum.contains(chr)) {
             std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
             // TODO continuing is not the correct behavior, priting an error character should be correct
             continue;
         }
         const auto& data = glyphDatum.at(chr);
-        buffer->index[index] = data.descriptorIndex;
-        buffer->width[index] = data.width;
+        buf[index].index = data.descriptorIndex;
+        std::cout << "index is " << data.descriptorIndex << std::endl;
+        buf[index].width = data.width;
         width += data.width;
         index++;
     }
-    buffer->writeCount = index;
-    buffer->pixelOffset = bufferWidth;
-    buffer->totalWidth = width + 2 * bufferWidth;
+    glyphInfo->writeCount = index;
+    glyphInfo->pixelOffset = bufferWidth;
+    glyphInfo->totalWidth = width + 2 * bufferWidth;
+
+    // for (int i = 1; i < 32; i++) buffer->index[i] = 40;
+    syncer->sync();
+
     return width + 2 * bufferWidth;
 }
 
 GlyphCache::~GlyphCache() {
     delete defaultGlyph;
+    delete syncer;
 }
 
 TooltipResource::TooltipResource(Engine *context, uint height, uint width)
@@ -5271,6 +5327,7 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0;
+    // imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -5332,4 +5389,35 @@ void TooltipResource::writeDescriptor(VkDescriptorSet set) {
 void TooltipResource::makeSampler() {
     if (sampler) return;
     sampler = TooltipResource::sampler_;
+}
+
+template<typename T>
+T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
+    if (count < this->currentSize) {
+        if (buf == nullptr) return (T *)bufferAllocation->GetMappedData();
+        return buf;
+    }
+    auto bufferOld = buffer;
+    auto bufferAllocationOld = bufferAllocation;
+
+    VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    bufferInfo.size = count + increment;
+    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+    VmaAllocationCreateInfo bufferAllocationInfo = {};
+    bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+    if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, &buffer,
+        &bufferAllocation, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("Unable to allocate memory for uniform buffers.");
+
+    memcpy(bufferAllocation->GetMappedData(), buf, currentSize * sizeof(T));
+
+    currentSize = bufferInfo.size;
+
+    info.buffer = buffer;
+
+    vmaDestroyBuffer(context->memoryAllocator, bufferOld, bufferAllocationOld);
+    return (T *)bufferAllocation->GetMappedData();
 }

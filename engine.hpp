@@ -59,7 +59,8 @@ struct LineHolder {
         const uint segmentCount = 20, const glm::vec4& color = glm::vec4({ 1.0f, 1.0f, 1.0f, 1.0f }));
 };
 
-template<typename T> class DescriptorSyncer;
+template<typename T> class DynUBOSyncer;
+template<typename T> class SSBOSyncer;
 
 class Engine;
 
@@ -95,8 +96,8 @@ class Engine {
     friend class GlyphCache;
     friend class TooltipResource;
 
-    friend class DescriptorSyncer<UniformBufferObject>;
-    friend class DescriptorSyncer<LineUBO>;
+    friend class DynUBOSyncer<UniformBufferObject>;
+    friend class DynUBOSyncer<LineUBO>;
 public:
     Engine(EngineSettings engineSettings);
     void init();
@@ -418,8 +419,8 @@ private:
     std::list<LineHolder *> lineObjects;
     LineHolder *cursorLines;
 
-    DescriptorSyncer<UniformBufferObject> *uniformSync;
-    DescriptorSyncer<LineUBO> *lineSync;
+    DynUBOSyncer<UniformBufferObject> *uniformSync;
+    DynUBOSyncer<LineUBO> *lineSync;
     std::vector<VkBuffer> lightingBuffers;
     std::vector<VmaAllocation> lightingBufferAllocations;
     // size_t uniformSkip;
@@ -548,14 +549,18 @@ namespace GuiTextures {
     void setDefaultTexture();
 }
 
-#define MAX_GLYPHS_PER_DISPATCH 50
+#define MAX_GLYPHS_PER_DISPATCH 4
 
-struct IndexWidthUBO {
+// the alignment appears to be correct, but only the first 58 bytes work?
+struct GlyphInfoUBO {
     glm::uint32_t writeCount;
     glm::uint32_t pixelOffset;
     glm::uint32_t totalWidth;
-    glm::uint32_t index[MAX_GLYPHS_PER_DISPATCH];
-    glm::uint32_t width[MAX_GLYPHS_PER_DISPATCH];
+};
+
+struct IndexWidthSSBO {
+    glm::uint32_t index;
+    glm::uint32_t width;
 };
 
 // We won't cache control charecters as this makes no sense
@@ -574,10 +579,11 @@ public:
     uint height;
 
     void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
-    uint writeUBO(IndexWidthUBO *buffer, const std::string& str);
+    uint writeUBO(GlyphInfoUBO *buffer, const std::string& str);
 
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
 private:
+    SSBOSyncer<IndexWidthSSBO> *syncer;
     GuiTexture *defaultGlyph;
     static constexpr uint defaultGlyphWidth = 16;
     Engine *context;
@@ -690,9 +696,9 @@ struct DescriptorSyncPoint {
     uint binding;
 };
 
-template<typename T> class DescriptorSyncer {
+template<typename T> class DynUBOSyncer {
 public:
-    DescriptorSyncer(Engine *context, std::vector<DescriptorSyncPoint> syncPoints, size_t initialSize = 50)
+    DynUBOSyncer(Engine *context, const std::vector<DescriptorSyncPoint>& syncPoints, size_t initialSize = 50)
     : context(context), syncPoints(syncPoints), info({
         NULL, 0, VK_WHOLE_SIZE
     }), writer({
@@ -733,7 +739,7 @@ public:
     void sync(int descriptorIndex, size_t count, std::function<T *(size_t idx)> func);
     void sync(int descriptorIndex, size_t count, std::function<T ()> func);
     void sync(int descriptorIndex, const std::vector<T>& items);
-    ~DescriptorSyncer() {
+    ~DynUBOSyncer() {
         for (int i = 0; i < uniformBuffers.size(); i++)
             vmaDestroyBuffer(context->memoryAllocator, uniformBuffers[i], uniformBufferAllocations[i]);
     }
@@ -784,4 +790,67 @@ private:
     std::vector<size_t> currentSize;
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VmaAllocation> uniformBufferAllocations;
+};
+
+template<typename T> class SSBOSyncer {
+public:
+    SSBOSyncer(Engine *context, const std::vector<std::tuple<VkDescriptorSet, int>>& syncPoints, size_t initialSize = 50)
+    : context(context), syncPoints(syncPoints), info({
+        NULL, 0, VK_WHOLE_SIZE
+    }), writer({
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, NULL,
+        0, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        nullptr, &info, nullptr
+    }) {
+        currentSize = initialSize;
+        VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        bufferInfo.size = initialSize * sizeof(T);
+        bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VmaAllocationCreateInfo bufferAllocationInfo = {};
+        bufferAllocationInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+        bufferAllocationInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        if (vmaCreateBuffer(context->memoryAllocator, &bufferInfo, &bufferAllocationInfo, &buffer, &bufferAllocation, nullptr) != VK_SUCCESS)
+            throw std::runtime_error("Unable to allocate memory for ssbo.");
+
+        info.buffer = buffer;
+
+        for (const auto& [set, binding] : syncPoints) {
+            writer.dstSet = set;
+            writer.dstBinding = binding;
+            vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+        }
+    }
+    ~SSBOSyncer() {
+        vmaDestroyBuffer(context->memoryAllocator, buffer, bufferAllocation);
+    }
+    void rebindSyncPoints(const std::vector<std::tuple<VkDescriptorSet, int>>& syncPoints) {
+        this->syncPoints = syncPoints;
+        info.buffer = buffer;
+        for (const auto& [set, binding] : syncPoints) {
+            writer.dstSet = set;
+            writer.dstBinding = binding;
+            vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+        }
+    }
+    void sync() {
+        for (const auto& [set, binding] : syncPoints) {
+            writer.dstSet = set;
+            writer.dstBinding = binding;
+            vkUpdateDescriptorSets(context->device, 1, &writer, 0, nullptr);
+        }
+    }
+    T *ensureSize(T *buf, size_t count);
+
+private:
+    static constexpr size_t increment = 50;
+
+    VkWriteDescriptorSet writer;
+    VkDescriptorBufferInfo info;
+    Engine *context;
+    std::vector<std::tuple<VkDescriptorSet, int>> syncPoints;
+    size_t currentSize;
+    VkBuffer buffer;
+    VmaAllocation bufferAllocation;
 };
