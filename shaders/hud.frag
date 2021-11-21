@@ -87,6 +87,9 @@ void main() {
             // outColor = vec4(mix(inSecondaryColor.rgb, outColor.rgb, 1.0 - alpha), alpha);
             break;
         case RMODE_TOOLTIP:
+            // float a = texture(tooltipTexture, inTexCoord).r;
+            // outColor = vec4(a, a, a, 1.0);
+            // break;
             distance = textureBicubic(tooltipTexture, inTexCoord).r;
             alpha = smoothstep(0.12, 0.32, distance);
             outColor = vec4(inColor.rgb, clamp(alpha, 0.0, inColor.a));

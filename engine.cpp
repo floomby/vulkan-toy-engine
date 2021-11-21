@@ -140,11 +140,16 @@ static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMesse
 static const std::vector<const char*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     // VK_NV_FRAMEBUFFER_MIXED_SAMPLES_EXTENSION_NAME,
-    VK_KHR_MAINTENANCE2_EXTENSION_NAME,
+    VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
     // My card does not support cubic filtering??? (I am in disbelief, but we can do it in the fragment shader anyways)
     // VK_EXT_FILTER_CUBIC_EXTENSION_NAME
     // I really want to use this, but I can't because nvidia drivers don't support it
     // VK_EXT_LINE_RASTERIZATION_EXTENSION_NAME
+};
+
+static const std::vector<const char*> requiredInstanceExtensions = {
+    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 };
 
 Engine::Engine(EngineSettings engineSettings) {
@@ -169,12 +174,12 @@ std::set<std::string> Engine::getSupportedInstanceExtensions() {
 
 void Engine::initWidow()
 {
-    // if (engineSettings.extremelyVerbose) {
-    //     std::cout << "Supported extensions:" << std::endl;
-    //     for(const auto& name : getSupportedInstanceExtensions()) {
-    //         std::cout << "\t" << name << std::endl;
-    //     }
-    // }
+    if (engineSettings.extremelyVerbose) {
+        std::cout << "Supported extensions:" << std::endl;
+        for(const auto& name : getSupportedInstanceExtensions()) {
+            std::cout << "\t" << name << std::endl;
+        }
+    }
 
     // TODO Get the monitor size and scalling from glfw to give to the freetype init function to make fonts a good size legible
     glfwInit();
@@ -356,6 +361,9 @@ void Engine::initInstance() {
     }
 
     auto extensions = getRequiredExtensions();
+    for (const char *name : requiredInstanceExtensions) {
+        extensions.push_back(name);
+    }
     createInfo.enabledExtensionCount = extensions.size();
     createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -549,10 +557,16 @@ void Engine::setupLogicalDevice() {
     deviceFeatures.wideLines = VK_TRUE;
     // Vulkan 1.2 feature that I might want to use
 
+    // VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures {};
+    // indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    // indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+
     VkPhysicalDeviceVulkan12Features otherFeatures {};
     otherFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     otherFeatures.pNext = nullptr;
     otherFeatures.drawIndirectCount = VK_TRUE;
+    otherFeatures.descriptorIndexing = VK_TRUE;
+    // otherFeatures.runtimeDescriptorArray = VK_TRUE;
 
     VkDeviceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -2373,7 +2387,7 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_I) {
                 // shadow.makeSnapshot = true;
-                tooltipResource = makeTooltip("aA");
+                tooltipResource = makeTooltip("AaaaaaAaaA");
                 gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
                 gui->pushConstant.tooltipBox[1] = { 0.2, 0.2 };
                 drawTooltip = true;
@@ -5326,8 +5340,8 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    imageInfo.flags = 0;
-    // imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    // imageInfo.flags = 0;
+    imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -5335,9 +5349,13 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
+    VkFormatProperties2 formatFeatures {};
+    formatFeatures.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+    formatFeatures.formatProperties.optimalTilingFeatures = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+
     VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
-    imageViewUsage.pNext = nullptr;
-    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+    imageViewUsage.pNext = &formatFeatures;
+    imageViewUsage.usage = 0;
 
     VkImageViewCreateInfo imageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     imageViewInfo.image = image;
@@ -5349,6 +5367,11 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     imageViewInfo.subresourceRange.baseArrayLayer = 0;
     imageViewInfo.subresourceRange.layerCount = 1;
     imageViewInfo.pNext = nullptr;
+    vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &computeView), "Unable to create texture image view.");
+
+    imageViewInfo.pNext = &imageViewUsage;
+    imageViewInfo.format = VK_FORMAT_R8_SRGB;
+    
     vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
     VkFenceCreateInfo fenceInfo {};
@@ -5371,7 +5394,7 @@ void TooltipResource::writeDescriptor(VkDescriptorSet set) {
     VkDescriptorImageInfo textureInfo {};
 
     textureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    textureInfo.imageView = imageView;
+    textureInfo.imageView = computeView;
     textureInfo.sampler = VK_NULL_HANDLE;
 
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -5393,10 +5416,11 @@ void TooltipResource::makeSampler() {
 
 template<typename T>
 T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
-    if (count < this->currentSize) {
+    if (count <= this->currentSize) {
         if (buf == nullptr) return (T *)bufferAllocation->GetMappedData();
         return buf;
     }
+    if (buf == nullptr) buf = (T *)bufferAllocation->GetMappedData();
     auto bufferOld = buffer;
     auto bufferAllocationOld = bufferAllocation;
 
