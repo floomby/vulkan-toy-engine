@@ -78,9 +78,9 @@ void main() {
             // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             if (inGuiID == inCursorID) {
-                alpha = smoothstep(0.05, 0.28, distance);
+                alpha = smoothstep(0.040, 0.48, distance);
             } else {
-                alpha = smoothstep(0.12, 0.32, distance);
+                alpha = smoothstep(0.46, 0.54, distance);
             }
             // outColor = vec4(mix(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), inSecondaryColor.rgb, alpha), 1.0);
             outColor = vec4(inSecondaryColor.rgb, clamp(alpha, 0.0, inSecondaryColor.a));
@@ -91,7 +91,7 @@ void main() {
             // outColor = vec4(a, a, a, 1.0);
             // break;
             distance = textureBicubic(tooltipTexture, inTexCoord).r;
-            alpha = smoothstep(0.12, 0.32, distance);
+            alpha = smoothstep(0.46, 0.54, distance);
             outColor = vec4(inColor.rgb, clamp(alpha, 0.0, inColor.a));
             outColor = vec4(mix(outColor.rgb, inSecondaryColor.rgb, 1.0 - alpha), max(alpha, inSecondaryColor.a));
             break;

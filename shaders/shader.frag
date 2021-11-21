@@ -157,10 +157,8 @@ void main() {
     vec3 colorLinear = ambientColor +
         diffuseColor * lambertian * lightColor * lightPower / distance +
         specColor * specular * lightColor * lightPower / distance;
-    // apply gamma correction (all the color inputs are in linear color space)
-    vec3 colorGammaCorrected = pow(colorLinear, vec3(1.0 / screenGamma));
-    // use the gamma corrected color in the fragment
-    outColor = vec4(colorGammaCorrected, 1.0);
+    // the presentation engine delinearizes the color for us
+    outColor = vec4(colorLinear, 1.0);
 
     if (bool(rflags & RFLAG_HIGHLIGHT)) {
         outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);

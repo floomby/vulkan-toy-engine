@@ -95,7 +95,7 @@ class Engine;
 class GuiTexture : public Textured {
 public:
     GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format,
-        VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool createStoragView = false);
+        VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool storable = false);
     GuiTexture(const GuiTexture&);
     GuiTexture& operator=(const GuiTexture&);
     GuiTexture(GuiTexture&& other) noexcept;
@@ -111,8 +111,6 @@ public:
 
     virtual void makeSampler();
     void makeComputable();
-
-    VkImageView storageView;
 private:
     VkImage textureImage;
     VmaAllocation textureAllocation;

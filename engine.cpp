@@ -1046,13 +1046,6 @@ void Engine::createDescriptorSetLayout() {
     hudIconInput.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     hudIconInput.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     hudIconInput.descriptorCount = 1;
-
-    VkDescriptorSetLayoutBinding hudTextures {};
-    hudTextures.binding = 2;
-    hudTextures.descriptorCount = engineSettings.maxHudTextures;
-    hudTextures.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    hudTextures.pImmutableSamplers = nullptr;
-    hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1064,7 +1057,7 @@ void Engine::createDescriptorSetLayout() {
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     // Anisotropic filtering is irrelevant on this as we view it straight on every time
-    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
     samplerInfo.maxAnisotropy = maxSamplerAnisotropy;
 
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
@@ -1077,6 +1070,16 @@ void Engine::createDescriptorSetLayout() {
     samplerInfo.mipLodBias = 0.0f;
 
     vulkanErrorGuard(vkCreateSampler(device, &samplerInfo, nullptr, &TooltipResource::sampler_), "Failed to create texture sampler.");
+
+    std::vector<VkSampler> samplers(engineSettings.maxHudTextures);
+    fill(samplers.begin(), samplers.end(), TooltipResource::sampler_);
+
+    VkDescriptorSetLayoutBinding hudTextures {};
+    hudTextures.binding = 2;
+    hudTextures.descriptorCount = engineSettings.maxHudTextures;
+    hudTextures.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    hudTextures.pImmutableSamplers = samplers.data();
+    hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutBinding tooltipTexture {};
     tooltipTexture.binding = 3;
@@ -2177,8 +2180,8 @@ void Engine::initVulkan() {
     createImageViews();
     createRenderPass();
 
-    createDescriptorSetLayout();
     createComputeResources();
+    createDescriptorSetLayout();
     createGraphicsPipelines();
     createCommandPools();
 
@@ -4820,8 +4823,10 @@ namespace GuiTextures {
 GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
-    VkFormat format, VkFilter filter, bool useRenderQueue, bool createStorageView) {
-    
+    VkFormat format, VkFilter filter, bool useRenderQueue, bool storable) {
+    // force using a linear color space format
+    assert(!isSRGB(format));
+
     this->context = context;
     widenessRatio = (float)width / height;
 
@@ -4844,7 +4849,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
         memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * channels);
     }
 
-    VkImageUsageFlags imageUsage = createStorageView ?
+    VkImageUsageFlags imageUsage = storable ?
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT : VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
@@ -4903,7 +4908,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     // Assume we will access this in the compute shader
-    if (!createStorageView) {
+    if (!storable) {
         imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         imageMemoryBarrier.image = textureImage;
@@ -4928,10 +4933,6 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
 
-    VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
-    imageViewUsage.pNext = nullptr;
-    imageViewUsage.usage = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
-
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     textureImageViewInfo.image = textureImage;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -4944,53 +4945,39 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    // if (format == VK_FORMAT_R8_UNORM)
-    // textureImageViewInfo.format = VK_FORMAT_R8_SRGB;
-    // vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &lastCreatedView), "Unable to create texture image view.");
-
     GuiTextures::references.insert({ textureImage, 1 });
 
-    storageView = VK_NULL_HANDLE;
-    if (createStorageView) {
-        // lastCreatedView = imageView;
-        // ????? Idk it works somehow anyways
-        textureImageViewInfo.pNext = nullptr;
-        vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &storageView), "Unable to create texture image view.");
-        sampler = VK_NULL_HANDLE;
-        return;
-    }
+    sampler = TooltipResource::sampler_;
 
-    VkSamplerCreateInfo samplerInfo {};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    // samplerInfo.magFilter = VK_FILTER_CUBIC_IMG;
-    // samplerInfo.minFilter = VK_FILTER_CUBIC_IMG;
-    samplerInfo.magFilter = filter;
-    samplerInfo.minFilter = filter;
+    // VkSamplerCreateInfo samplerInfo {};
+    // samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    // // samplerInfo.magFilter = VK_FILTER_CUBIC_IMG;
+    // // samplerInfo.minFilter = VK_FILTER_CUBIC_IMG;
+    // samplerInfo.magFilter = filter;
+    // samplerInfo.minFilter = filter;
 
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    // For right now we just use the max supported sampler anisotrpy
-    samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
+    // samplerInfo.anisotropyEnable = VK_TRUE;
+    // // For right now we just use the max supported sampler anisotrpy
+    // samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
 
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.maxLod = 1.0f;
-    samplerInfo.mipLodBias = 0.0f;
+    // samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+    // samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    // samplerInfo.compareEnable = VK_FALSE;
+    // samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    // samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    // samplerInfo.mipLodBias = 0.0f;
+    // samplerInfo.maxLod = 1.0f;
+    // samplerInfo.mipLodBias = 0.0f;
 
-    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler.");
+    // vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler.");
 }
 
 GuiTexture::~GuiTexture() {
     if (--GuiTextures::references[textureImage] == 0) {
-        if (sampler) vkDestroySampler(context->device, sampler, nullptr);
-        if (storageView) vkDestroyImageView(context->device, storageView, nullptr);
         vkDestroyImageView(context->device, imageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
         GuiTextures::references.erase(textureImage);
@@ -5004,7 +4991,6 @@ GuiTexture::GuiTexture(const GuiTexture& other) {
     textureAllocation = other.textureAllocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
-    storageView = other.storageView;
     GuiTextures::references[textureImage]++;
 }
 
@@ -5013,7 +4999,7 @@ GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
 }
 
 GuiTexture::GuiTexture(GuiTexture&& other) noexcept
-: widenessRatio(other.widenessRatio), storageView(other.storageView),
+: widenessRatio(other.widenessRatio),
 textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
 {
     imageView = other.imageView;
@@ -5028,7 +5014,6 @@ GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     textureAllocation = other.textureAllocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
-    storageView = other.storageView;
     return *this;
 }
 
@@ -5150,7 +5135,7 @@ namespace GuiTextures {
         int width = makeTexture(str);
 
         // tbh I have no idea how to sharpen the text correctly
-        return GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_SRGB, VK_FILTER_LINEAR);
+        return GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR);
     }
 
     void setDefaultTexture() {
@@ -5162,7 +5147,7 @@ namespace GuiTextures {
             0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
             0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0,
         };
-        defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_SRGB);
+        defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_UNORM);
     }
 }
 
@@ -5265,7 +5250,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 
     for (const auto& [code, data] : glyphDatum) {
         textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[data.descriptorIndex].imageView = data.onGpu.storageView;
+        textureInfo[data.descriptorIndex].imageView = data.onGpu.imageView;
         textureInfo[data.descriptorIndex].sampler = VK_NULL_HANDLE;
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
@@ -5273,7 +5258,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
     // TODO, replace this with a texture that represents an error character
     for (int i = glyphDatum.size(); i < context->engineSettings.maxGlyphTextures; i++) {
         textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[i].imageView = defaultGlyph->storageView;
+        textureInfo[i].imageView = defaultGlyph->imageView;
         textureInfo[i].sampler = VK_NULL_HANDLE;
     }
 
@@ -5303,7 +5288,6 @@ uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str) {
         }
         const auto& data = glyphDatum.at(chr);
         buf[index].index = data.descriptorIndex;
-        std::cout << "index is " << data.descriptorIndex << std::endl;
         buf[index].width = data.width;
         width += data.width;
         index++;
@@ -5312,7 +5296,6 @@ uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str) {
     glyphInfo->pixelOffset = bufferWidth;
     glyphInfo->totalWidth = width + 2 * bufferWidth;
 
-    // for (int i = 1; i < 32; i++) buffer->index[i] = 40;
     syncer->sync();
 
     return width + 2 * bufferWidth;
@@ -5340,22 +5323,14 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    // imageInfo.flags = 0;
-    imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+    imageInfo.flags = 0;
+    // imageInfo.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
     if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
-
-    VkFormatProperties2 formatFeatures {};
-    formatFeatures.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
-    formatFeatures.formatProperties.optimalTilingFeatures = VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-
-    VkImageViewUsageCreateInfo imageViewUsage { VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO };
-    imageViewUsage.pNext = &formatFeatures;
-    imageViewUsage.usage = 0;
 
     VkImageViewCreateInfo imageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     imageViewInfo.image = image;
@@ -5367,11 +5342,6 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
     imageViewInfo.subresourceRange.baseArrayLayer = 0;
     imageViewInfo.subresourceRange.layerCount = 1;
     imageViewInfo.pNext = nullptr;
-    vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &computeView), "Unable to create texture image view.");
-
-    imageViewInfo.pNext = &imageViewUsage;
-    imageViewInfo.format = VK_FORMAT_R8_SRGB;
-    
     vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
     VkFenceCreateInfo fenceInfo {};
@@ -5394,7 +5364,7 @@ void TooltipResource::writeDescriptor(VkDescriptorSet set) {
     VkDescriptorImageInfo textureInfo {};
 
     textureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    textureInfo.imageView = computeView;
+    textureInfo.imageView = imageView;
     textureInfo.sampler = VK_NULL_HANDLE;
 
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

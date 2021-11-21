@@ -80,7 +80,6 @@ public:
     VkImage image;
     VmaAllocation allocation;
     VkFence fence;
-    VkImageView computeView;
 
     static VkSampler sampler_;
 private:
