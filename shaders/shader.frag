@@ -3,7 +3,7 @@
 #include "render_modes.h"
 
 // We can change this to a bigger number (I think vulkan doesn't allocate memory or anything based on this array size, opengl would have though)
-layout(binding = 1) uniform sampler2D texSampler[5];
+layout(binding = 1) uniform sampler2D texSampler[ECONF_MAX_ENTITY_TEXTURES];
 layout(binding = 2) uniform sampler2D shadowMap;
 layout(binding = 3) uniform UniformBufferObject {
     mat4 view;

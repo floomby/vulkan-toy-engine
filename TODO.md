@@ -1,5 +1,4 @@
 ## Next steps
- * Finish making the engine configurator ruby thing (to keep the 3 parts of the building in sync), there are too many magic values just floating around
  * Lua bindings for c++ returns, specifically vectors of instances
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
@@ -13,6 +12,7 @@
 
 ## Considerations
  * I am linking to libpng now for freetype2, maybe I should stop using stbi
+ * The string of glyphs to cache is pretty silly imo
  * cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I profile stuff)
  * I think I read the glfw docs wrong and dont need to be using interthread queues for the input handling threads (afaict the linux tids are the same as the engine thread, this could be not guarenteed though)
  * The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass into the world pass because without it the code complexity of order line drawing was going to be really high doing it this way

@@ -12,6 +12,8 @@
 #include "libs/stb_image_write.h"
 #include "libs/stb_image.h"
 
+#include "econf.h"
+
 #include "engine.hpp"
 #include "entity.hpp"
 
@@ -742,7 +744,7 @@ void Engine::createImageViews() {
 
         if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &subpassImages[i], &subpassImageAllocations[i], nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to create attachment images.");
-        
+
         if (vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &bgSubpassImages[i], &bgSubpassImageAllocations[i], nullptr) != VK_SUCCESS)
             throw std::runtime_error("Unable to create attachment images.");
 
@@ -934,10 +936,10 @@ void Engine::createRenderPass() {
     subpasses[2].pInputAttachments = subpass2inputs;
     // Can we just reuse the depth attachment?
 
-    std::array<VkAttachmentDescription, 6> attachments = { 
+    std::array<VkAttachmentDescription, 6> attachments = {
         subpassAttachment,
         depthAttachment,
-        colorAttachment, 
+        colorAttachment,
         bgAttachment,
         colorAAAttachment,
         depthGuiAttachment
@@ -985,7 +987,7 @@ void Engine::createRenderPass() {
     vulkanErrorGuard(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass), "Failed to create render pass.");
 }
 
-VkSampler TooltipResource::sampler_;
+VkSampler TextResource::sampler_;
 
 void Engine::createDescriptorSetLayout() {
     VkDescriptorSetLayoutBinding uboLayoutBinding {};
@@ -997,7 +999,7 @@ void Engine::createDescriptorSetLayout() {
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding {};
     samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 5;
+    samplerLayoutBinding.descriptorCount = ECONF_MAX_ENTITY_TEXTURES;
     samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     samplerLayoutBinding.pImmutableSamplers = nullptr;
     samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1046,7 +1048,7 @@ void Engine::createDescriptorSetLayout() {
     hudIconInput.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     hudIconInput.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     hudIconInput.descriptorCount = 1;
-    
+
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -1069,14 +1071,14 @@ void Engine::createDescriptorSetLayout() {
     samplerInfo.maxLod = 1.0f;
     samplerInfo.mipLodBias = 0.0f;
 
-    vulkanErrorGuard(vkCreateSampler(device, &samplerInfo, nullptr, &TooltipResource::sampler_), "Failed to create texture sampler.");
+    vulkanErrorGuard(vkCreateSampler(device, &samplerInfo, nullptr, &TextResource::sampler_), "Failed to create texture sampler.");
 
-    std::vector<VkSampler> samplers(engineSettings.maxHudTextures);
-    fill(samplers.begin(), samplers.end(), TooltipResource::sampler_);
+    std::vector<VkSampler> samplers(ECONF_MAX_HUD_TEXTURES);
+    fill(samplers.begin(), samplers.end(), TextResource::sampler_);
 
     VkDescriptorSetLayoutBinding hudTextures {};
     hudTextures.binding = 2;
-    hudTextures.descriptorCount = engineSettings.maxHudTextures;
+    hudTextures.descriptorCount = ECONF_MAX_HUD_TEXTURES;
     hudTextures.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     hudTextures.pImmutableSamplers = samplers.data();
     hudTextures.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1085,7 +1087,7 @@ void Engine::createDescriptorSetLayout() {
     tooltipTexture.binding = 3;
     tooltipTexture.descriptorCount = 1;
     tooltipTexture.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    tooltipTexture.pImmutableSamplers = &TooltipResource::sampler_;
+    tooltipTexture.pImmutableSamplers = &TextResource::sampler_;
     tooltipTexture.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     std::array<VkDescriptorSetLayoutBinding, 4> hudBindings = { hudColorInput, hudIconInput, hudTextures, tooltipTexture };
@@ -1371,7 +1373,7 @@ void Engine::createGraphicsPipelines() {
 
     pipelineInfo.layout = hudPipelineLayout;
     colorBlendAttachment.blendEnable = VK_TRUE;
-    
+
     // depthStencil.depthTestEnable = VK_FALSE;
     // depthStencil.depthWriteEnable = VK_FALSE;
     // depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
@@ -1392,7 +1394,7 @@ void Engine::createComputeResources() {
 
     layoutBindings[0].binding = 0;
     layoutBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    layoutBindings[0].descriptorCount = engineSettings.maxGlyphTextures;
+    layoutBindings[0].descriptorCount = ECONF_MAX_GLYPH_TEXTURES;
     layoutBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
     layoutBindings[1].binding = 1;
@@ -1445,7 +1447,7 @@ void Engine::createComputeResources() {
 
     std::array<VkDescriptorPoolSize, 4> poolSizes;
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-    poolSizes[0].descriptorCount = engineSettings.maxGlyphTextures;
+    poolSizes[0].descriptorCount = ECONF_MAX_GLYPH_TEXTURES;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
     poolSizes[1].descriptorCount = 1;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1771,13 +1773,13 @@ void Engine::createDepthResources() {
         imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
         vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &depthImages[i], &depthImageAllocations[i], nullptr);
-        
+
         depthImageViews[i] = createImageView(depthImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
         transitionImageLayout(depthImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &depthGuiImages[i], &depthGuiImageAllocations[i], nullptr);
-        
+
         depthGuiImageViews[i] = createImageView(depthGuiImages[i], depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
         transitionImageLayout(depthGuiImages[i], depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     }
@@ -1809,7 +1811,7 @@ void Engine::createColorResources() {
 
         vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &colorImages[i], &colorImageAllocations[i], nullptr);
         // vmaCreateImage(memoryAllocator, &imageInfo, &imageAllocCreateInfo, &colorImages[2 * i + 1], &colorImageAllocations[2 * i + 1], nullptr);
-        
+
         VkImageViewCreateInfo viewInfo {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = colorImages[i];
@@ -2216,7 +2218,7 @@ static float distancePointToPlane(const glm::vec3& n, float d, const glm::vec3& 
 static std::array<std::pair<glm::vec3, float>, 5> boundingPlanes(const glm::vec3& pos, const glm::vec3& strafing, const glm::vec3& normedPointing,
     const glm::vec3& r1, const glm::vec3& r2) {
     std::array<std::pair<glm::vec3, float>, 5> ret;
-    
+
     auto n = normalize(cross(strafing, r1));
     ret[0] = { n, -distancePointToPlane(n, 0, pos) };
 
@@ -2271,10 +2273,10 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
-std::pair<RunningCommandBuffer, std::unique_ptr<TooltipResource>> Engine::makeTooltip(const std::string& str) {
+std::pair<RunningCommandBuffer, std::unique_ptr<TextResource>> Engine::makeText(const std::string& str, bool autoDestroyFences) {
     uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
 
-    auto ret = std::make_unique<TooltipResource>(this, glyphCache->height, width, false);
+    auto ret = std::make_unique<TextResource>(this, glyphCache->height, width, autoDestroyFences);
     ret->writeDescriptor(computeSets[CP_SDF_BLIT]);
 
     auto buffer = beginSingleTimeCommands(guiCommandPool);
@@ -2327,10 +2329,14 @@ std::pair<RunningCommandBuffer, std::unique_ptr<TooltipResource>> Engine::makeTo
 
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
-    static const std::string glyphsToCache = "aA";
 }
 
-// VkImageView lastCreatedView;
+void Engine::setTooltip(const std::string& str) {
+    auto tt = makeText(str);
+    tooltipResource = TextResource::toGuiTexture(std::move(tt.second));
+    fill(tooltipDirty.begin(), tooltipDirty.end(), true);
+    tooltipBuffer = tt.first;
+}
 
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
@@ -2377,38 +2383,17 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_I) {
                 // shadow.makeSnapshot = true;
-                auto tt = makeTooltip("AaaaaaAaaA");
-                tooltipResource = TooltipResource::toGuiTexture(std::move(tt.second));
-                fill(tooltipDirty.begin(), tooltipDirty.end(), true);
+                setTooltip("Hi There!");
                 tooltipLocation[0] = { -0.2, -0.2 };
                 tooltipLocation[1] = { 0.2, 0.2 };
                 drawTooltip = true;
-                tooltipBuffer = tt.first;
+            }
+
+            if (keyEvent.key == GLFW_KEY_ESCAPE) {
+                glfwSetWindowShouldClose(window, true);
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
-                for (int i = 0; i < concurrentFrames; i++) {
-                    VkDescriptorImageInfo tooltipTextureInfo;
-                    tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-                    // tooltipTextureInfo.imageView = GuiTextures::defaultTexture->imageView;
-                    // tooltipTextureInfo.imageView = lastCreatedView;
-                    tooltipTextureInfo.sampler = TooltipResource::sampler_;
-
-                    VkWriteDescriptorSet descriptorWrite {};
-                    descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                    descriptorWrite.dstSet = hudDescriptorSets[i];
-                    descriptorWrite.dstBinding = 3;
-                    descriptorWrite.dstArrayElement = 0;
-                    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                    descriptorWrite.descriptorCount = 1;
-                    descriptorWrite.pImageInfo = &tooltipTextureInfo;
-
-                    vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
-                }
-
-                gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
-                gui->pushConstant.tooltipBox[1] = { 0.2, 0.2 };
-                drawTooltip = true;
 
                 // shadow.makeSnapshot = true;
                 // std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
@@ -2514,7 +2499,7 @@ void Engine::handleInput() {
         if (mouseAction == MOUSE_DRAGGING && mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
             gui->setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
             mouseAction = MOUSE_NONE;
-            // std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - " 
+            // std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - "
             //     << mouseNormed.first << ":" << mouseNormed.second << "):" << std::endl;
             auto planes = boundingPlanes(cammera.position, cammera.strafing, cammera.pointing, dragStartRay, mouseRayNormed);
             // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
@@ -2743,7 +2728,7 @@ float Engine::updateScene(int index) {
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
         currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
-        currentScene->state.instances[i].rendered = 
+        currentScene->state.instances[i].rendered =
             // frustumContainsPoint(cammeraFrustumNormed, currentScene->state.instances[i].position);
             frustumContainsSphere(cammeraFrustumNormed, currentScene->state.instances[i].position, entity.boundingRadius);
         if (currentScene->state.instances[i].rendered && !currentScene->state.instances[i].renderAsIcon) {
@@ -2841,11 +2826,18 @@ void Engine::drawFrame() {
         } else {
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
+            if (tooltipStillInUse != tooltipResource) {
+                bool allClean = true;
+                for (int i = 0; i < concurrentFrames; i++) {
+                    if (tooltipDirty[i]) allClean = false;
+                }
+                if (allClean) tooltipStillInUse = tooltipResource;
+            }
         }
     }
 
-    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);    
-    
+    vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
+
     gui->pushConstant.guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
 
     // This relies on the fence to stay synchronized
@@ -2926,7 +2918,7 @@ void Engine::allocateLightingBuffers() {
 
         // if (vmaCreateBuffer(memoryAllocator, &bufferInfo, &bufferAllocationInfo, uniformBuffers.data() + i, uniformBufferAllocations.data() + i, nullptr) != VK_SUCCESS)
         //     throw std::runtime_error("Unable to allocate memory for uniform buffers.");
-        
+
         VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         bufferInfo.size = sizeof(Utilities::ViewProjPosNearFar);
         bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -2977,7 +2969,7 @@ void Engine::runCurrentScene() {
     lineAllocInfo.pSetLayouts = lineLayouts.data();
 
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &lineAllocInfo, mainPass.lineDescriptorSets.data()), "Failed to allocate descriptor sets.");
-    
+
     lineSync = new DynUBOSyncer<LineUBO>(this, {{ &mainPass.lineDescriptorSets, 0 }});
 
     allocateCommandBuffers();
@@ -3080,11 +3072,14 @@ void Engine::loadDefaultScene() {
 
 // TODO this function has a crappy name that confuses me
 void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, const std::vector<GuiTexture>& hudTextures) {
+    assert(textures.size() <= ECONF_MAX_ENTITY_TEXTURES);
+    assert(hudTextures.size() <= ECONF_MAX_HUD_TEXTURES);
+
     std::array<VkDescriptorPoolSize, 5> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     poolSizes[0].descriptorCount = concurrentFrames;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 5 * concurrentFrames;
+    poolSizes[1].descriptorCount = ECONF_MAX_ENTITY_TEXTURES * concurrentFrames;
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[2].descriptorCount = concurrentFrames;
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -3098,7 +3093,7 @@ void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, c
     hudPoolSizes[1].type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
     hudPoolSizes[1].descriptorCount = concurrentFrames;
     hudPoolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    hudPoolSizes[2].descriptorCount = engineSettings.maxHudTextures * concurrentFrames;
+    hudPoolSizes[2].descriptorCount = ECONF_MAX_HUD_TEXTURES * concurrentFrames;
     hudPoolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     hudPoolSizes[3].descriptorCount = concurrentFrames;
 
@@ -3160,11 +3155,17 @@ void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, c
         // descriptorWrites[0].descriptorCount = 1;
         // descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-        std::vector<VkDescriptorImageInfo> imageInfos(textures.size());
-        for (int i = 0; i < textures.size(); i++) {
-            imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfos[i].imageView = textures[i].imageView;
-            imageInfos[i].sampler = textures[i].sampler;
+        int j = 0;
+        std::array<VkDescriptorImageInfo, ECONF_MAX_ENTITY_TEXTURES> imageInfos;
+        for (; j < textures.size(); j++) {
+            imageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfos[j].imageView = textures[j].imageView;
+            imageInfos[j].sampler = textures[j].sampler;
+        }
+        for(; j < ECONF_MAX_ENTITY_TEXTURES; j++) {
+            imageInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfos[j].imageView = textures[currentScene->missingIcon].imageView;
+            imageInfos[j].sampler = textures[currentScene->missingIcon].sampler;
         }
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3225,7 +3226,7 @@ void Engine::writeHudDescriptors() {
         descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         descriptorImageInfo.imageView = subpassImageViews[i];
         descriptorImageInfo.sampler = VK_NULL_HANDLE;
-        
+
         hudDescriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         hudDescriptorWrites[0].dstSet = hudDescriptorSets[i];
         hudDescriptorWrites[0].dstBinding = 0;
@@ -3247,8 +3248,8 @@ void Engine::writeHudDescriptors() {
         hudDescriptorWrites[1].descriptorCount = 1;
         hudDescriptorWrites[1].pImageInfo = &iconDescriptorImageInfo;
 
-        std::vector<VkDescriptorImageInfo> hudTextureInfos(engineSettings.maxHudTextures);
-        for (int i = 0; i < engineSettings.maxHudTextures; i++) {
+        std::vector<VkDescriptorImageInfo> hudTextureInfos(ECONF_MAX_HUD_TEXTURES);
+        for (int i = 0; i < ECONF_MAX_HUD_TEXTURES; i++) {
             hudTextureInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             hudTextureInfos[i].imageView = GuiTextures::defaultTexture->imageView;
             hudTextureInfos[i].sampler = GuiTextures::defaultTexture->sampler;
@@ -3320,10 +3321,6 @@ void Engine::setTooltipTexture(int index, const Textured& texture) {
     tooltipTextureInfo.imageView = texture.imageView;
     tooltipTextureInfo.sampler = texture.sampler;
 
-    // tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    // tooltipTextureInfo.imageView = glyphCache->glyphDatum.crbegin()->second.onGpu.imageView;
-    // tooltipTextureInfo.sampler = TooltipResource::sampler_;
-
     VkWriteDescriptorSet descriptorWrite {};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrite.dstSet = hudDescriptorSets[index];
@@ -3341,8 +3338,6 @@ void Engine::updateLightingDescriptors(int index, const Utilities::ViewProjPosNe
 }
 
 void Engine::allocateCommandBuffers() {
-    // We called setup code incorrectly if these are not equal
-    // assert(concurrentFrames == swapChainFramebuffers.size());
     commandBuffers.resize(concurrentFrames);
     transferCommandBuffers.resize(concurrentFrames);
 
@@ -3368,7 +3363,7 @@ void Engine::allocateCommandBuffers() {
 
 // I am sorry that all the main pass rendering looks like it was made by a monkey, I didn't know how to plan it out at the start
 // cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
-void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet, 
+void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet,
     const VkDescriptorSet& hudDescriptorSet, int index) {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -3463,10 +3458,10 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        // 0th instance is always the skybox
+        // 0th instance is always the skybox (see Engine::loadDefaultScene)
         pushConstants.textureIndex = currentScene->state.instances[j].entity->textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-        // TODO we can bundle draw commands the entities are the same (this includes the textures)
+        // We can bundle draw commands the entities are the same (this includes the textures), I doubt that the bottleneck is recording the command buffers
         vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
     }
@@ -3474,8 +3469,6 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
 
     vkCmdSetLineWidth(buffer, 4.0);
-
-    // std::cout << lineSync->validCount[index] << std::endl;
 
     for (int j = 0; j < lineSync->validCount[index]; j++) {
         dynamicOffset = j * uniformSync->uniformSkip;
@@ -3633,7 +3626,7 @@ void Engine::cleanup() {
     cleanupSwapChain();
 
     destroyComputeResources();
-    vkDestroySampler(device, TooltipResource::sampler_, nullptr);
+    vkDestroySampler(device, TextResource::sampler_, nullptr);
 
     destroyLightingBuffers();
     delete lineSync;
@@ -3685,6 +3678,7 @@ Engine::~Engine() {
     delete gui;
     delete glyphCache;
     tooltipResource.~GuiTexture();
+    tooltipStillInUse.~GuiTexture();
     delete lua;
     cleanup();
 }
@@ -3746,7 +3740,7 @@ void Engine::createShadowResources(bool createDebugging) {
     vulkanErrorGuard(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &shadow.renderPass), "Unable to create shadow render pass");
 
     auto vertShaderCode = Utilities::readFile("shaders/shadow_vert.spv");
-    
+
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo {};
@@ -4167,6 +4161,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
 
     // This loop indexing will change once the instance allocator changes
     for(int j = 1; j < uniformSync->validCount[index]; j++) {
+        if (currentScene->state.instances[j].renderAsIcon) continue;
         uint32_t dynamicOffset = j * uniformSync->uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
@@ -4501,7 +4496,12 @@ width(other.width), height(other.height)
 }
 
 EntityTexture& EntityTexture::operator=(EntityTexture&& other) noexcept {
-    EntityTextures::references[image]--;
+    if (--EntityTextures::references[image] == 0) {
+        vkDestroySampler(context->device, sampler, nullptr);
+        vkDestroyImageView(context->device, imageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        EntityTextures::references.erase(image);
+    }
     imageView = other.imageView;
     image = other.image;
     sampler = other.sampler;
@@ -4606,7 +4606,7 @@ void Scene::updateUniforms(int idx) {
 
     auto cmdGen = state.getCommandGenerator(&inPlayIndices);
 
-    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder *x) -> size_t { 
+    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder *x) -> size_t {
         return s + x->lines.size();
     });
     // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
@@ -4621,8 +4621,8 @@ void Scene::updateUniforms(int idx) {
         auto a = cmdGen.value();
         return {
             this->state.instances[a.which->at(a.idx)].position,
-            a.command->data.dest, 
-            { 0.3f, 1.0f, 0.3f, 1.0f }, 
+            a.command->data.dest,
+            { 0.3f, 1.0f, 0.3f, 1.0f },
             { 0.3f, 1.0f, 0.3f, 1.0f }
         };};
 
@@ -4819,7 +4819,12 @@ image(other.image), context(other.context), allocation(other.allocation)
 { CubeMaps::references[image]++; }
 
 CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
-    CubeMaps::references[image]--;
+    if (--CubeMaps::references[image] == 0) {
+        vkDestroySampler(context->device, sampler, nullptr);
+        vkDestroyImageView(context->device, imageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        CubeMaps::references.erase(image);
+    }
     imageView = other.imageView;
     image = other.image;
     sampler = other.sampler;
@@ -4969,7 +4974,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     GuiTextures::references.insert({ image, 1 });
 
-    sampler = TooltipResource::sampler_;
+    sampler = TextResource::sampler_;
 
     // VkSamplerCreateInfo samplerInfo {};
     // samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -5035,7 +5040,11 @@ image(other.image), context(other.context), allocation(other.allocation)
 
 GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     assert(!other.invalid);
-    if (!invalid) GuiTextures::references[image]--;
+    if (!invalid && --GuiTextures::references[image] == 0) {
+        vkDestroyImageView(context->device, imageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        GuiTextures::references.erase(image);
+    }
     imageView = other.imageView;
     image = other.image;
     sampler = other.sampler;
@@ -5098,7 +5107,7 @@ namespace GuiTextures {
         ::operator delete(textTextureBuffer);
     }
     const int maxTextWidth = 2048;
-    
+
     // I know what you are thinking...
     //  ...that this should be an object since I practically gave it a destructor with the atexit bit
     void initFreetype2(Engine *context) {
@@ -5110,7 +5119,7 @@ namespace GuiTextures {
         error = FT_New_Face(GuiTextures::library, "fonts/FreeSans.ttf", 0, &face);
         if (error == FT_Err_Unknown_File_Format) throw std::runtime_error("Unsupported font format.");
         else if (error) throw std::runtime_error("Unable to read font file.");
-        
+
         // std::cout << "Font contains glyph count: " << face->num_glyphs << std::endl;
 
         error = FT_Set_Char_Size(face, 0, 12*64, 300, 300);
@@ -5118,6 +5127,7 @@ namespace GuiTextures {
 
         error = FT_Load_Glyph(face, FT_Get_Char_Index(face, 'T'), 0);
         if (error) throw std::runtime_error("Unable to load glyph.");
+        // error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF);
         error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_SDF);
         if (error) throw std::runtime_error("Unable to render glyph.");
         maxGlyphHeight = face->glyph->bitmap_top;
@@ -5129,6 +5139,7 @@ namespace GuiTextures {
     // This function seems really slow
     // !!! Multiline will work incorrectly !!!
     int makeTexture(const char *str) {
+        assert(!"This is not to be used anymore");
         FT_Vector pen;
         pen.x = maxGlyphHeight / 2;
         pen.y = maxGlyphHeight / 2;
@@ -5145,7 +5156,7 @@ namespace GuiTextures {
                 for(int j = 0; j < abs(face->glyph->bitmap.pitch); j++)
                     // Ah, silent failures... the best kind (it should be obvious in context though)
                     if (face->glyph->bitmap_left + pen.x + j < maxTextWidth)
-                        *((unsigned char *)textTextureBuffer + (pen.y + maxGlyphHeight - face->glyph->bitmap_top + i) * maxTextWidth + face->glyph->bitmap_left + pen.x + j) = 
+                        *((unsigned char *)textTextureBuffer + (pen.y + maxGlyphHeight - face->glyph->bitmap_top + i) * maxTextWidth + face->glyph->bitmap_left + pen.x + j) =
                             std::max(*(face->glyph->bitmap.buffer + i * abs(face->glyph->bitmap.pitch) + j),
                                 *((unsigned char *)textTextureBuffer + (pen.y + maxGlyphHeight - face->glyph->bitmap_top + i) * maxTextWidth + face->glyph->bitmap_left + pen.x + j));
 
@@ -5225,12 +5236,12 @@ template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, const std::
     }
 }
 
-GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted) 
+GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted)
 : context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2) {
     height = GuiTextures::maxGlyphHeight + 2 * bufferWidth;
     std::scoped_lock(GuiTextures::ftLock);
     memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
-    defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth, 
+    defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth,
         GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
     defaultGlyph->makeComputable();
     uint index = 0;
@@ -5240,28 +5251,35 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         pen.y = GuiTextures::maxGlyphHeight / 2;
         memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
 
-        FT_UInt charCode = FT_Get_Char_Index(GuiTextures::face, glyphCode);
-        FT_Error error = FT_Load_Glyph(GuiTextures::face, charCode, 0);
-        if (error) throw std::runtime_error("Unable to load glyph.");
-        error = FT_Render_Glyph(GuiTextures::face->glyph, FT_RENDER_MODE_SDF);
-        if (error) throw std::runtime_error("Unable to render glyph.");
+        // Weirdness I guess
+        if (glyphCode == 0x20) {
+            // FIXME For some reason I can't render space with true tpye despite looking right at it on the font file with a font editor
+            // I pulled the width out anyways and just pretend (it isn't like we don't have to handle special cases anyways (newlines and the like))
+            GuiTextures::face->glyph->advance.x = 25 * 64;
+        } else {
+            FT_UInt charCode = FT_Get_Char_Index(GuiTextures::face, glyphCode);
+            FT_Error error = FT_Load_Glyph(GuiTextures::face, charCode, 0);
+            if (error) throw std::runtime_error("Unable to load glyph.");
+            error = FT_Render_Glyph(GuiTextures::face->glyph, FT_RENDER_MODE_SDF);
+            std::stringstream ss;
+            ss << "Unable to render glyph (code): 0x" << std::hex << (uint32_t)glyphCode << " freetype char index: 0x" << charCode;
+            if (error) throw std::runtime_error(ss.str());
 
-        // TODO Clean this up
-        for(int i = 0; i < GuiTextures::face->glyph->bitmap.rows; i++)
-            for(int j = 0; j < abs(GuiTextures::face->glyph->bitmap.pitch); j++)
-                // Ah, silent failures... the best kind (it should be obvious in context though)
-                if (GuiTextures::face->glyph->bitmap_left + pen.x + j < GuiTextures::maxTextWidth)
-                    *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j) = 
-                        std::max(*(GuiTextures::face->glyph->bitmap.buffer + i * abs(GuiTextures::face->glyph->bitmap.pitch) + j),
-                            *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j));
+            // TODO Clean this up
+            for(int i = 0; i < GuiTextures::face->glyph->bitmap.rows; i++)
+                for(int j = 0; j < abs(GuiTextures::face->glyph->bitmap.pitch); j++)
+                    // Ah, silent failures... the best kind (it should be obvious in context though)
+                    if (GuiTextures::face->glyph->bitmap_left + pen.x + j < GuiTextures::maxTextWidth)
+                        *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j) =
+                            std::max(*(GuiTextures::face->glyph->bitmap.buffer + i * abs(GuiTextures::face->glyph->bitmap.pitch) + j),
+                                *((unsigned char *)GuiTextures::textTextureBuffer + (pen.y + GuiTextures::maxGlyphHeight - GuiTextures::face->glyph->bitmap_top + i) * GuiTextures::maxTextWidth + GuiTextures::face->glyph->bitmap_left + pen.x + j));
 
-        pen.x += GuiTextures::face->glyph->advance.x >> 6;
-
+            pen.x += GuiTextures::face->glyph->advance.x >> 6;
+        }
         int imageWidth = pen.x + GuiTextures::maxGlyphHeight / 2;
-        // std::cout << "width: " << imageWidth << ":" << height << std::endl;
 
         // stbi_write_png("glyph.png", GuiTextures::maxTextWidth, GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::textTextureBuffer, GuiTextures::maxTextWidth);
-        
+
         // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
         // and maybe it might mater if the gui wants to do gpu stuff in setup up at the same time
         auto tex = GuiTexture(context, GuiTextures::textTextureBuffer, imageWidth, height, 1, GuiTextures::maxTextWidth,
@@ -5276,7 +5294,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
     if (!syncer) syncer = new SSBOSyncer<IndexWidthSSBO>(context, {{ set,  3 }});
     std::array<VkWriteDescriptorSet, 1> descriptorWrites {};
 
-    std::vector<VkDescriptorImageInfo> textureInfo(context->engineSettings.maxGlyphTextures);
+    std::vector<VkDescriptorImageInfo> textureInfo(ECONF_MAX_GLYPH_TEXTURES);
 
     for (const auto& [code, data] : glyphDatum) {
         textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
@@ -5286,7 +5304,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
     }
     // TODO, replace this with a texture that represents an error character
-    for (int i = glyphDatum.size(); i < context->engineSettings.maxGlyphTextures; i++) {
+    for (int i = glyphDatum.size(); i < ECONF_MAX_GLYPH_TEXTURES; i++) {
         textureInfo[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         textureInfo[i].imageView = defaultGlyph->imageView;
         textureInfo[i].sampler = VK_NULL_HANDLE;
@@ -5336,7 +5354,7 @@ GlyphCache::~GlyphCache() {
     delete syncer;
 }
 
-TooltipResource::TooltipResource(Engine *context, uint height, uint width, bool destroyFence)
+TextResource::TextResource(Engine *context, uint height, uint width, bool destroyFence)
 : Textured(), context(context), widenessRatio((float)width / height), destroyFence(destroyFence) {
     VkDeviceSize imageSize = width * height;
 
@@ -5379,16 +5397,16 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width, bool 
 
     vulkanErrorGuard(vkCreateFence(context->device, &fenceInfo, nullptr, &fence), "Failed to create tooltip fence.");
 
-    sampler = TooltipResource::sampler_;
+    sampler = TextResource::sampler_;
 }
 
-TooltipResource::~TooltipResource() {
+TextResource::~TextResource() {
     if (imageView) vkDestroyImageView(context->device, imageView, nullptr);
     if (image) vmaDestroyImage(context->memoryAllocator, image, allocation);
     if (destroyFence) vkDestroyFence(context->device, fence, nullptr);
 }
 
-void TooltipResource::writeDescriptor(VkDescriptorSet set) {
+void TextResource::writeDescriptor(VkDescriptorSet set) {
     VkWriteDescriptorSet descriptorWrite {};
 
     VkDescriptorImageInfo textureInfo {};
@@ -5445,14 +5463,22 @@ GuiTexture::GuiTexture() : invalid(true) {}
 GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation, VkImageView imageView, float widenessRatio)
 : widenessRatio(widenessRatio), image(image), allocation(allocation), context(context) {
     this->imageView = imageView;
-    sampler = TooltipResource::sampler_;
+    sampler = TextResource::sampler_;
     GuiTextures::references.insert({ image, 1 });
 }
 
-GuiTexture TooltipResource::toGuiTexture(std::unique_ptr<TooltipResource>&& tooltipResource) {
-    auto that = tooltipResource.get();
+GuiTexture TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {
+    auto that = textResource.get();
     auto ret = GuiTexture(that->context, that->image, that->allocation, that->imageView, that->widenessRatio);
     that->imageView = VK_NULL_HANDLE;
     that->image = VK_NULL_HANDLE;
+    return ret;
+}
+
+GuiTexture GlyphCache::makeGuiTexture(const std::string& str) {
+    auto tr = context->makeText(str, true);
+    auto ret = TextResource::toGuiTexture(std::move(tr.second));
+    vkWaitForFences(context->device, 1, &tr.first.second, VK_TRUE, UINT64_MAX);
+    tr.first.first();
     return ret;
 }

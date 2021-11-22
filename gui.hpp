@@ -322,6 +322,7 @@ public:
 
     GuiComponent *fromFile(std::string name, int baseLayer);
     LuaWrapper *lua;
+    Engine *context;
 private:
     std::thread guiThread;
     boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
@@ -350,6 +351,4 @@ private:
     void createBuffers(size_t initalSize);
     void reallocateBuffer(int index, size_t newSize);
     void destroyBuffer(int index);
-
-    Engine *context;
 };

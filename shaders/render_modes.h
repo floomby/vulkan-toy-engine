@@ -1,9 +1,9 @@
+#include "../econf.h"
+
 #define RMODE_NONE      0
 #define RMODE_FLAT      1
 #define RMODE_TEXT      2
 #define RMODE_TOOLTIP   3
-
-#define layerZOffset    0.001f
 
 #define RINT_SKYBOX     0
 #define RINT_OBJ        1

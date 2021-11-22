@@ -1,6 +1,8 @@
-#include "gui.hpp"
+// bleck
+#include "engine.hpp"
 
 #include <iostream>
+
 
 // Tbh the layers should probably just be created when the vertex buffer is built and be just the parent layer plus one
 
@@ -80,7 +82,8 @@ std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, std::pair<floa
 
 std::vector<GuiVertex> Gui::rectangle(std::pair<float, float> tl, float height, float widenessRatio,
     glm::vec4 color, glm::vec4 secondaryColor, int layer, uint32_t id, uint32_t renderMode) {
-    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width }, color, secondaryColor, layer, id, renderMode);
+    return Gui::rectangle(tl, { tl.first + 2 * height, tl.second + 2 * height * widenessRatio * (float)this->height / this->width },
+        color, secondaryColor, layer, id, renderMode);
 }
 
 void Gui::setDragBox(std::pair<float, float> c0, std::pair<float, float> c1) {
@@ -150,7 +153,8 @@ void Gui::pollChanges() {
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
 // TODO Fix this
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, 
+    std::map<std::string, int> luaHandlers, uint32_t renderMode)
 : textures({ *GuiTexture::defaultTexture() }), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
@@ -377,16 +381,16 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
 std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { GuiTextures::makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
-    textures.push_back(GuiTextures::makeGuiTexture("cleared"));
+    textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer,
 std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, { GuiTextures::makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
+: GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
-    textures.push_back(GuiTextures::makeGuiTexture("cleared"));
+    textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
 }
 
 void GuiLabel::resizeVertices() {

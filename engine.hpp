@@ -36,9 +36,6 @@ struct EngineSettings {
     const char *applicationName;
     bool verbose;
     bool extremelyVerbose;
-    size_t maxTextures;
-    size_t maxHudTextures;
-    size_t maxGlyphTextures;
 };
 
 struct LineUBO {
@@ -64,16 +61,16 @@ template<typename T> class SSBOSyncer;
 
 class Engine;
 
-class TooltipResource : public Textured {
+class TextResource : public Textured {
 public:
-    TooltipResource(Engine *context, uint height, uint width, bool destroyFence = true);
-    ~TooltipResource();
+    TextResource(Engine *context, uint height, uint width, bool destroyFence = true);
+    ~TextResource();
     void writeDescriptor(VkDescriptorSet set);
 
-    TooltipResource(const TooltipResource& other) = delete;
-    TooltipResource(TooltipResource&& other) noexcept = delete;
-    TooltipResource& operator=(const TooltipResource& other) = delete;
-    TooltipResource& operator=(TooltipResource&& other) noexcept = delete;
+    TextResource(const TextResource& other) = delete;
+    TextResource(TextResource&& other) noexcept = delete;
+    TextResource& operator=(const TextResource& other) = delete;
+    TextResource& operator=(TextResource&& other) noexcept = delete;
 
     VkImage image;
     VmaAllocation allocation;
@@ -81,7 +78,7 @@ public:
 
     static VkSampler sampler_;
 
-    static GuiTexture toGuiTexture(std::unique_ptr<TooltipResource>&& TooltipResource);
+    static GuiTexture toGuiTexture(std::unique_ptr<TextResource>&& textResource);
 private:
     bool destroyFence;
     float widenessRatio;
@@ -98,7 +95,7 @@ class Engine {
     friend class Scene;
     friend class Api;
     friend class GlyphCache;
-    friend class TooltipResource;
+    friend class TextResource;
 
     friend class DynUBOSyncer<UniformBufferObject>;
     friend class DynUBOSyncer<LineUBO>;
@@ -115,7 +112,7 @@ public:
 
     VkDevice device;
     VmaAllocator memoryAllocator;
-    // Stuff the gui class needs (we do this the right way this time and don't just make another friend)
+    GlyphCache *glyphCache;
 
 private:
     struct QueueFamilyIndices {
@@ -161,7 +158,7 @@ private:
         const float minZoom2 = 1.0, maxZoom2 = 400.0;
         const float gimbleStop = 0.1;
         const float minClip = 0.1, maxClip = 150.0;
-        const float renderAsIcon2 = 1000.0;
+        const float renderAsIcon2 = 400.0;
         glm::vec3 position;
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
@@ -218,9 +215,11 @@ private:
     bool drawTooltip = false;
     std::vector<bool> tooltipDirty;
     RunningCommandBuffer tooltipBuffer;
-    std::pair<RunningCommandBuffer, std::unique_ptr<TooltipResource>> makeTooltip(const std::string& str);
-    GuiTexture tooltipResource;
+    std::pair<RunningCommandBuffer, std::unique_ptr<TextResource>> makeText(const std::string& str, bool autoDestroyFences = false);
+    GuiTexture tooltipResource, tooltipStillInUse;
     std::array<glm::vec2, 2> tooltipLocation;
+    void setTooltip(const std::string& str);
+
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -529,7 +528,6 @@ private:
     void doShadowDebugWrite();
 
     LuaWrapper *lua;
-    GlyphCache *glyphCache;
 };
 
 class CubeMap {
@@ -589,6 +587,8 @@ public:
     uint writeUBO(GlyphInfoUBO *buffer, const std::string& str);
 
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+    // This is blocking
+    GuiTexture makeGuiTexture(const std::string& str);
 private:
     SSBOSyncer<IndexWidthSSBO> *syncer;
     GuiTexture *defaultGlyph;
