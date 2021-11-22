@@ -2,12 +2,10 @@
 
 # finding class names and enum names automatically would be cool
 
+# I am not sure that Instance * is ever ok to use in lua, there is a jank way to do it, but I don't think it seems worth it.
+# Luckily (well by design actually) the instance ids are ordered in the auth state buffer and we can leverage that to do fast lookups
+
 require 'pp'
-
-# This doesn't get return types
-# dump = `readelf -sW result | awk '$4 == "FUNC"' | c++filt | grep 'Api::' | grep -v '\\[clone .cold\\]'`
-
-# funcs = dump.split("\n").map { |x| x.split(" ").drop(7) }
 
 require 'rbgccxml'
 
@@ -17,6 +15,8 @@ class BindingGenerator
     @@enums = ["InsertionMode"]
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
+    @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
+    @@integers = ["uint32_t", "int", "unsigned int"]
 
     def initialize(name, rettype, argtypes)
         @name = name
@@ -25,19 +25,20 @@ class BindingGenerator
         @static_name = @name.split("::")[-1]
     end
 
+    def remove_std_allocators(typestr)
+        if typestr.gsub!(/, ?std::allocator<[^>]*>/, "") != nil then
+            remove_std_allocators(typestr)
+        end
+    end
+
     def stack_reader(argtype, i)
         acm = ""
         argtype.gsub!(/^\:\:/, "")
         case argtype
-        when "uint32_t"
+        when *@@integers
             return <<-END
     luaL_checkinteger(ls, #{i + 1});
-    auto a#{i} = (uint32_t)lua_tointeger(ls, #{i + 1});
-END
-        when "int"
-            return <<-END
-    luaL_checkinteger(ls, #{i + 1});
-    auto a#{i} = lua_tointeger(ls, #{i + 1});
+    auto a#{i} = (#{argtype})lua_tointeger(ls, #{i + 1});
 END
         when *@@enums
             return <<-END
@@ -86,6 +87,51 @@ END
         return acm
     end
 
+    def is_vector(typestr)
+        return typestr.match?(/^[^<]*?vector<(.*)>/)
+    end
+
+    def vector_of(typestr)
+        return typestr.match(/^[^<]*?vector<(.*)>/).captures[0]
+    end
+
+    def is_class_ptr(typestr)
+        @@classes_regexes.each do |cm|
+            if cm.match?(typestr); return true end
+        end
+        return false
+    end
+
+    # stuff that takes up one lua stack address (obviously this function is not complete yet)
+    def basic_pusher(typestr)
+        if is_class_ptr(typestr)
+            return -> (x) { "lua_pushlightuserdata(ls, #{x});" }
+        elsif @@integers.include?(typestr)
+            return -> (x) { "lua_pushinteger(ls, #{x});" }
+        else
+            raise "Unsuported basic type #{typestr}"
+        end
+    end
+
+    def lua_ret
+        acm = ""
+        remove_std_allocators(@rettype)
+        if is_vector(@rettype)
+            of_type = vector_of(@rettype)
+            push = basic_pusher(of_type).call("r[i]")
+            acm += <<-END
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        #{push}
+        lua_rawseti(ls, -2, i + 1);
+    }
+END
+        else
+            acm += "    #{basic_pusher(@rettype).call("r")}"
+        end
+        return acm
+    end
+
     def wrapper_gen
         acm = "static int #{@static_name}Wrapper(lua_State *ls) {\n"
 
@@ -98,11 +144,15 @@ END
             acm += stack_reader(at, i)
         end
 
-        acm += "    " + @name.gsub!(/^\:\:/, "") + "("
+        acm += "    #{@rettype == "void" ? "" : "auto r = "}" + @name.gsub!(/^\:\:/, "") + "("
+        
         if @argtypes.length > 0 then
             acm += ((0..@argtypes.length - 1).to_a.map { |x| "a" + x.to_s }).join(", ")
         end
         acm += ");\n"
+        if @rettype != "void" then
+            acm += lua_ret
+        end
         acm += "    return #{@rettype == "void" ? 0 : 1};\n}\n"
 
         return acm += "\n";

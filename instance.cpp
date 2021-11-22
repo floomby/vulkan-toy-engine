@@ -39,3 +39,15 @@ void Instance::syncToAuthInstance(const Instance& other) {
 bool Instance::rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const {
     return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }
+
+bool Instance::operator==(const Instance& other) {
+    return id == other.id;
+}
+
+bool Instance::operator==(uint32_t id) {
+    return this->id == id;
+}
+
+bool Instance::operator<(uint32_t id) {
+    return this->id < id;
+}

@@ -64,7 +64,7 @@ static int eng_createInstanceWrapper(lua_State *ls) {
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
     luaL_checkinteger(ls, 4);
-    auto a3 = lua_tointeger(ls, 4);
+    auto a3 = (int)lua_tointeger(ls, 4);
     Api::eng_createInstance(a0, a1, a2, a3);
     return 0;
 }
@@ -150,6 +150,33 @@ static void cmd_setTargetLocationExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_setTargetLocation");
 }
 
+static int eng_getSelectedInstancesWrapper(lua_State *ls) {
+    auto r = Api::eng_getSelectedInstances();
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        lua_pushinteger(ls, r[i]);
+        lua_rawseti(ls, -2, i + 1);
+    }
+    return 1;
+}
+
+static void eng_getSelectedInstancesExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getSelectedInstancesWrapper);
+    lua_setglobal(ls, "eng_getSelectedInstances");
+}
+
+static int eng_getTeamIDWrapper(lua_State *ls) {
+    luaL_checkinteger(ls, 1);
+    auto a0 = (uint32_t)lua_tointeger(ls, 1);
+    auto r = Api::eng_getTeamID(a0);
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void eng_getTeamIDExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getTeamIDWrapper);
+    lua_setglobal(ls, "eng_getTeamID");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -158,4 +185,6 @@ void LuaWrapper::apiExport() {
     eng_echoExport(luaState);
     test_fireExport(luaState);
     cmd_setTargetLocationExport(luaState);
+    eng_getSelectedInstancesExport(luaState);
+    eng_getTeamIDExport(luaState);
 }

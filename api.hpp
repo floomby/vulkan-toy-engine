@@ -27,4 +27,9 @@ public:
     static void eng_echo(const char *message);
     static void test_fire();
     static void cmd_setTargetLocation(Instance *instance, const glm::vec3& location);
+    // I see no way to handle the pointers being invalidated without much jankyness (using special values on the heap and checking if they are 
+    // there after polling the os to see if that portion if the heap is still mapped in virtual memory)
+    // static std::vector<Instance *> eng_getSelectedInstances();
+    static std::vector<uint32_t> eng_getSelectedInstances();
+    static int eng_getTeamID(uint32_t unitID);
 };

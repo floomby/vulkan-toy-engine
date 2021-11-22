@@ -52,7 +52,6 @@ void Api::eng_createInstance(const std::string& name, const glm::vec3& position,
     context->authState.instances.push_back(std::move(inst));
 }
 
-// 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection) {
     std::scoped_lock(context->authState.lock);
     Instance inst(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
@@ -87,4 +86,16 @@ void Api::test_fire() {
     inst.heading = { 1.0f, 0.0f, 0.0f, 0.0f };
     inst.id = std::numeric_limits<uint32_t>::max();
     context->authState.instances.push_back(std::move(inst));
+}
+
+std::vector<uint32_t> Api::eng_getSelectedInstances() {
+    std::scoped_lock(context->apiEngineLock);
+    return context->idsSelected;
+}
+
+int Api::eng_getTeamID(uint32_t unitID) {
+    std::scoped_lock(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it == unitID) return -1;
+    return it->id;
 }

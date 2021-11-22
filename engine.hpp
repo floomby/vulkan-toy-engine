@@ -115,6 +115,8 @@ public:
     GlyphCache *glyphCache;
 
 private:
+    std::mutex apiEngineLock;
+
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -239,6 +241,7 @@ private:
     };
 
     std::vector<uint32_t> idsSelected;
+    std::vector<Instance *> instancesSelected; // not authstate instances
 
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

@@ -1,10 +1,9 @@
 ## Next steps
- * Lua bindings for c++ returns, specifically vectors of instances
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Mess with the shadows, I think some messing with the filtering parameters as well as the depth biasing and slope factor could improve it dramatically
  * Finish projectile stuff
  * gui - I still need some more components, but this seems really low priority right now
- * Finish tooltip stuff 
+ * Finish tooltip stuff
  * Finish the path following/steering code
  * Finish unit ais
  * I need to make teamcolors work (It takes doing the model textures slightly differently, alpha regions will correspond to the team color, the functionallity is there in the rendering code, but not it the shader yet)

@@ -1,5 +1,12 @@
-local function click() 
-    eng_echo("You clicked me")
+local inspect = require('libs/inspect')
+
+local function click()
+    print("You clicked me")
+    local r = eng_getSelectedInstances()
+    -- local r = eng_getTeamID(100)
+    for _, v in ipairs(r) do
+        print(inspect(eng_getTeamID(v)))
+    end
 end
 
 local function centerSelected()

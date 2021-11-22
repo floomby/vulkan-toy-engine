@@ -2342,6 +2342,7 @@ void Engine::setTooltip(const std::string& str) {
 // TODO This needs some serious reimagining
 void Engine::handleInput() {
     cursorLines->lines.clear();
+    std::vector<uint32_t> idsSelected = this->idsSelected;
 
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
@@ -2467,6 +2468,7 @@ void Engine::handleInput() {
 
     static glm::vec3 zPlaneNormal;
 
+    bool idsSelectedChanged = false;
     MouseEvent mouseEvent;
     while (mouseInput.pop(mouseEvent)) {
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.mods & GLFW_MOD_SHIFT && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
@@ -2507,6 +2509,7 @@ void Engine::handleInput() {
             //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             // }
             idsSelected.clear();
+            idsSelectedChanged = true;
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
                 if (!currentScene->state.instances[i].inPlay) continue;
                 if (whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
@@ -2635,6 +2638,11 @@ void Engine::handleInput() {
                 // std::cout << "bad bad" << std::endl;
             }
         }
+    }
+
+    if (idsSelectedChanged) {
+        std::scoped_lock(apiEngineLock);
+        this->idsSelected = idsSelected;
     }
 
     lastMousePosition.x = x;

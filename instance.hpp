@@ -70,6 +70,10 @@ public:
 
     Target target;
     std::vector<WeaponInstance> weapons;
+
+    bool operator==(const Instance& other);
+    bool operator==(uint32_t id);
+    bool operator<(uint32_t id);
 private:
     UniformBufferObject _state;
 };
