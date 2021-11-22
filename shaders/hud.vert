@@ -79,7 +79,7 @@ void main() {
         );
 
         // having more than 99 layers of gui stuff seems unlikely
-        gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset * 2.0, 1.0);
+        gl_Position = vec4(dragBox[gl_VertexIndex - 6], 1.0 - layerZOffset, 1.0);
         outColor = dragColor;
         outTexCoord = vec2(0.0, 0.0);
         outTexIndex = -1;
@@ -94,7 +94,7 @@ void main() {
             vec2(pushConstants.tooltipBox[1].x, pushConstants.tooltipBox[0].y)
         );
 
-        gl_Position = vec4(tooltipBox[gl_VertexIndex - 12], 1.0 - layerZOffset, 1.0);
+        gl_Position = vec4(tooltipBox[gl_VertexIndex - 12], 0.0, 1.0);
         outColor = vec4(0.0, 0.0, 0.0, 1.0);
         outTexCoord = textureCoordForBox[gl_VertexIndex - 12];
         outTexIndex = -1;

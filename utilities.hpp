@@ -201,7 +201,6 @@ public:
     Textured();
     VkImageView imageView;
     VkSampler sampler;
-    virtual void makeSampler() = 0;
 };
 
 inline bool isSRGB(VkFormat format) {

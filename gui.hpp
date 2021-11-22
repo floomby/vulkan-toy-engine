@@ -94,8 +94,10 @@ class Engine;
 
 class GuiTexture : public Textured {
 public:
+    GuiTexture();
     GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format,
         VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool storable = false);
+    GuiTexture(Engine *context, VkImage image, VmaAllocation allocation, VkImageView imageView, float widenessRatio);
     GuiTexture(const GuiTexture&);
     GuiTexture& operator=(const GuiTexture&);
     GuiTexture(GuiTexture&& other) noexcept;
@@ -109,11 +111,12 @@ public:
     static GuiTexture *defaultTexture();
     float widenessRatio;
 
-    virtual void makeSampler();
     void makeComputable();
+    bool invalid = false;
 private:
-    VkImage textureImage;
-    VmaAllocation textureAllocation;
+
+    VkImage image;
+    VmaAllocation allocation;
     Engine *context;
 };
 

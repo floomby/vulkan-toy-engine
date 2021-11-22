@@ -2271,11 +2271,11 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
-std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
+std::pair<RunningCommandBuffer, std::unique_ptr<TooltipResource>> Engine::makeTooltip(const std::string& str) {
     uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
 
-    auto ret = std::make_shared<TooltipResource>(this, glyphCache->height, width);
-    ret.get()->writeDescriptor(computeSets[CP_SDF_BLIT]);
+    auto ret = std::make_unique<TooltipResource>(this, glyphCache->height, width, false);
+    ret->writeDescriptor(computeSets[CP_SDF_BLIT]);
 
     auto buffer = beginSingleTimeCommands(guiCommandPool);
 
@@ -2290,7 +2290,7 @@ std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     // This seems wrong that we have to make it to general layout
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.image = ret.get()->image;
+    imageMemoryBarrier.image = ret->image;
     imageMemoryBarrier.srcAccessMask = 0;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
 
@@ -2309,7 +2309,7 @@ std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
 
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.image = ret.get()->image;
+    imageMemoryBarrier.image = ret->image;
     imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -2322,20 +2322,7 @@ std::shared_ptr<TooltipResource> Engine::makeTooltip(const std::string& str) {
         0, nullptr,
         1, &imageMemoryBarrier);
 
-    // endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue, sdfBlitFence);
-    // auto freer = endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue, ret.get()->fence);
-    auto freer = endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue);
-
-    // vkWaitForFences(device, 1, &ret.get()->fence, VK_TRUE, UINT64_MAX);
-    // freer();
-
-    // std::raise(SIGTRAP);
-
-    vkDeviceWaitIdle(device);
-
-    for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *ret.get());
-
-    return ret;
+    return {{ endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue, ret->fence), ret->fence }, std::move(ret)};
 }
 
 namespace GuiTextures {
@@ -2390,10 +2377,13 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_I) {
                 // shadow.makeSnapshot = true;
-                tooltipResource = makeTooltip("AaaaaaAaaA");
-                gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
-                gui->pushConstant.tooltipBox[1] = { 0.2, 0.2 };
+                auto tt = makeTooltip("AaaaaaAaaA");
+                tooltipResource = TooltipResource::toGuiTexture(std::move(tt.second));
+                fill(tooltipDirty.begin(), tooltipDirty.end(), true);
+                tooltipLocation[0] = { -0.2, -0.2 };
+                tooltipLocation[1] = { 0.2, 0.2 };
                 drawTooltip = true;
+                tooltipBuffer = tt.first;
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
@@ -2837,7 +2827,23 @@ void Engine::drawFrame() {
     if (hudDescriptorNeedsRewrite[currentFrame]) {
         hudDescriptorNeedsRewrite[currentFrame] = false;
         rewriteHudDescriptors(currentFrame);
-    } 
+    }
+
+    if (drawTooltip && tooltipDirty[currentFrame]) {
+        if (*tooltipDirty.rbegin()) {
+            if (vkWaitForFences(device, 1, &tooltipBuffer.second, VK_TRUE, 0) == VK_SUCCESS) {
+                *tooltipDirty.rbegin() = false;
+                tooltipBuffer.first();
+                vkDestroyFence(device, tooltipBuffer.second, nullptr);
+                setTooltipTexture(currentFrame, tooltipResource);
+                tooltipDirty[currentFrame] = false;
+            }
+        } else {
+            setTooltipTexture(currentFrame, tooltipResource);
+            tooltipDirty[currentFrame] = false;
+        }
+    }
+
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);    
     
     gui->pushConstant.guiID = gui->idUnderPoint(lastMousePosition.normedX, lastMousePosition.normedY);
@@ -3026,9 +3032,12 @@ void Engine::runCurrentScene() {
     gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
     gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
 
+    tooltipDirty.resize(concurrentFrames + 1);
     for (int i = 0; i < concurrentFrames; i++) {
+        tooltipDirty[i] = false;
         setTooltipTexture(i, *GuiTextures::defaultTexture);
     }
+    tooltipDirty[concurrentFrames] = false;
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -3154,8 +3163,8 @@ void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, c
         std::vector<VkDescriptorImageInfo> imageInfos(textures.size());
         for (int i = 0; i < textures.size(); i++) {
             imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfos[i].imageView = textures[i].textureImageView;
-            imageInfos[i].sampler = textures[i].textureSampler;
+            imageInfos[i].imageView = textures[i].imageView;
+            imageInfos[i].sampler = textures[i].sampler;
         }
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3190,8 +3199,8 @@ void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, c
 
         VkDescriptorImageInfo skyboxInfo;
         skyboxInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        skyboxInfo.imageView = currentScene->skybox.textureImageView;
-        skyboxInfo.sampler = currentScene->skybox.textureSampler;
+        skyboxInfo.imageView = currentScene->skybox.imageView;
+        skyboxInfo.sampler = currentScene->skybox.sampler;
 
         descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[3].dstSet = mainPass.descriptorSets[i];
@@ -3512,17 +3521,19 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     uint guiVertexCountToDraw;
     if (!guiOutOfDate) {
         guiVertexCountToDraw = hudVertexCount;
-        if (!drawTooltip) {
+        if (!(drawTooltip && !tooltipDirty[index])) {
             gui->pushConstant.tooltipBox[0] = { 0.0f, 0.0f };
             gui->pushConstant.tooltipBox[1] = { 0.0f, 0.0f };
         } else {
-            // figure out where we need to draw the tooltip box
+            gui->pushConstant.tooltipBox[0] = tooltipLocation[0];
+            gui->pushConstant.tooltipBox[1] = tooltipLocation[1];
         }
     } else {
-        if (!drawTooltip) {
+        if (!(drawTooltip && !tooltipDirty[index])) {
             guiVertexCountToDraw = Gui::dummyVertexCount - 6;
         } else {
-            // figure out where we need to draw the tooltip box
+            gui->pushConstant.tooltipBox[0] = tooltipLocation[0];
+            gui->pushConstant.tooltipBox[1] = tooltipLocation[1];
             guiVertexCountToDraw = Gui::dummyVertexCount;
         }
     }
@@ -3668,12 +3679,12 @@ Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
     textureRefs.clear();
-    tooltipResource.reset();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
     delete gui;
     delete glyphCache;
+    tooltipResource.~GuiTexture();
     delete lua;
     cleanup();
 }
@@ -4206,7 +4217,7 @@ void Engine::destroyCursors() {
         glfwDestroyCursor(cursor);
 }
 
-namespace InternalTextures {
+namespace EntityTextures {
     static std::map<VkImage, uint> references = {};
 }
 
@@ -4255,7 +4266,7 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
     // Hm, how to use the transfer queue for this?
@@ -4273,7 +4284,7 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     imageMemoryBarrier.subresourceRange.layerCount = 1;
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = 0;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
@@ -4293,11 +4304,11 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     region.imageExtent.height = height;
     region.imageExtent.depth = 1;
 
-    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -4315,7 +4326,7 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
 
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-    textureImageViewInfo.image = textureImage;
+    textureImageViewInfo.image = image;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     textureImageViewInfo.format = format;
     textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4324,9 +4335,9 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     textureImageViewInfo.subresourceRange.levelCount = 1;
     textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
     textureImageViewInfo.subresourceRange.layerCount = 1;
-    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
+    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    InternalTextures::references.insert({ textureImage, 1 });
+    EntityTextures::references.insert({ image, 1 });
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -4351,7 +4362,7 @@ EntityTexture::EntityTexture(Engine *context, TextureCreationData creationData) 
     samplerInfo.maxLod = static_cast<float>(1);
     samplerInfo.mipLodBias = 0.0f;
 
-    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
+    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler.");
 }
 
 // MaxLoD is not working right cause something is wrong
@@ -4369,7 +4380,7 @@ void EntityTexture::generateMipmaps() {
 
     VkImageMemoryBarrier barrier {};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.image = textureImage;
+    barrier.image = image;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4411,8 +4422,8 @@ void EntityTexture::generateMipmaps() {
         imageBlit.dstOffsets[ 1 ] = { mipWidth, mipHeight, 1 };
 
         vkCmdBlitImage(commandBuffer,
-            textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1, &imageBlit,
             VK_FILTER_LINEAR);
 
@@ -4455,24 +4466,24 @@ void EntityTexture::generateMipmaps() {
 }
 
 EntityTexture::~EntityTexture() {
-    if (--InternalTextures::references[textureImage] == 0) {
-        vkDestroySampler(context->device, textureSampler, nullptr);
-        vkDestroyImageView(context->device, textureImageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
-        InternalTextures::references.erase(textureImage);
+    if (--EntityTextures::references[image] == 0) {
+        vkDestroySampler(context->device, sampler, nullptr);
+        vkDestroyImageView(context->device, imageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        EntityTextures::references.erase(image);
     }
 }
 
 EntityTexture::EntityTexture(const EntityTexture& other) {
-    textureImageView = other.textureImageView;
-    textureImage = other.textureImage;
-    textureSampler = other.textureSampler;
-    textureAllocation = other.textureAllocation;
+    imageView = other.imageView;
+    image = other.image;
+    sampler = other.sampler;
+    allocation = other.allocation;
     context = other.context;
     mipLevels = other.mipLevels;
     width = other.width;
     height = other.height;
-    InternalTextures::references[textureImage]++;
+    EntityTextures::references[image]++;
 }
 
 EntityTexture& EntityTexture::operator=(const EntityTexture& other) {
@@ -4480,16 +4491,21 @@ EntityTexture& EntityTexture::operator=(const EntityTexture& other) {
 }
 
 EntityTexture::EntityTexture(EntityTexture&& other) noexcept
-: textureImageView(other.textureImageView), textureSampler(other.textureSampler), mipLevels(other.mipLevels),
-textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation),
+: mipLevels(other.mipLevels),
+image(other.image), context(other.context), allocation(other.allocation),
 width(other.width), height(other.height)
-{ InternalTextures::references[textureImage]++; }
+{
+    imageView = other.imageView;
+    sampler = other.sampler;
+    EntityTextures::references[image]++;
+}
 
 EntityTexture& EntityTexture::operator=(EntityTexture&& other) noexcept {
-    textureImageView = other.textureImageView;
-    textureImage = other.textureImage;
-    textureSampler = other.textureSampler;
-    textureAllocation = other.textureAllocation;
+    EntityTextures::references[image]--;
+    imageView = other.imageView;
+    image = other.image;
+    sampler = other.sampler;
+    allocation = other.allocation;
     context = other.context;
     mipLevels = other.mipLevels;
     width = other.width;
@@ -4678,7 +4694,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
     // Hm, how to use the transfer queue for this?
@@ -4696,7 +4712,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     imageMemoryBarrier.subresourceRange.layerCount = 6;
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = 0;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
@@ -4716,11 +4732,11 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     region.imageExtent.height = height;
     region.imageExtent.depth = 1;
 
-    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -4738,7 +4754,7 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
 
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-    textureImageViewInfo.image = textureImage;
+    textureImageViewInfo.image = image;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
     textureImageViewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
     textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4746,9 +4762,9 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     textureImageViewInfo.subresourceRange.levelCount = 1;
     textureImageViewInfo.subresourceRange.baseArrayLayer = 0;
     textureImageViewInfo.subresourceRange.layerCount = 6;
-    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &textureImageView), "Unable to create texture image view.");
+    vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    CubeMaps::references.insert({ textureImage, 1 });
+    CubeMaps::references.insert({ image, 1 });
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -4772,25 +4788,25 @@ CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     samplerInfo.maxLod = 1.0f;
     samplerInfo.mipLodBias = 0.0f;
 
-    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &textureSampler), "Failed to create texture sampler.");
+    vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler.");
 }
 
 CubeMap::~CubeMap() {
-    if (--CubeMaps::references[textureImage] == 0) {
-        vkDestroySampler(context->device, textureSampler, nullptr);
-        vkDestroyImageView(context->device, textureImageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
-        CubeMaps::references.erase(textureImage);
+    if (--CubeMaps::references[image] == 0) {
+        vkDestroySampler(context->device, sampler, nullptr);
+        vkDestroyImageView(context->device, imageView, nullptr);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        CubeMaps::references.erase(image);
     }
 }
 
 CubeMap::CubeMap(const CubeMap& other) {
-    textureImageView = other.textureImageView;
-    textureImage = other.textureImage;
-    textureSampler = other.textureSampler;
-    textureAllocation = other.textureAllocation;
+    imageView = other.imageView;
+    image = other.image;
+    sampler = other.sampler;
+    allocation = other.allocation;
     context = other.context;
-    CubeMaps::references[textureImage]++;
+    CubeMaps::references[image]++;
 }
 
 CubeMap& CubeMap::operator=(const CubeMap& other) {
@@ -4798,16 +4814,18 @@ CubeMap& CubeMap::operator=(const CubeMap& other) {
 }
 
 CubeMap::CubeMap(CubeMap&& other) noexcept
-: textureImageView(other.textureImageView), textureSampler(other.textureSampler),
-textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
-{ CubeMaps::references[textureImage]++; }
+: imageView(other.imageView), sampler(other.sampler),
+image(other.image), context(other.context), allocation(other.allocation)
+{ CubeMaps::references[image]++; }
 
 CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
-    textureImageView = other.textureImageView;
-    textureImage = other.textureImage;
-    textureSampler = other.textureSampler;
-    textureAllocation = other.textureAllocation;
+    CubeMaps::references[image]--;
+    imageView = other.imageView;
+    image = other.image;
+    sampler = other.sampler;
+    allocation = other.allocation;
     context = other.context;
+    CubeMaps::references[image]++;
     return *this;
 }
 
@@ -4870,7 +4888,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     VmaAllocationCreateInfo imageAllocCreateInfo = {};
     imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
-    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &textureImage, &textureAllocation, nullptr) != VK_SUCCESS)
+    if (vmaCreateImage(context->memoryAllocator, &imageInfo, &imageAllocCreateInfo, &image, &allocation, nullptr) != VK_SUCCESS)
         throw std::runtime_error("Unable to create image");
 
     VkCommandBuffer commandBuffer = useRenderQueue ? context->beginSingleTimeCommands() : context->beginSingleTimeCommands(context->guiCommandPool);
@@ -4885,7 +4903,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     imageMemoryBarrier.subresourceRange.layerCount = 1;
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = 0;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
@@ -4905,13 +4923,13 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     region.imageExtent.height = height;
     region.imageExtent.depth = 1;
 
-    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     // Assume we will access this in the compute shader
     if (!storable) {
         imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageMemoryBarrier.image = textureImage;
+        imageMemoryBarrier.image = image;
         imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -4934,7 +4952,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     vmaDestroyBuffer(context->memoryAllocator, stagingBuffer, stagingBufferAllocation);
 
     VkImageViewCreateInfo textureImageViewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-    textureImageViewInfo.image = textureImage;
+    textureImageViewInfo.image = image;
     textureImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     textureImageViewInfo.format = format;
     textureImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -4945,7 +4963,11 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    GuiTextures::references.insert({ textureImage, 1 });
+    if ((unsigned long)image == 0xd0e29300000000aa) {
+        std::cout << boost::stacktrace::stacktrace() << std::endl;
+    }
+
+    GuiTextures::references.insert({ image, 1 });
 
     sampler = TooltipResource::sampler_;
 
@@ -4977,43 +4999,51 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 }
 
 GuiTexture::~GuiTexture() {
-    if (--GuiTextures::references[textureImage] == 0) {
+    if (!invalid && --GuiTextures::references[image] == 0) {
         vkDestroyImageView(context->device, imageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, textureImage, textureAllocation);
-        GuiTextures::references.erase(textureImage);
+        vmaDestroyImage(context->memoryAllocator, image, allocation);
+        GuiTextures::references.erase(image);
     }
+    invalid = true;
 }
 
 GuiTexture::GuiTexture(const GuiTexture& other) {
+    assert(!other.invalid);
     imageView = other.imageView;
-    textureImage = other.textureImage;
+    image = other.image;
     sampler = other.sampler;
-    textureAllocation = other.textureAllocation;
+    allocation = other.allocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
-    GuiTextures::references[textureImage]++;
+    GuiTextures::references[image]++;
 }
 
 GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
+    assert(!other.invalid);
     return *this = GuiTexture(other);
 }
 
 GuiTexture::GuiTexture(GuiTexture&& other) noexcept
 : widenessRatio(other.widenessRatio),
-textureImage(other.textureImage), context(other.context), textureAllocation(other.textureAllocation)
+image(other.image), context(other.context), allocation(other.allocation)
 {
+    assert(!other.invalid);
     imageView = other.imageView;
     sampler = other.sampler;
-    GuiTextures::references[textureImage]++;
+    GuiTextures::references[image]++;
 }
 
 GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
+    assert(!other.invalid);
+    if (!invalid) GuiTextures::references[image]--;
     imageView = other.imageView;
-    textureImage = other.textureImage;
+    image = other.image;
     sampler = other.sampler;
-    textureAllocation = other.textureAllocation;
+    allocation = other.allocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
+    invalid = false;
+    GuiTextures::references[image]++;
     return *this;
 }
 
@@ -5022,11 +5052,11 @@ void GuiTexture::syncTexturesToGPU(const std::vector<GuiTexture *>& textures) {
 }
 
 bool GuiTexture::operator==(const GuiTexture& other) const {
-    return textureImage == other.textureImage;
+    return image == other.image;
 }
 
 ResourceID GuiTexture::resourceID() {
-    return textureImage;
+    return image;
 }
 
 void GuiTexture::makeComputable() {
@@ -5042,7 +5072,7 @@ void GuiTexture::makeComputable() {
     imageMemoryBarrier.subresourceRange.layerCount = 1;
     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.image = textureImage;
+    imageMemoryBarrier.image = image;
     imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 
@@ -5306,8 +5336,8 @@ GlyphCache::~GlyphCache() {
     delete syncer;
 }
 
-TooltipResource::TooltipResource(Engine *context, uint height, uint width)
-: Textured(), context(context) {
+TooltipResource::TooltipResource(Engine *context, uint height, uint width, bool destroyFence)
+: Textured(), context(context), widenessRatio((float)width / height), destroyFence(destroyFence) {
     VkDeviceSize imageSize = width * height;
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
@@ -5353,9 +5383,9 @@ TooltipResource::TooltipResource(Engine *context, uint height, uint width)
 }
 
 TooltipResource::~TooltipResource() {
-    vkDestroyImageView(context->device, imageView, nullptr);
-    vmaDestroyImage(context->memoryAllocator, image, allocation);
-    vkDestroyFence(context->device, fence, nullptr);
+    if (imageView) vkDestroyImageView(context->device, imageView, nullptr);
+    if (image) vmaDestroyImage(context->memoryAllocator, image, allocation);
+    if (destroyFence) vkDestroyFence(context->device, fence, nullptr);
 }
 
 void TooltipResource::writeDescriptor(VkDescriptorSet set) {
@@ -5376,12 +5406,6 @@ void TooltipResource::writeDescriptor(VkDescriptorSet set) {
     descriptorWrite.pImageInfo = &textureInfo;
 
     vkUpdateDescriptorSets(context->device, 1, &descriptorWrite, 0, nullptr);
-}
-
-// we should never be here tbh
-void TooltipResource::makeSampler() {
-    if (sampler) return;
-    sampler = TooltipResource::sampler_;
 }
 
 template<typename T>
@@ -5414,4 +5438,21 @@ T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
 
     vmaDestroyBuffer(context->memoryAllocator, bufferOld, bufferAllocationOld);
     return (T *)bufferAllocation->GetMappedData();
+}
+
+GuiTexture::GuiTexture() : invalid(true) {}
+
+GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation, VkImageView imageView, float widenessRatio)
+: widenessRatio(widenessRatio), image(image), allocation(allocation), context(context) {
+    this->imageView = imageView;
+    sampler = TooltipResource::sampler_;
+    GuiTextures::references.insert({ image, 1 });
+}
+
+GuiTexture TooltipResource::toGuiTexture(std::unique_ptr<TooltipResource>&& tooltipResource) {
+    auto that = tooltipResource.get();
+    auto ret = GuiTexture(that->context, that->image, that->allocation, that->imageView, that->widenessRatio);
+    that->imageView = VK_NULL_HANDLE;
+    that->image = VK_NULL_HANDLE;
+    return ret;
 }

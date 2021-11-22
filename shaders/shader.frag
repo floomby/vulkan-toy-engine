@@ -27,7 +27,6 @@ const float lightPower = 40.0;
 // const vec3 diffuseColor = vec3(0.5, 0.0, 0.0);
 const vec3 specColor = vec3(1.0, 1.0, 1.0);
 const float shininess = 16.0;
-const float screenGamma = 2.2; // Assume the monitor is calibrated to the sRGB color space (it should be almost all are)
 
 float map(float value, float min1, float max1, float min2, float max2) {
   return min2 + (value - min1) * (max2 - min2) / (max1 - min1);
@@ -77,7 +76,6 @@ float getShadow(vec3 ndc, uint pcfSize) {
     }
  
    return litCount / numSamples;
-
 
     // return texture(shadowMap, shadowMapCoord.xy).x;
 

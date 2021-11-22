@@ -66,7 +66,7 @@ class Engine;
 
 class TooltipResource : public Textured {
 public:
-    TooltipResource(Engine *context, uint height, uint width);
+    TooltipResource(Engine *context, uint height, uint width, bool destroyFence = true);
     ~TooltipResource();
     void writeDescriptor(VkDescriptorSet set);
 
@@ -75,16 +75,20 @@ public:
     TooltipResource& operator=(const TooltipResource& other) = delete;
     TooltipResource& operator=(TooltipResource&& other) noexcept = delete;
 
-    virtual void makeSampler();
-
     VkImage image;
     VmaAllocation allocation;
     VkFence fence;
 
     static VkSampler sampler_;
+
+    static GuiTexture toGuiTexture(std::unique_ptr<TooltipResource>&& TooltipResource);
 private:
+    bool destroyFence;
+    float widenessRatio;
     Engine *context;
 };
+
+typedef std::pair<std::function<void(void)>, VkFence> RunningCommandBuffer;
 
 class Engine {
     // Mmmm, tasty spahgetti
@@ -212,8 +216,11 @@ private:
     } mouseAction;
     bool wasZMoving = false;
     bool drawTooltip = false;
-    std::shared_ptr<TooltipResource> makeTooltip(const std::string& str);
-    std::shared_ptr<TooltipResource> tooltipResource;
+    std::vector<bool> tooltipDirty;
+    RunningCommandBuffer tooltipBuffer;
+    std::pair<RunningCommandBuffer, std::unique_ptr<TooltipResource>> makeTooltip(const std::string& str);
+    GuiTexture tooltipResource;
+    std::array<glm::vec2, 2> tooltipLocation;
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -535,11 +542,11 @@ public:
     CubeMap& operator=(CubeMap&& other) noexcept;
     ~CubeMap();
 
-    VkSampler textureSampler;
-    VkImageView textureImageView;
+    VkSampler sampler;
+    VkImageView imageView;
 private:
-    VkImage textureImage;
-    VmaAllocation textureAllocation;
+    VkImage image;
+    VmaAllocation allocation;
     Engine *context;
 };
 
@@ -665,7 +672,7 @@ struct TextureCreationData {
     unsigned char *pixels;
 };
 
-class EntityTexture {
+class EntityTexture : public Textured {
 public:
     int mipLevels, width, height, channels;
     
@@ -676,13 +683,9 @@ public:
     EntityTexture(EntityTexture&& other) noexcept;
     EntityTexture& operator=(EntityTexture&& other) noexcept;
     ~EntityTexture();
-
-    // I guess we need to make these public
-    VkSampler textureSampler;
-    VkImageView textureImageView;
 private:
-    VkImage textureImage;
-    VmaAllocation textureAllocation;
+    VkImage image;
+    VmaAllocation allocation;
     Engine *context;
     static bool compatabilityCheckCompleted;
     static bool supportsLinearBlitting_;
