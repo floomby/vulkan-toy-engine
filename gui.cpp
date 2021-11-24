@@ -510,7 +510,6 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
     }
     if (!tree->name.empty()) {
-        std::cout << "string is " << tree->name << std::endl;
         if (namedComponents.contains(tree->name)) {
             throw std::runtime_error("Component with this name already exists");
         }

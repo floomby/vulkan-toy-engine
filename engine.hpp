@@ -37,6 +37,7 @@ struct EngineSettings {
     const char *applicationName;
     bool verbose;
     bool extremelyVerbose;
+    bool rebuildFontCache;
 };
 
 struct LineUBO {
@@ -214,11 +215,10 @@ private:
     bool wasZMoving = false;
     bool drawTooltip = false;
     std::vector<bool> tooltipDirty;
-    uint64_t makeText(const std::string& str);
     GuiTexture tooltipResource, tooltipStillInUse;
     uint64_t tooltipJob = 0;
     std::array<glm::vec2, 2> tooltipLocation;
-    float setTooltip(std::string&& str);
+    void setTooltip(std::string&& str);
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -572,7 +572,7 @@ struct IndexWidthSSBO {
 // We won't cache control charecters as this makes no sense
 class GlyphCache {
 public:
-    GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted);
+    GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted, bool rebuildFontCache);
     ~GlyphCache();
 
     struct GlyphData {

@@ -1,12 +1,14 @@
 ## Next steps
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
- * Unit highlighting
+ * Unit highlighting shader improvement
  * Finish projectile stuff
  * gui - I still need some more components, but this seems really low priority right now
  * Finish the path following/steering code
  * Finish unit ais
  * I need to make teamcolors work (It takes doing the model textures slightly differently, alpha regions will correspond to the team color, the functionallity is there in the rendering code, but not it the shader yet)
  * Fix the order line drawing bug
+ * Font caching
+ * Figure out engine to lua messaging - Options are piggyback off the gui to lua messaging or do something else entirly new. (Something new seems preferable.)
 
 ## Considerations
  * I am linking to libpng now for freetype2, maybe I should stop using stbi

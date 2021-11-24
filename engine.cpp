@@ -24,6 +24,7 @@
 #include <fstream>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <locale>
 #include <numeric>
 #include <map>
@@ -2274,72 +2275,18 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
-// uint64_t Engine::makeText(const std::string& str) {
-//     uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
-
-//     auto ret = std::make_unique<TextResource>(this, glyphCache->height, width, autoDestroyFences);
-//     ret->writeDescriptor(computeSets[CP_SDF_BLIT]);
-
-//     auto buffer = beginSingleTimeCommands(guiCommandPool);
-
-//     VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-//     imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//     imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//     imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//     imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-//     imageMemoryBarrier.subresourceRange.levelCount = 1;
-//     imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-//     imageMemoryBarrier.subresourceRange.layerCount = 1;
-//     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//     // This seems wrong that we have to make it to general layout
-//     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-//     imageMemoryBarrier.image = ret->image;
-//     imageMemoryBarrier.srcAccessMask = 0;
-//     imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-
-//     vkCmdPipelineBarrier(
-//         buffer,
-//         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-//         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-//         0,
-//         0, nullptr,
-//         0, nullptr,
-//         1, &imageMemoryBarrier);
-
-//     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines[CP_SDF_BLIT]);
-//     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayouts[CP_SDF_BLIT], 0, 1, &computeSets[CP_SDF_BLIT], 0, nullptr);
-//     vkCmdDispatch(buffer, glyphCache->height, 1, 1);
-
-//     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//     imageMemoryBarrier.image = ret->image;
-//     imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-//     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-//     vkCmdPipelineBarrier(
-//         buffer,
-//         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-//         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-//         0,
-//         0, nullptr,
-//         0, nullptr,
-//         1, &imageMemoryBarrier);
-
-//     return {{ endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue]),  }, std::move(ret)};
-// }
-
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
     static int maxGlyphHeight;
 }
 
-float Engine::setTooltip(std::string&& str) {
+void Engine::setTooltip(std::string&& str) {
     assert(!tooltipJob);
-    float widenessRatio = (float)glyphCache->widthOf(str) / ((float)GuiTextures::maxGlyphHeight * 2.0f);
+    // float widenessRatio = (float)glyphCache->widthOf(str) / ((float)GuiTextures::maxGlyphHeight * 2.0f);
     ComputeOp op { ComputeKind::TEXT, new std::string(std::move(str)) };
     op.deleteData = true;
     tooltipJob = manager->submitJob(std::move(op));
-    return widenessRatio;
+    // return widenessRatio;
 }
 
 // So many silly lines of code in this function
@@ -2838,7 +2785,6 @@ void Engine::drawFrame() {
     if (tooltipJob) {
         ComputeOp op;
         if (manager->getJob(tooltipJob, op)) {
-            std::cout << "Getting tooltip to here" << std::endl;
             tooltipJob = 0;
             if (!tooltipResource.invalid) tooltipStillInUse = tooltipResource;
             // tooltipResource.~GuiTexture();
@@ -3018,7 +2964,7 @@ void Engine::runCurrentScene() {
     for (const auto& chr : converter.from_bytes(GuiTextures::glyphsToCache)) {
         glyphsToCache.push_back(chr);
     }
-    glyphCache = new GlyphCache(this, glyphsToCache);
+    glyphCache = new GlyphCache(this, glyphsToCache, engineSettings.rebuildFontCache);
     glyphCache->writeDescriptors(computeSets[CP_SDF_BLIT], 0);
 
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
@@ -5271,16 +5217,50 @@ template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, const std::
     }
 }
 
-GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted)
+GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted, bool rebuildFontCache)
 : context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2) {
     height = GuiTextures::maxGlyphHeight + 2 * bufferWidth;
+    struct FontCacheData {
+        char32_t glyph;
+        uint width, height, advance;
+    };
+
+    std::vector<char> cacheBuffer;
+    std::vector<std::pair<FontCacheData, std::vector<char>>> moreBuffers;
+    std::map<char32_t, std::pair<FontCacheData *, char *>> fontCache;
+    if (!rebuildFontCache && std::filesystem::exists("fontcache")) {
+        std::ifstream cacheData("fontcache", std::ios::binary);
+        cacheBuffer = std::vector<char>(std::istreambuf_iterator<char>(cacheData), {});
+
+        auto it = cacheBuffer.begin();
+        while (it != cacheBuffer.end()) {
+            auto fcd = (FontCacheData *)&*it;
+            // std::cout << std::hex << "Glyph: 0x" << (uint)fcd->glyph << std::dec << " - " << fcd->width << ":" << fcd->height << ":" << fcd->advance << std::endl;
+            advance(it, sizeof(FontCacheData));
+
+            fontCache.insert({ fcd->glyph, { fcd, &*it }});
+            advance(it, fcd->height * fcd->width);
+        }
+    }
+
     std::scoped_lock(GuiTextures::ftLock);
     memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
     defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth,
         GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
     defaultGlyph->makeComputable();
     uint index = 0;
+    bool fontCacheModified = false;
     for (const auto& glyphCode : glyphsWanted) {
+        if (fontCache.contains(glyphCode)) {
+            const auto& data = fontCache.at(glyphCode);
+            auto tex = GuiTexture(context, data.second, data.first->width, data.first->height, 1, data.first->width,
+                VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
+            tex.makeComputable();
+            glyphDatum.insert({ glyphCode, { data.first->advance, std::move(tex), index++ }});
+
+            continue;
+        }
+
         FT_Vector pen;
         pen.x = GuiTextures::maxGlyphHeight / 2;
         pen.y = GuiTextures::maxGlyphHeight / 2;
@@ -5313,6 +5293,14 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         }
         int imageWidth = pen.x + GuiTextures::maxGlyphHeight / 2;
 
+        fontCacheModified = true;
+        moreBuffers.push_back({{ glyphCode, (uint)imageWidth, height, uint(GuiTextures::face->glyph->advance.x >> 6) }, std::vector<char>(imageWidth * height) });
+        auto it = moreBuffers.rbegin()->second.begin();
+        for (int i = 0; i < height; i++) {
+            memcpy(&*it, (char *)GuiTextures::textTextureBuffer + i * GuiTextures::maxTextWidth, imageWidth);
+            advance(it, imageWidth);
+        }
+
         // stbi_write_png("glyph.png", GuiTextures::maxTextWidth, GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::textTextureBuffer, GuiTextures::maxTextWidth);
 
         // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
@@ -5323,6 +5311,19 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), std::move(tex), index++ }});
     }
     syncer = nullptr;
+
+    if (fontCacheModified) {
+        std::ofstream cacheData("fontcache", std::ios::binary | std::ios::trunc);
+        std::ostreambuf_iterator<char> writer(cacheData);
+        copy(cacheBuffer.begin(), cacheBuffer.end(), writer);
+        for (const auto& val : moreBuffers) {
+            for (int i = 0; i < sizeof(FontCacheData); i++) {
+                writer = *(((char *)&val.first) + i);
+                writer++;
+            }
+            copy(val.second.begin(), val.second.end(), writer);
+        }
+    }
 }
 
 void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
@@ -5676,6 +5677,8 @@ void ComputeManager::poll() {
                         }
                         break;
                     case ComputeKind::TERMINATE:
+                        // Think how to handle if the out queue still has stuff and we are termitating
+                        // (we should destroy objects in the queue that need to be destroyid)
                         running = false;
                         break;
                     default:

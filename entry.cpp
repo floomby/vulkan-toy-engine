@@ -14,6 +14,7 @@ int main(int argc, char **argv) {
         ("help", "Print help message")
         ("debug", "Enable extra debug options")
         ("use-one-queue", "Disable use of the transfer queue")
+        ("rebuild-font-cache", "Forcefuly rebuild the font cache")
     ;
 
     po::variables_map vm;
@@ -43,6 +44,7 @@ int main(int argc, char **argv) {
     } else {
         settings.validationExtentions = { };
     }
+    settings.rebuildFontCache = vm.count("rebuild-font-cache");
 
     try {
         run(settings);
