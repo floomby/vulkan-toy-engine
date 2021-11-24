@@ -16,7 +16,7 @@ class BindingGenerator
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
-    @@integers = ["uint32_t", "int", "unsigned int"]
+    @@integers = ["uint32_t", "int", "unsigned int", "bool"]
 
     def initialize(name, rettype, argtypes)
         @name = name

@@ -18,6 +18,7 @@
 
 #include <ostream>
 #include <string>
+#include <sstream>
 #include <vector>
 
 #include "libs/vk_mem_alloc.h"
@@ -119,23 +120,34 @@ namespace std {
         }
     };
 
-    inline ostream& operator<<(ostream& os, const glm::vec4& vec)
-    {
+    inline ostream& operator<<(ostream& os, const glm::vec4& vec) {
         os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z << " w:" << vec.w;
         return os;
     }
 
-    inline ostream& operator<<(ostream& os, const glm::vec3& vec)
-    {
+    inline ostream& operator<<(ostream& os, const glm::vec3& vec) {
         os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z;
         return os;
     }
 
-    inline ostream& operator<<(ostream& os, const glm::quat& qat)
-    {
+    inline ostream& operator<<(ostream& os, const glm::quat& qat) {
         os << " w:" << qat.w << "x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
         return os;
-        
+    }
+
+    inline ostringstream& operator<<(ostringstream& os, const glm::vec4& vec) {
+        os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z << " w:" << vec.w;
+        return os;
+    }
+
+    inline ostringstream& operator<<(ostringstream& os, const glm::vec3& vec) {
+        os << "x:" << vec.x << " y:" << vec.y << " z:" << vec.z;
+        return os;
+    }
+
+    inline ostringstream& operator<<(ostringstream& os, const glm::quat& qat) {
+        os << " w:" << qat.w << "x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
+        return os;
     }
 }
 

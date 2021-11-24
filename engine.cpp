@@ -22,6 +22,7 @@
 #include <csignal>
 #include <cstring>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <locale>
 #include <numeric>
@@ -2273,69 +2274,72 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
-std::pair<RunningCommandBuffer, std::unique_ptr<TextResource>> Engine::makeText(const std::string& str, bool autoDestroyFences) {
-    uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
+// uint64_t Engine::makeText(const std::string& str) {
+//     uint width = glyphCache->writeUBO((GlyphInfoUBO *)sdfUBOAllocation->GetMappedData(), str);
 
-    auto ret = std::make_unique<TextResource>(this, glyphCache->height, width, autoDestroyFences);
-    ret->writeDescriptor(computeSets[CP_SDF_BLIT]);
+//     auto ret = std::make_unique<TextResource>(this, glyphCache->height, width, autoDestroyFences);
+//     ret->writeDescriptor(computeSets[CP_SDF_BLIT]);
 
-    auto buffer = beginSingleTimeCommands(guiCommandPool);
+//     auto buffer = beginSingleTimeCommands(guiCommandPool);
 
-    VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-    imageMemoryBarrier.subresourceRange.levelCount = 1;
-    imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
-    imageMemoryBarrier.subresourceRange.layerCount = 1;
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    // This seems wrong that we have to make it to general layout
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    imageMemoryBarrier.image = ret->image;
-    imageMemoryBarrier.srcAccessMask = 0;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+//     VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+//     imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//     imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//     imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+//     imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+//     imageMemoryBarrier.subresourceRange.levelCount = 1;
+//     imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+//     imageMemoryBarrier.subresourceRange.layerCount = 1;
+//     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//     // This seems wrong that we have to make it to general layout
+//     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+//     imageMemoryBarrier.image = ret->image;
+//     imageMemoryBarrier.srcAccessMask = 0;
+//     imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
 
-    vkCmdPipelineBarrier(
-        buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &imageMemoryBarrier);
+//     vkCmdPipelineBarrier(
+//         buffer,
+//         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+//         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+//         0,
+//         0, nullptr,
+//         0, nullptr,
+//         1, &imageMemoryBarrier);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines[CP_SDF_BLIT]);
-    vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayouts[CP_SDF_BLIT], 0, 1, &computeSets[CP_SDF_BLIT], 0, nullptr);
-    vkCmdDispatch(buffer, glyphCache->height, 1, 1);
+//     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines[CP_SDF_BLIT]);
+//     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayouts[CP_SDF_BLIT], 0, 1, &computeSets[CP_SDF_BLIT], 0, nullptr);
+//     vkCmdDispatch(buffer, glyphCache->height, 1, 1);
 
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.image = ret->image;
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+//     imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+//     imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//     imageMemoryBarrier.image = ret->image;
+//     imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+//     imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-    vkCmdPipelineBarrier(
-        buffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &imageMemoryBarrier);
+//     vkCmdPipelineBarrier(
+//         buffer,
+//         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+//         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+//         0,
+//         0, nullptr,
+//         0, nullptr,
+//         1, &imageMemoryBarrier);
 
-    return {{ endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue, ret->fence), ret->fence }, std::move(ret)};
-}
+//     return {{ endSingleTimeCommands(buffer, guiCommandPool, guiGraphicsQueue]),  }, std::move(ret)};
+// }
 
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
+    static int maxGlyphHeight;
 }
 
-void Engine::setTooltip(const std::string& str) {
-    auto tt = makeText(str);
-    tooltipResource = TextResource::toGuiTexture(std::move(tt.second));
-    fill(tooltipDirty.begin(), tooltipDirty.end(), true);
-    tooltipBuffer = tt.first;
+float Engine::setTooltip(std::string&& str) {
+    assert(!tooltipJob);
+    float widenessRatio = (float)glyphCache->widthOf(str) / ((float)GuiTextures::maxGlyphHeight * 2.0f);
+    ComputeOp op { ComputeKind::TEXT, new std::string(std::move(str)) };
+    op.deleteData = true;
+    tooltipJob = manager->submitJob(std::move(op));
+    return widenessRatio;
 }
 
 // So many silly lines of code in this function
@@ -2371,6 +2375,10 @@ void Engine::handleInput() {
     lastMousePosition.normedX = mouseNormed.first;
     lastMousePosition.normedY = mouseNormed.second;
 
+    tooltipLocation[0] = { mouseNormed.first + 0.05, mouseNormed.second + 0.04 };
+    // whatever, just pick one
+    tooltipLocation[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipResource.widenessRatio, mouseNormed.second + 0.14 };
+
     // Do I want this?
     for (int i = 0; i < 8; i++) {
         if (mouseButtonsPressed[i]) {
@@ -2384,10 +2392,9 @@ void Engine::handleInput() {
 
             if (keyEvent.key == GLFW_KEY_I) {
                 // shadow.makeSnapshot = true;
-                setTooltip("Hi There!");
-                tooltipLocation[0] = { -0.2, -0.2 };
-                tooltipLocation[1] = { 0.2, 0.2 };
-                drawTooltip = true;
+                // setTooltip("Hi There!");
+                // drawTooltip = true;
+                // std::cout << "Width is " << glyphCache->widthOf("Fire") << std::endl;
             }
 
             if (keyEvent.key == GLFW_KEY_ESCAPE) {
@@ -2429,9 +2436,6 @@ void Engine::handleInput() {
                 // // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
                 // what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
                 // gui->submitCommand({ Gui::GUI_ADD, what2 });
-                GuiCommandData *what = new GuiCommandData();
-                what->str = "Hud";
-                gui->submitCommand({ Gui::GUI_LOAD, what });
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
@@ -2617,8 +2621,17 @@ void Engine::handleInput() {
     if(mousedOver) {
         // mousedOver->highlight() = true;
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
+        bool tooltipStatus = true;
+        for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
+        if (tooltipStatus) {
+            std::ostringstream tooltipText;
+            tooltipText << mousedOver->position;
+            if (!tooltipJob) setTooltip(tooltipText.str());
+        }
+        drawTooltip = true;
     } else {
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
+        drawTooltip = false;
         if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
             cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
         }// else {
@@ -2822,25 +2835,23 @@ void Engine::drawFrame() {
         rewriteHudDescriptors(currentFrame);
     }
 
-    if (drawTooltip && tooltipDirty[currentFrame]) {
-        if (*tooltipDirty.rbegin()) {
-            if (vkWaitForFences(device, 1, &tooltipBuffer.second, VK_TRUE, 0) == VK_SUCCESS) {
-                *tooltipDirty.rbegin() = false;
-                tooltipBuffer.first();
-                vkDestroyFence(device, tooltipBuffer.second, nullptr);
-                setTooltipTexture(currentFrame, tooltipResource);
-                tooltipDirty[currentFrame] = false;
-            }
-        } else {
+    if (tooltipJob) {
+        ComputeOp op;
+        if (manager->getJob(tooltipJob, op)) {
+            std::cout << "Getting tooltip to here" << std::endl;
+            tooltipJob = 0;
+            if (!tooltipResource.invalid) tooltipStillInUse = tooltipResource;
+            // tooltipResource.~GuiTexture();
+            tooltipResource = std::move(*reinterpret_cast<GuiTexture *>(op.data));
+            delete reinterpret_cast<GuiTexture *>(op.data);
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
-            if (tooltipStillInUse != tooltipResource) {
-                bool allClean = true;
-                for (int i = 0; i < concurrentFrames; i++) {
-                    if (tooltipDirty[i]) allClean = false;
-                }
-                if (allClean) tooltipStillInUse = tooltipResource;
-            }
+            for (int i = 0; i < concurrentFrames; i++) if (i != currentFrame) tooltipDirty[i] = true;
+        }
+    } else {
+        if (tooltipDirty[currentFrame]) {
+            setTooltipTexture(currentFrame, tooltipResource);
+            tooltipDirty[currentFrame] = false;
         }
     }
 
@@ -3000,6 +3011,8 @@ void Engine::runCurrentScene() {
     lua = new LuaWrapper(true);
     lua->apiExport();
 
+    manager = new ComputeManager(this);
+
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
     std::vector<char32_t> glyphsToCache;
     for (const auto& chr : converter.from_bytes(GuiTextures::glyphsToCache)) {
@@ -3011,7 +3024,7 @@ void Engine::runCurrentScene() {
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
     currentScene->initUnitAIs(lua, "unitai");
 
-    // we need to get stuff for the first frame on the device
+    // we need to get stuff for the first frame so we don't crash
     currentScene->updateUniforms(0);
     auto bufRet = gui->updateBuffer();
     hudVertexCount = get<0>(bufRet);
@@ -3032,12 +3045,25 @@ void Engine::runCurrentScene() {
     gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
     gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
 
-    tooltipDirty.resize(concurrentFrames + 1);
+    tooltipDirty.resize(concurrentFrames);
     for (int i = 0; i < concurrentFrames; i++) {
         tooltipDirty[i] = false;
         setTooltipTexture(i, *GuiTextures::defaultTexture);
     }
-    tooltipDirty[concurrentFrames] = false;
+    // tooltipDirty[concurrentFrames] = false;
+
+    // Adding ui panels from lua is not thread safe. (It requires exclusive access of the lua stack).
+    // This that they are added before any other lua stuff runs
+    assert(std::filesystem::exists("hud.lua"));
+    GuiCommandData *what = new GuiCommandData();
+    what->str = "Hud";
+    what->flags = GUIF_INDEX;
+    gui->submitCommand({ Gui::GUI_LOAD, what });
+    GuiCommandData *what2 = new GuiCommandData();
+    what2->str = "Hud";
+    what2->action = GUIA_VISIBLE;
+    what2->flags = GUIF_PANEL_NAME;
+    gui->submitCommand({ Gui::GUI_VISIBILITY, what2 });
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -3522,7 +3548,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     uint guiVertexCountToDraw;
     if (!guiOutOfDate) {
         guiVertexCountToDraw = hudVertexCount;
-        if (!(drawTooltip && !tooltipDirty[index])) {
+        if (!drawTooltip) {
             gui->pushConstant.tooltipBox[0] = { 0.0f, 0.0f };
             gui->pushConstant.tooltipBox[1] = { 0.0f, 0.0f };
         } else {
@@ -3530,7 +3556,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             gui->pushConstant.tooltipBox[1] = tooltipLocation[1];
         }
     } else {
-        if (!(drawTooltip && !tooltipDirty[index])) {
+        if (!drawTooltip) {
             guiVertexCountToDraw = Gui::dummyVertexCount - 6;
         } else {
             gui->pushConstant.tooltipBox[0] = tooltipLocation[0];
@@ -3599,7 +3625,7 @@ void Engine::recreateSwapChain() {
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
 
     drawTooltip = false;
-    for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *GuiTextures::defaultTexture);
+    // for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *GuiTextures::defaultTexture);
 }
 
 void Engine::cleanupSwapChain() {
@@ -3685,6 +3711,8 @@ Engine::~Engine() {
     delete GuiTextures::defaultTexture;
     delete gui;
     delete glyphCache;
+    delete manager;
+    // Hmmmm.......
     tooltipResource.~GuiTexture();
     tooltipStillInUse.~GuiTexture();
     delete lua;
@@ -4847,7 +4875,6 @@ namespace GuiTextures {
     static std::map<VkImage, uint> references = {};
     static FT_Library library;
     static FT_Face face;
-    static int maxGlyphHeight;
     static Engine *context;
 }
 
@@ -5043,7 +5070,7 @@ image(other.image), context(other.context), allocation(other.allocation)
     assert(!other.invalid);
     imageView = other.imageView;
     sampler = other.sampler;
-    GuiTextures::references[image]++;
+    other.invalid = true;
 }
 
 GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
@@ -5330,7 +5357,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 }
 
 // returns the width of the needed buffer
-uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str) {
+uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str, bool cacheWidth) {
     uint width = 0;
     auto wstr = converter.from_bytes(str);
     int index = 0;
@@ -5354,6 +5381,30 @@ uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str) {
 
     syncer->sync();
 
+    if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
+    return width + 2 * bufferWidth;
+}
+
+uint GlyphCache::widthOf(const std::string& str, bool cacheWidth) {
+    if (cacheWidth && cachedWidths.contains(str)) {
+        return cachedWidths[str];
+    }
+
+    uint width = 0;
+    auto wstr = converter.from_bytes(str);
+    int index = 0;
+    for (const auto& chr : wstr) {
+        if (!glyphDatum.contains(chr)) {
+            std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
+            // TODO continuing is not the correct behavior, priting an error character should be correct
+            continue;
+        }
+        const auto& data = glyphDatum.at(chr);
+        width += data.width;
+        index++;
+    }
+
+    if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
     return width + 2 * bufferWidth;
 }
 
@@ -5362,8 +5413,8 @@ GlyphCache::~GlyphCache() {
     delete syncer;
 }
 
-TextResource::TextResource(Engine *context, uint height, uint width, bool destroyFence)
-: Textured(), context(context), widenessRatio((float)width / height), destroyFence(destroyFence) {
+TextResource::TextResource(Engine *context, uint height, uint width)
+: Textured(), context(context), widenessRatio((float)width / height) {
     VkDeviceSize imageSize = width * height;
 
     VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
@@ -5400,18 +5451,12 @@ TextResource::TextResource(Engine *context, uint height, uint width, bool destro
     imageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &imageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    VkFenceCreateInfo fenceInfo {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-    vulkanErrorGuard(vkCreateFence(context->device, &fenceInfo, nullptr, &fence), "Failed to create tooltip fence.");
-
     sampler = TextResource::sampler_;
 }
 
 TextResource::~TextResource() {
     if (imageView) vkDestroyImageView(context->device, imageView, nullptr);
     if (image) vmaDestroyImage(context->memoryAllocator, image, allocation);
-    if (destroyFence) vkDestroyFence(context->device, fence, nullptr);
 }
 
 void TextResource::writeDescriptor(VkDescriptorSet set) {
@@ -5483,10 +5528,162 @@ GuiTexture TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResour
     return ret;
 }
 
+// This blocks until completion (Do not use in the render thread!)
 GuiTexture GlyphCache::makeGuiTexture(const std::string& str) {
-    auto tr = context->makeText(str, true);
-    auto ret = TextResource::toGuiTexture(std::move(tr.second));
-    vkWaitForFences(context->device, 1, &tr.first.second, VK_TRUE, UINT64_MAX);
-    tr.first.first();
-    return ret;
+    ComputeOp op, done;
+    op.kind = ComputeKind::TEXT;
+    op.data = (void *)&str;
+    auto id = context->manager->submitJob(std::move(op));
+    while (true) {
+        if (context->manager->getJob(id, done)) {
+            auto ret = GuiTexture(std::move(*reinterpret_cast<GuiTexture *>(done.data)));
+            delete reinterpret_cast<GuiTexture *>(done.data);
+            return ret;
+        }
+        std::this_thread::yield();
+    }
+}
+
+ComputeManager::ComputeManager(Engine *context)
+: context(context) {
+    VkFenceCreateInfo fenceInfo {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+    vulkanErrorGuard(vkCreateFence(context->device, &fenceInfo, nullptr, &fence), "Failed to create compute fence.");
+
+    computeThread = std::thread(&ComputeManager::poll, this);
+}
+
+ComputeManager::~ComputeManager() {
+    submitJob({ ComputeKind::TERMINATE });
+    std::cout << "Waiting to join compute thread..." << std::endl;
+    computeThread.join();
+    vkDestroyFence(context->device, fence, nullptr);
+}
+
+uint64_t ComputeManager::submitJob(ComputeOp&& op) {
+    static std::atomic<int> id;
+    op.id = id;
+    std::scoped_lock(inLock);
+    inQueue.push(op);
+    return id++;
+}
+
+bool ComputeManager::getJob(uint64_t id, ComputeOp& op) {
+    std::scoped_lock(outLock);
+    for (auto it = outList.begin(); it != outList.end(); it++) {
+        if (it->id == id) {
+            op = *it;
+            outList.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+// TODO This needs to be refactored to make the concerns of the actual compute stuff seperate from the function
+void ComputeManager::poll() {
+    bool running = true;
+    ComputeOp op, *runningOp = nullptr;
+    std::unique_ptr<TextResource> textResource;
+    while (running) {
+        if (runningOp && vkWaitForFences(context->device, 1, &fence, VK_TRUE, 0) == VK_SUCCESS) {
+            ComputeOp result;
+            switch (op.kind) {
+                case ComputeKind::TEXT:
+                    result.kind = ComputeKind::TEXT;
+                    result.data = new GuiTexture(TextResource::toGuiTexture(std::move(textResource)));
+                    result.id = op.id;
+                    outLock.lock();
+                    outList.push_back(std::move(result));
+                    outLock.unlock();
+                    break;
+                default:
+                    break;
+            }
+            bufferFreer();
+            vkResetFences(context->device, 1, &fence);
+            runningOp = nullptr;
+        } else if (runningOp) {
+            std::this_thread::yield();
+            continue;
+        } else if (!runningOp) {
+            inLock.lock();
+            if (!inQueue.empty()) {
+                op = inQueue.front();
+                inQueue.pop();
+                inLock.unlock();
+
+                switch (op.kind) {
+                    case ComputeKind::TEXT:
+                        {
+                            uint width = context->glyphCache->writeUBO((GlyphInfoUBO *)context->sdfUBOAllocation->GetMappedData(), *reinterpret_cast<std::string *>(op.data));
+
+                            textResource = std::make_unique<TextResource>(context, context->glyphCache->height, width);
+                            textResource->writeDescriptor(context->computeSets[Engine::CP_SDF_BLIT]);
+                            
+                            auto buffer = context->beginSingleTimeCommands(context->guiCommandPool);
+
+                            VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+                            imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                            imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                            imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+                            imageMemoryBarrier.subresourceRange.levelCount = 1;
+                            imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+                            imageMemoryBarrier.subresourceRange.layerCount = 1;
+                            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                            // This seems wrong that we have to make it to general layout
+                            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+                            imageMemoryBarrier.image = textResource->image;
+                            imageMemoryBarrier.srcAccessMask = 0;
+                            imageMemoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+
+                            vkCmdPipelineBarrier(
+                                buffer,
+                                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                0,
+                                0, nullptr,
+                                0, nullptr,
+                                1, &imageMemoryBarrier);
+
+                            vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, context->computePipelines[Engine::CP_SDF_BLIT]);
+                            vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, context->computePipelineLayouts[Engine::CP_SDF_BLIT], 0, 1,
+                                &context->computeSets[Engine::CP_SDF_BLIT], 0, nullptr);
+                            vkCmdDispatch(buffer, context->glyphCache->height, 1, 1);
+
+                            imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                            imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                            imageMemoryBarrier.image = textResource->image;
+                            imageMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+                            imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+                            vkCmdPipelineBarrier(
+                                buffer,
+                                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                0,
+                                0, nullptr,
+                                0, nullptr,
+                                1, &imageMemoryBarrier);
+
+
+                            bufferFreer = context->endSingleTimeCommands(buffer, context->guiCommandPool, context->guiGraphicsQueue, fence);
+                            runningOp = &op;
+
+                            if (op.deleteData) delete reinterpret_cast<std::string *>(op.data);
+                        }
+                        break;
+                    case ComputeKind::TERMINATE:
+                        running = false;
+                        break;
+                    default:
+                        break;
+                }
+
+            }
+            inLock.unlock();
+        }
+    }
 }

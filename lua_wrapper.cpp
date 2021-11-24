@@ -72,6 +72,19 @@ std::string LuaWrapper::getStringField(const char *key) {
     return std::string(s);
 }
 
+void LuaWrapper::getStringField(const char *key, std::string& str) {
+    lua_pushstring(luaState, key);
+    lua_gettable(luaState, -2);
+    if (!lua_isstring(luaState, -1)) {
+        lua_pop(luaState, 1);
+        return;
+    }
+    const char *s = lua_tostring(luaState, -1);
+    size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
+    lua_pop(luaState, 1);
+    str = s;
+}
+
 GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     std::string filename = std::string(name);
     std::transform(filename.begin(), filename.end(), filename.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -100,6 +113,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     if (ret->kind == GuiLayoutType::TEXT_BUTTON) {
         ret->text = getStringField("text");
     }
+    getStringField("name", ret->name);
     int pushedHandlerCount = 0;
     if (getFunctionField("onClick")) {
         ret->handlers.insert({ "onClick", lua_gettop(luaState) - 1 - handlerOffset});

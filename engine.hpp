@@ -26,6 +26,7 @@
 
 class Scene;
 class GlyphCache;
+class ComputeManager;
 
 struct EngineSettings {
     bool useConcurrentTransferQueue;
@@ -63,7 +64,7 @@ class Engine;
 
 class TextResource : public Textured {
 public:
-    TextResource(Engine *context, uint height, uint width, bool destroyFence = true);
+    TextResource(Engine *context, uint height, uint width);
     ~TextResource();
     void writeDescriptor(VkDescriptorSet set);
 
@@ -74,18 +75,14 @@ public:
 
     VkImage image;
     VmaAllocation allocation;
-    VkFence fence;
 
     static VkSampler sampler_;
 
     static GuiTexture toGuiTexture(std::unique_ptr<TextResource>&& textResource);
 private:
-    bool destroyFence;
     float widenessRatio;
     Engine *context;
 };
-
-typedef std::pair<std::function<void(void)>, VkFence> RunningCommandBuffer;
 
 class Engine {
     // Mmmm, tasty spahgetti
@@ -96,6 +93,7 @@ class Engine {
     friend class Api;
     friend class GlyphCache;
     friend class TextResource;
+    friend class ComputeManager;
 
     friend class DynUBOSyncer<UniformBufferObject>;
     friend class DynUBOSyncer<LineUBO>;
@@ -216,12 +214,11 @@ private:
     bool wasZMoving = false;
     bool drawTooltip = false;
     std::vector<bool> tooltipDirty;
-    RunningCommandBuffer tooltipBuffer;
-    std::pair<RunningCommandBuffer, std::unique_ptr<TextResource>> makeText(const std::string& str, bool autoDestroyFences = false);
+    uint64_t makeText(const std::string& str);
     GuiTexture tooltipResource, tooltipStillInUse;
+    uint64_t tooltipJob = 0;
     std::array<glm::vec2, 2> tooltipLocation;
-    void setTooltip(const std::string& str);
-
+    float setTooltip(std::string&& str);
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;
@@ -531,6 +528,7 @@ private:
     void doShadowDebugWrite();
 
     LuaWrapper *lua;
+    ComputeManager *manager;
 };
 
 class CubeMap {
@@ -587,8 +585,11 @@ public:
     uint height;
 
     void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
-    uint writeUBO(GlyphInfoUBO *buffer, const std::string& str);
+    uint writeUBO(GlyphInfoUBO *buffer, const std::string& str, bool cacheWidth = false);
+    uint widthOf(const std::string& str, bool cacheWidth = false);
 
+    // I don't know if I want to cache widths or not
+    std::map<std::string, uint> cachedWidths;
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
     // This is blocking
     GuiTexture makeGuiTexture(const std::string& str);
@@ -859,4 +860,36 @@ private:
     size_t currentSize;
     VkBuffer buffer;
     VmaAllocation bufferAllocation;
+};
+
+enum class ComputeKind {
+    TEXT,
+    TERMINATE
+};
+
+struct ComputeOp {
+    ComputeKind kind;
+    void *data;
+    uint64_t id;
+    bool deleteData = false;
+};
+
+class ComputeManager {
+public:
+    ComputeManager(Engine *context);
+    ~ComputeManager();
+
+    uint64_t submitJob(ComputeOp&& op);
+    bool getJob(uint64_t id, ComputeOp& op);
+
+private:
+    Engine *context;
+    std::mutex inLock, outLock;
+    std::queue<ComputeOp> inQueue;
+    std::list<ComputeOp> outList;
+    std::thread computeThread;
+    VkFence fence;
+    std::function<void(void)> bufferFreer;
+
+    void poll();
 };

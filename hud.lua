@@ -9,6 +9,10 @@ local function click()
     end
 end
 
+local function thing()
+    gui_setVisibility("broken", 0)
+end
+
 local function centerSelected()
     print("You need to make the api bindings")
 end
@@ -40,14 +44,14 @@ Hud = {
         --     color = 0x000000ff,
         -- },
         {
-            x = 0.7,
+            x = -0.9,
             y = 0.75,
             width = 0.5,
             height = 0.1,
-            onClick = click,
+            onClick = thing,
             kind = GuiLayoutType__TEXT_BUTTON,
             text = "Click!!!",
-            color = 0x800000ff,
+            color = 0x101080ff,
             -- children = {}
         },
         {
@@ -60,6 +64,7 @@ Hud = {
             text = "Fire",
             color = 0x000000ff,
             -- children = {}
+            name = "broken",
         }
     }
 }

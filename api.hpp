@@ -14,7 +14,8 @@ enum class InsertionMode {
     COUNT
 };
 
-// I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace 
+// I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace
+// The other thing is everything here is reentrant
 class Api {
 public:
     Api() = delete;
@@ -32,4 +33,5 @@ public:
     // static std::vector<Instance *> eng_getSelectedInstances();
     static std::vector<uint32_t> eng_getSelectedInstances();
     static int eng_getTeamID(uint32_t unitID);
+    static void gui_setVisibility(const char *name, bool visibility);
 };

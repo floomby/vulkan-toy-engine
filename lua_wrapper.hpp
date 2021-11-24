@@ -50,6 +50,7 @@ struct GuiLayoutNode {
     std::map<std::string, int> handlers;
     std::string text;
     uint32_t color;
+    std::string name;
 };
 
 #include <iostream>
@@ -89,6 +90,7 @@ private:
     double getNumberField(const char *key);
     bool getFunctionField(const char *key);
     std::string getStringField(const char *key);
+    void getStringField(const char *key, std::string& str);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
     lua_State *luaState;
 

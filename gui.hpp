@@ -4,6 +4,7 @@
 #include "utilities.hpp"
 #include "lua_wrapper.hpp"
 
+#include <boost/lockfree/queue.hpp>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <chrono>
 #include <map>
@@ -13,6 +14,13 @@
 
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
+
+#define GUIF_INDEX      1U
+#define GUIF_NAMED      2U
+#define GUIF_PANEL_NAME 3U
+
+#define GUIA_INVISIBLE  0U
+#define GUIA_VISIBLE    1U
 
 struct GuiVertex {
     glm::vec3 pos;
@@ -171,6 +179,7 @@ public:
     uint32_t allContaining(std::vector<GuiComponent *>& acm, float x, float y, std::pair<int, int>& idMaxLayer);
     int layer;
     uint32_t renderMode;
+    bool visible = true;
 
     virtual void click(float x, float y);
     uint32_t id, activeTexture = 0;
@@ -282,6 +291,8 @@ public:
         GUI_RESIZE,
         GUI_CLICK,
         GUI_LOAD,
+        GUI_VISIBILITY,
+        // GUI_NOTIFY,
         GUI_TERMINATE
     };
 
@@ -307,7 +318,7 @@ public:
         GuiMessageData *data;
     };
 
-    void submitCommand(GuiCommand command);
+    void submitCommand(GuiCommand&& command);
     boost::lockfree::spsc_queue<GuiMessage, boost::lockfree::capacity<1024>> guiMessages;
 
     static const uint dummyCompomentCount = 3;
@@ -321,14 +332,17 @@ public:
     void rebuildBuffer();
 
     GuiComponent *fromFile(std::string name, int baseLayer);
+    std::map<std::string, GuiComponent *> panels;
+    std::map<std::string, GuiComponent *> namedComponents;
     LuaWrapper *lua;
     Engine *context;
 private:
     std::thread guiThread;
-    boost::lockfree::spsc_queue<GuiCommand, boost::lockfree::capacity<1024>> guiCommands;
+    std::queue<GuiCommand> guiCommands;
 
     // std::mutex constantMutex;
     std::mutex dataMutex;
+    std::mutex queueLock;
     std::map<uint32_t, uint> idToBuffer;
     std::vector<GuiVertex> vertices;
     std::vector<GuiTexture *> textures;

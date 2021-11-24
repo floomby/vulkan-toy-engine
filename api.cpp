@@ -99,3 +99,11 @@ int Api::eng_getTeamID(uint32_t unitID) {
     if (it == context->authState.instances.end() || *it == unitID) return -1;
     return it->id;
 }
+
+void Api::gui_setVisibility(const char *name, bool visibility) {
+    GuiCommandData *what = new GuiCommandData();
+    what->str = name;
+    what->action = visibility;
+    what->flags = GUIF_NAMED;
+    context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
+}

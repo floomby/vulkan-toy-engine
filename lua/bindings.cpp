@@ -177,6 +177,20 @@ static void eng_getTeamIDExport(lua_State *ls) {
     lua_setglobal(ls, "eng_getTeamID");
 }
 
+static int gui_setVisibilityWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    luaL_checkinteger(ls, 2);
+    auto a1 = (bool)lua_tointeger(ls, 2);
+    Api::gui_setVisibility(a0, a1);
+    return 0;
+}
+
+static void gui_setVisibilityExport(lua_State *ls) {
+    lua_pushcfunction(ls, gui_setVisibilityWrapper);
+    lua_setglobal(ls, "gui_setVisibility");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -187,4 +201,5 @@ void LuaWrapper::apiExport() {
     cmd_setTargetLocationExport(luaState);
     eng_getSelectedInstancesExport(luaState);
     eng_getTeamIDExport(luaState);
+    gui_setVisibilityExport(luaState);
 }

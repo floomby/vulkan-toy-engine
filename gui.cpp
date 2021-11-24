@@ -32,6 +32,7 @@ lua(lua) {
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
     lua->exportEnumToLua<GuiLayoutType>();
+    root->parent = nullptr;
 }
 
 Gui::~Gui() {
@@ -99,7 +100,8 @@ void Gui::setCursorID(uint32_t id) {
     pushConstant.guiID = id;
 }
 
-void Gui::submitCommand(GuiCommand command) {
+void Gui::submitCommand(GuiCommand&& command) {
+    std::scoped_lock(queueLock);
     guiCommands.push(command);
 }
 
@@ -108,17 +110,43 @@ void Gui::pollChanges() {
     while(!terminate) {
         // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         bool changed = false;
-        GuiCommand command;
-        while(guiCommands.pop(command)) {
+        queueLock.lock();
+        while(!guiCommands.empty()) {
+            GuiCommand& command = guiCommands.front();
+            guiCommands.pop();
+            queueLock.unlock();
             if(command.action == GUI_TERMINATE) {
                 terminate = true;
                 break;
             } else if (command.action == GUI_ADD) {
-                changed = true;
+                if (command.data->flags == GUIF_INDEX) {
+                    root->addComponent(command.data->childIndices, command.data->component);
+                    changed = true;
                 // data.insert(data.end(), command.data->component->vertices.begin(), command.data->component->vertices.end());
-                root->addComponent(command.data->childIndices, command.data->component);
+                } else if (command.data->flags == GUIF_NAMED) {
+                    if (namedComponents.contains(command.data->str)) {
+                        auto comp = namedComponents.at(command.data->str);
+                        comp->addComponent({}, command.data->component);
+                        changed = true;
+                    } else {
+                        std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                    }
+                }
                 delete command.data;
             } else if (command.action == GUI_REMOVE) {
+                if (command.data->flags == GUIF_INDEX) {
+                    root->removeComponent(command.data->childIndices);
+                    changed = true;
+                // data.insert(data.end(), command.data->component->vertices.begin(), command.data->component->vertices.end());
+                } else if (command.data->flags == GUIF_NAMED) {
+                    if (namedComponents.contains(command.data->str)) {
+                        auto comp = namedComponents.at(command.data->str);
+                        comp->removeComponent(command.data->childIndices);
+                        changed = true;
+                    } else {
+                        std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                    }
+                }
                 changed = true;
                 root->removeComponent(command.data->childIndices);
                 delete command.data;
@@ -133,15 +161,55 @@ void Gui::pollChanges() {
             } else if (command.action == GUI_LOAD) {
                 try {
                     // fromFile(command.data->str);
-                    root->addComponent(command.data->childIndices, fromFile(command.data->str, root->getComponent(command.data->childIndices)->layer + 1));
+                    if (command.data->flags == GUIF_INDEX) {
+                        root->addComponent(command.data->childIndices, fromFile(command.data->str, root->getComponent(command.data->childIndices)->layer + 1));
+                    } else if (command.data->flags == GUIF_NAMED) {
+                        if (namedComponents.contains(command.data->str)) {
+                            auto comp = namedComponents.at(command.data->str);
+                            comp->addComponent({}, fromFile(command.data->str, comp->layer + 1));
+                        } else {
+                            std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                        }
+                    }
                 } catch (const std::exception& e) {
                     std::cerr << e.what() << std::endl;
                     // I may need to clean up the state in the lua_State "object"
                 }
                 changed = true;
                 delete command.data;
+            } else if (command.action == GUI_VISIBILITY) {
+                if (command.data->flags == GUIF_INDEX) {
+                    auto comp = root->getComponent(command.data->childIndices);
+                    if (comp->visible != (bool)command.data->action) {
+                        comp->visible = (bool)command.data->action;
+                        changed = true;
+                    }
+                } else if (command.data->flags == GUIF_NAMED) {
+                    if (namedComponents.contains(command.data->str)) {
+                        auto comp = namedComponents.at(command.data->str);
+                        if (comp->visible != (bool)command.data->action) {
+                            comp->visible = (bool)command.data->action;
+                            changed = true;
+                        }
+                    } else {
+                        std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                    }
+                } else if (command.data->flags == GUIF_PANEL_NAME) {
+                    if (panels.contains(command.data->str)) {
+                        auto comp = panels.at(command.data->str);
+                        if (comp->visible != (bool)command.data->action) {
+                            comp->visible = (bool)command.data->action;
+                            changed = true;
+                        }
+                    } else {
+                        std::cerr << "Unable to find panel " << command.data->str << std::endl;
+                    }
+                }
+                delete command.data;
             }
+            queueLock.lock();
         }
+        queueLock.unlock();
         if (changed) {
             rebuildBuffer();
         }
@@ -286,6 +354,12 @@ void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *co
 
 void GuiComponent::removeComponent(std::queue<uint>& childIndices) {
     // This is fine, you should never delete the root
+    if (childIndices.empty() && parent) {
+        parent->children.erase(std::remove(parent->children.begin(), parent->children.end(), this), parent->children.end());
+        delete this;
+        return;
+    }
+
     int index = childIndices.front();
     childIndices.pop();
 
@@ -371,12 +445,14 @@ void GuiComponent::click(float x, float y) {
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index) {
     if (dynamicNDC) resizeVertices();
 
-    acm.insert(acm.end(), vertices.begin(), vertices.end());
-    indexMap.insert({ id, index });
-    index++;
+    if (visible) {
+        acm.insert(acm.end(), vertices.begin(), vertices.end());
+        indexMap.insert({ id, index });
+        index++;
 
-    for(const auto child : children)
-        child->buildVertexBuffer(acm, indexMap, index);
+        for(const auto child : children)
+            child->buildVertexBuffer(acm, indexMap, index);
+    }
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
@@ -414,7 +490,10 @@ void GuiLabel::resizeVertices() {
 
 GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
     auto tree = lua->loadGuiFile(name.c_str());
-    return fromLayout(tree, baseLayer);
+    auto ret = fromLayout(tree, baseLayer);
+    panels.insert({ name, ret });
+    ret->visible = false;
+    return ret;
 }
 
 GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
@@ -429,6 +508,13 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
+    }
+    if (!tree->name.empty()) {
+        std::cout << "string is " << tree->name << std::endl;
+        if (namedComponents.contains(tree->name)) {
+            throw std::runtime_error("Component with this name already exists");
+        }
+        namedComponents.insert({ tree->name, ret });
     }
     ret->children.reserve(tree->children.size());
     for (auto& child : tree->children) {
