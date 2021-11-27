@@ -2135,7 +2135,7 @@ uint32_t Gui::idUnderPoint(float x, float y) {
     return ret;
 }
 
-void Gui::rebuildBuffer() {
+void Gui::rebuildBuffer(bool texturesDirty) {
     std::vector<GuiTexture *> buildingTextures;
     int idx = 0;
     std::vector<GuiVertex> buildingVertices;
@@ -2149,6 +2149,7 @@ void Gui::rebuildBuffer() {
     vertices = buildingVertices;
 
     std::scoped_lock lock(dataMutex);
+    needTextureSync = texturesDirty;
     textures = buildingTextures;
     idToBuffer = componentIdToBufferMap;
     usedSizes[whichBuffer] = Gui::dummyVertexCount + vertices.size();
@@ -3297,8 +3298,13 @@ void Engine::rewriteHudDescriptors(int index) {
 void Engine::setTooltipTexture(int index, const Textured& texture) {
     VkDescriptorImageInfo tooltipTextureInfo;
     tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    tooltipTextureInfo.imageView = texture.imageView;
-    tooltipTextureInfo.sampler = texture.sampler;
+    if (texture.imageView) {
+        tooltipTextureInfo.imageView = texture.imageView;
+        tooltipTextureInfo.sampler = texture.sampler;
+    } else {
+        tooltipTextureInfo.imageView = GuiTextures::defaultTexture->imageView;
+        tooltipTextureInfo.sampler = GuiTextures::defaultTexture->sampler;
+    }
 
     VkWriteDescriptorSet descriptorWrite {};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3570,6 +3576,7 @@ void Engine::recreateSwapChain() {
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
 
     drawTooltip = false;
+    for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, tooltipResource);
     // for (int i = 0; i < concurrentFrames; i++) setTooltipTexture(i, *GuiTextures::defaultTexture);
 }
 
@@ -5044,7 +5051,7 @@ bool GuiTexture::operator==(const GuiTexture& other) const {
     return image == other.image;
 }
 
-ResourceID GuiTexture::resourceID() {
+ResourceID GuiTexture::resourceID() const {
     return image;
 }
 

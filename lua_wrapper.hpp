@@ -49,9 +49,10 @@ struct GuiLayoutNode {
     GuiLayoutKind kind;
     std::vector<GuiLayoutNode *> children;
     std::map<std::string, int> handlers;
-    std::string text;
+    std::string text;   // I guess do this like imageStates as well
     uint32_t color;
     std::string name;
+    std::vector<std::string> imageStates;
 };
 
 #include <iostream>
@@ -114,9 +115,10 @@ public:
 private:
     void error(const char *fmt, ...);
     double getNumberField(const char *key);
-    bool getFunctionField(const char *key);
+    bool getFunctionField(const char *key, int pos = 0);
     std::string getStringField(const char *key);
     void getStringField(const char *key, std::string& str);
+    void getStringsField(const char *key, std::vector<std::string>& strs);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
     lua_State *luaState;
 

@@ -50,7 +50,10 @@ Gui::~Gui() {
 // maxCount is for the size of the buffer (maybe I should just feed in the alloction so I can know the size, but this breaks encapsulation)
 std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     std::scoped_lock lock(dataMutex);
-    root->textures[0].syncTexturesToGPU(textures);
+    if (needTextureSync) {
+        root->textures[0].syncTexturesToGPU(textures);
+        needTextureSync = false;
+    }
     rebuilt = false;
     return { usedSizes[whichBuffer], idToBuffer, gpuBuffers[whichBuffer] };
 }
@@ -110,7 +113,7 @@ void Gui::pollChanges() {
     bool terminate = false;
     while(!terminate) {
         // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
-        bool changed = false;
+        changed = false;
         queueLock.lock();
         while(!guiCommands.empty()) {
             GuiCommand& command = guiCommands.front();
@@ -157,7 +160,7 @@ void Gui::pollChanges() {
                 width = command.data->size.width.asInt;
                 delete command.data;
             } else if (command.action == GUI_CLICK) {
-                idLookup.at(command.data->id)->click(command.data->position.x.asFloat, command.data->position.y.asFloat);
+                idLookup.at(command.data->id)->click(command.data->position.x.asFloat, command.data->position.y.asFloat, command.data->flags);
                 delete command.data;
             } else if (command.action == GUI_LOAD) {
                 try {
@@ -212,7 +215,8 @@ void Gui::pollChanges() {
         }
         queueLock.unlock();
         if (changed) {
-            rebuildBuffer();
+            rebuildBuffer(guiThreadNeedTextureSync);
+            guiThreadNeedTextureSync = false;
         }
         // std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
         // std::this_thread::sleep_for(pollInterval - (done - started));
@@ -221,10 +225,13 @@ void Gui::pollChanges() {
 }
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
-// TODO Fix this
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1, int layer, 
-    std::map<std::string, int> luaHandlers, uint32_t renderMode)
-: textures({ *GuiTexture::defaultTexture() }), context(context), luaHandlers(luaHandlers) {
+// TODO Fix this, all these constructors are confusing to work with
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const std::pair<float, float>& c0, const std::pair<float, float>& c1,
+    int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode)
+: context(context), luaHandlers(luaHandlers) {
+    if (renderMode != RMODE_IMAGE) {
+        textures.push_back(*GuiTexture::defaultTexture());
+    }
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
     this->parent = parent;
@@ -245,6 +252,10 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::p
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
         vertices = Gui::rectangle(tl, br, colorVec, layer, id, renderMode);
+    }
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
     }
 }
 
@@ -275,6 +286,10 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
         });
 
         vertices = context->rectangle(tl, height, textures[0].widenessRatio, colorVec, secondaryColorVec, layer, id, renderMode);
+    }
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
     }
 }
 
@@ -308,6 +323,10 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
         vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer, id, renderMode);
+    }
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
     }
 }
 
@@ -379,13 +398,21 @@ void GuiComponent::setTextureIndex(int textureIndex) {
         vertex.texIndex = textureIndex;
 }
 
+static std::map<ResourceID, int> lastTextureMap;
+
+bool Gui::alreadyHaveTexture(const GuiTexture& texture) {
+    return lastTextureMap.contains(texture.resourceID());
+}
+
 // There some overhead associated with moving/copying texture objects even though they gpu resorces are not changed in any way, so pointers
 std::vector<GuiTexture *>& GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, int& idx) {
     std::map<ResourceID, int> resourceMap;
     mapTextures(acm, resourceMap, idx);
 
+    lastTextureMap = resourceMap;
     return acm;
 }
+
 
 void GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx) {
     for (int i = 0; i < textures.size(); i++) {
@@ -436,14 +463,17 @@ void GuiComponent::resizeVertices() {
     assert(!"Dynamic ndc not enabled for this gui component");
 }
 
-void GuiComponent::click(float x, float y) {
+void GuiComponent::click(float x, float y, int mods) {
     if (luaHandlers.contains("onClick"))
-        context->lua->callFunction(luaHandlers["onClick"]);
+        context->lua->callFunction(luaHandlers["onClick"], mods);
 }
 
-void GuiComponent::toggle(ToggleKind kind) {
+void GuiComponent::toggle() {
+    // should I even look to call the handler here?
     if (luaHandlers.contains("onToggle"))
-        context->lua->callFunction(luaHandlers["onToggle"], kind);
+        context->lua->callFunction(luaHandlers["onToggle"], activeTexture);
+
+    context->changed = true;
 }
 
 // Arguably I should just do this at the same time as maping the textures
@@ -464,14 +494,22 @@ GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t b
 std::map<std::string, int> luaHandlers)
 : GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
-    textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
+    // textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
+    }
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height, int layer,
 std::map<std::string, int> luaHandlers)
 : GuiComponent(context, false, backgroundColor, textColor, tl, height, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
     dynamicNDC = true;
-    textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
+    // textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
+    }
 }
 
 void GuiLabel::resizeVertices() {
@@ -519,7 +557,8 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutKind::IMAGE_BUTTON:
-            ret = new GuiImage(this, tree->text.c_str(), { tree->x, tree->y }, tree->height, baseLayer, tree->handlers);
+            ret = new GuiImage(this, tree->text.c_str(), tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
+                tree->imageStates, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
@@ -537,11 +576,33 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
     return ret;
 }
 
-GuiImage::GuiImage(Gui *context, const char *file, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, 0x00000000, 0x00000000, tl, height, layer, { GuiTextures::makeGuiTexture("test.png") }, luaHandlers, RMODE_IMAGE),
+GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
+    const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers)
+: GuiComponent(context, false, color, tl, br, layer, luaHandlers, RMODE_IMAGE),
 state(0) {
     dynamicNDC = true;
+    for (const auto& image : images) {
+        textures.push_back(GuiTextures::makeGuiTexture(image.c_str()));
+    }
+    textureIndexMap.resize(textures.size());
+    for (const auto& tex : textures) {
+        if (context->guiThreadNeedTextureSync) break;
+        if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
+    }
 }
+
+void GuiImage::click(float x, float y, int mods) {
+    // if (luaHandlers.contains("onClick"))
+    //     context->lua->callFunction(luaHandlers["onClick"], mods);
+    std::cout << "With mods: 0x" << std::hex << mods << std::endl;
+    activeTexture = (activeTexture + 1) % textures.size();
+    this->toggle();
+}
+
+// void GuiImage::toggle() {
+//     if (luaHandlers.contains("onToggle"))
+//         context->lua->callFunction(luaHandlers["onToggle"], activeTexture);
+// }
 
 Textured::Textured()
 : imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE) {}

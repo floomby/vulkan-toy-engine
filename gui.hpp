@@ -112,7 +112,7 @@ public:
     GuiTexture& operator=(GuiTexture&& other) noexcept;
     ~GuiTexture();
 
-    ResourceID resourceID();
+    ResourceID resourceID() const;
     bool operator==(const GuiTexture& other) const;
 
     void syncTexturesToGPU(const std::vector<GuiTexture *>& textures);
@@ -147,14 +147,14 @@ enum class ToggleKind {
 class GuiComponent {
 public:
     GuiComponent() = delete;
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-        std::pair<float, float> c1, int layer, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-         std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> c0, std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor,
-        std::pair<float, float> tl, float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const std::pair<float, float>& c0,
+        const std::pair<float, float>& c1, int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1,
+        int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers,uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0, std::pair<float, float> c1,
+        int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl,
+        float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -188,8 +188,8 @@ public:
     uint32_t renderMode;
     bool visible = true;
 
-    virtual void click(float x, float y);
-    virtual void toggle(ToggleKind kind);
+    virtual void click(float x, float y, int mods);
+    virtual void toggle();
     uint32_t id, activeTexture = 0;
 
     GuiComponent *getComponent(std::queue<uint> childIdices);
@@ -222,9 +222,13 @@ private:
 
 class GuiImage : public GuiComponent {
 public:
-    GuiImage(Gui *context, const char *file, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers);
+    GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
+        const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers);
 
     uint state;
+
+    virtual void click(float x, float y, int mods);
+    // virtual void toggle();
 private:
     virtual void resizeVertices();
 };
@@ -310,6 +314,7 @@ public:
         GUI_LOAD,
         GUI_VISIBILITY,
         // GUI_NOTIFY,
+        GUI_REDRAW,
         GUI_TERMINATE
     };
 
@@ -346,14 +351,21 @@ public:
     uint32_t idUnderPoint(float x, float y);
     void setTextureIndexInBuffer(GuiVertex *buffer, uint index, int textureIndex);
     std::map<uint32_t, GuiComponent *> idLookup;
-    void rebuildBuffer();
+    void rebuildBuffer(bool texturesDirty);
 
     GuiComponent *fromFile(std::string name, int baseLayer);
     std::map<std::string, GuiComponent *> panels;
     std::map<std::string, GuiComponent *> namedComponents;
     LuaWrapper *lua;
     Engine *context;
+
+    // This is constant time wrt the number of textures in the last resource map
+    // (read it doesnt go through the component graph to find the textures)
+    bool alreadyHaveTexture(const GuiTexture& texture);
+    bool guiThreadNeedTextureSync = false;
+    bool changed = false;
 private:
+    bool needTextureSync = false;
     std::thread guiThread;
     std::queue<GuiCommand> guiCommands;
 

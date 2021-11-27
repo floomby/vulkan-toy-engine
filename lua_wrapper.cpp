@@ -17,7 +17,7 @@ LuaWrapper::LuaWrapper(bool rethrowExceptions) {
     luaL_openlibs(luaState);
     if (rethrowExceptions) {
         lua_pushlightuserdata(luaState, (void *)wrap_exceptions);
-        luaJIT_setmode(luaState, -1, LUAJIT_MODE_WRAPCFUNC|LUAJIT_MODE_ON);
+        luaJIT_setmode(luaState, -1, LUAJIT_MODE_WRAPCFUNC | LUAJIT_MODE_ON);
         lua_pop(luaState, 1);
     }
 }
@@ -51,9 +51,9 @@ double LuaWrapper::getNumberField(const char *key) {
 }
 
 // put it on the top of the stack
-bool LuaWrapper::getFunctionField(const char *key) {
+bool LuaWrapper::getFunctionField(const char *key, int pos) {
     lua_pushstring(luaState, key);
-    lua_gettable(luaState, -2);
+    lua_gettable(luaState, -2 - pos);
     if (!lua_isfunction(luaState, -1)) {
         lua_pop(luaState, 1);
         return false;
@@ -85,6 +85,23 @@ void LuaWrapper::getStringField(const char *key, std::string& str) {
     str = s;
 }
 
+void LuaWrapper::getStringsField(const char *key, std::vector<std::string>& strs) {
+    lua_pushstring(luaState, key);
+    lua_gettable(luaState, -2);
+    if (!lua_istable(luaState, -1)) {
+        lua_pop(luaState, 1);
+        return;
+    }
+    auto count = lua_objlen(luaState, -1);
+    strs.reserve(strs.size() + count);
+    for (int i = 1; i <= count; i++) {
+        lua_rawgeti(luaState, -1, i);
+        strs.push_back(luaL_checkstring(luaState, -1));
+        lua_pop(luaState, 1);
+    }
+    lua_pop(luaState, 1);
+}
+
 GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     std::string filename = std::string(name);
     std::transform(filename.begin(), filename.end(), filename.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -114,9 +131,14 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
         ret->text = getStringField("text");
     }
     getStringField("name", ret->name);
+    getStringsField("images", ret->imageStates);
     int pushedHandlerCount = 0;
-    if (getFunctionField("onClick")) {
+    if (getFunctionField("onClick", pushedHandlerCount)) {
         ret->handlers.insert({ "onClick", lua_gettop(luaState) - 1 - handlerOffset});
+        pushedHandlerCount++;
+    }
+    if (getFunctionField("onToggle", pushedHandlerCount)) {
+        ret->handlers.insert({ "onToggle", lua_gettop(luaState) - 1 - handlerOffset});
         pushedHandlerCount++;
     }
     lua_pushstring(luaState, "children");
@@ -304,27 +326,3 @@ void LuaWrapper::loadFile(const std::string& filename) {
     if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
         error("Could not load file: %s", lua_tostring(luaState, -1));
 }
-
-// I am going to use a write a code generator script to generate these bindings
-// #include "api.hpp"
-
-// static int echoWrapper(lua_State *ls) {
-//     luaL_checkstring(ls, 1);
-//     Api::eng_echo(lua_tostring(ls, 1));
-//     return 0;
-// }
-
-// static int fireWrapper(lua_State *ls) {
-//     Api::test_fire();
-//     return 0;
-// }
-
-// void LuaWrapper::exportEcho() {
-//     lua_pushcfunction(luaState, echoWrapper);
-//     lua_setglobal(luaState, "eng_echo");
-// }
-
-// void LuaWrapper::exportTestFire() {
-//     lua_pushcfunction(luaState, fireWrapper);
-//     lua_setglobal(luaState, "test_fire");
-// }

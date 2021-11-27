@@ -74,6 +74,11 @@ Hud = {
             onClick = testFire,
             kind = GuiLayoutKind__IMAGE_BUTTON,
             text = "test.png",
+            images = {
+                "engage.png",
+                "retreat.png",
+                "test.png"
+            },
             color = 0x000000ff,
             -- children = {}
             name = "broken",
