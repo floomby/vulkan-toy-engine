@@ -28,7 +28,7 @@ Hud = {
     width = 2.0,
     height = 0.3,
     -- onClick = click,
-    kind = GuiLayoutType__PANEL,
+    kind = GuiLayoutKind__PANEL,
     text = "",
     color = 0x6050cc60,
     children = {
@@ -49,19 +49,31 @@ Hud = {
             width = 0.5,
             height = 0.1,
             onClick = thing,
-            kind = GuiLayoutType__TEXT_BUTTON,
+            kind = GuiLayoutKind__TEXT_BUTTON,
             text = "Click!!!",
             color = 0x101080ff,
             -- children = {}
         },
+        -- {
+        --     x = -0.9,
+        --     y = 0.875,
+        --     width = 0.5,
+        --     height = 0.1,
+        --     onClick = testFire,
+        --     kind = GuiLayoutKind__TEXT_BUTTON,
+        --     text = "Fire",
+        --     color = 0x000000ff,
+        --     -- children = {}
+        --     name = "broken",
+        -- }
         {
             x = -0.9,
             y = 0.875,
             width = 0.5,
             height = 0.1,
             onClick = testFire,
-            kind = GuiLayoutType__TEXT_BUTTON,
-            text = "Fire",
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            text = "test.png",
             color = 0x000000ff,
             -- children = {}
             name = "broken",

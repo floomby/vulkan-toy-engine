@@ -2787,7 +2787,6 @@ void Engine::drawFrame() {
         if (manager->getJob(tooltipJob, op)) {
             tooltipJob = 0;
             if (!tooltipResource.invalid) tooltipStillInUse = tooltipResource;
-            // tooltipResource.~GuiTexture();
             tooltipResource = std::move(*reinterpret_cast<GuiTexture *>(op.data));
             delete reinterpret_cast<GuiTexture *>(op.data);
             setTooltipTexture(currentFrame, tooltipResource);
@@ -4850,7 +4849,7 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
             throw std::runtime_error("Unable to allocate memory for texture.");
 
     for (int i = 0; i < height; i++) {
-        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width, (uint8_t *)pixels + i * strideBytes, width * channels);
+        memcpy((uint8_t *)stagingBufferAllocationInfo.pMappedData + i * width * channels, (uint8_t *)pixels + i * strideBytes, width * channels);
     }
 
     VkImageUsageFlags imageUsage = storable ?
@@ -5117,47 +5116,17 @@ namespace GuiTextures {
         atexit(destroyTextTextureBuffer);
     }
 
-    // This function seems really slow
-    // !!! Multiline will work incorrectly !!!
-    int makeTexture(const char *str) {
-        assert(!"This is not to be used anymore");
-        FT_Vector pen;
-        pen.x = maxGlyphHeight / 2;
-        pen.y = maxGlyphHeight / 2;
-        memset(textTextureBuffer, 0, maxGlyphHeight * 2 * maxTextWidth);
-        const char *it = str;
-        while(*it) {
-            // Only for ascii rn
-            FT_Error error = FT_Load_Glyph(face, FT_Get_Char_Index(face, *it), 0);
-            if (error) throw std::runtime_error("Unable to load glyph.");
-            error = FT_Render_Glyph( face->glyph, FT_RENDER_MODE_SDF);
-            if (error) throw std::runtime_error("Unable to render glyph.");
+    GuiTexture makeGuiTexture(const char *file) {
+        int texWidth, texHeight, texChannels;
+        auto buf = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
-            for(int i = 0; i < face->glyph->bitmap.rows; i++)
-                for(int j = 0; j < abs(face->glyph->bitmap.pitch); j++)
-                    // Ah, silent failures... the best kind (it should be obvious in context though)
-                    if (face->glyph->bitmap_left + pen.x + j < maxTextWidth)
-                        *((unsigned char *)textTextureBuffer + (pen.y + maxGlyphHeight - face->glyph->bitmap_top + i) * maxTextWidth + face->glyph->bitmap_left + pen.x + j) =
-                            std::max(*(face->glyph->bitmap.buffer + i * abs(face->glyph->bitmap.pitch) + j),
-                                *((unsigned char *)textTextureBuffer + (pen.y + maxGlyphHeight - face->glyph->bitmap_top + i) * maxTextWidth + face->glyph->bitmap_left + pen.x + j));
+        assert(texChannels == 4);
+        auto ret = GuiTexture(context, buf, texWidth, texHeight, texChannels, texWidth * texChannels, VK_FORMAT_R8G8B8A8_UNORM, VK_FILTER_LINEAR);
 
-            pen.x += face->glyph->advance.x >> 6;
-            // pen.y += face->glyph->advance.y >> 6;
+        // stbi_write_png("check.png", texWidth, texHeight, texChannels, buf, texWidth * texChannels);
 
-            it++;
-        }
-
-        // stbi_write_png("glyph.png", maxTextWidth, maxGlyphHeight * 2, 1, textTextureBuffer, maxTextWidth);
-
-        return pen.x + maxGlyphHeight / 2;
-    }
-
-    GuiTexture makeGuiTexture(const char *str) {
-        std::scoped_lock(ftLock);
-        int width = makeTexture(str);
-
-        // tbh I have no idea how to sharpen the text correctly
-        return GuiTexture(context, textTextureBuffer, width, maxGlyphHeight * 2, 1, maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR);
+        stbi_image_free(buf);
+        return ret;
     }
 
     void setDefaultTexture() {

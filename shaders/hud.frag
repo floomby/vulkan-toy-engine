@@ -95,5 +95,8 @@ void main() {
             outColor = vec4(inColor.rgb, clamp(alpha, 0.0, inColor.a));
             outColor = vec4(mix(outColor.rgb, inSecondaryColor.rgb, 1.0 - alpha), max(alpha, inSecondaryColor.a));
             break;
+        case RMODE_IMAGE:
+            outColor = texture(texSampler[inTexIndex], inTexCoord);
+            break;
     }
 }

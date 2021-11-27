@@ -31,7 +31,8 @@ lua(lua) {
     whichBuffer = 0;
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
-    lua->exportEnumToLua<GuiLayoutType>();
+    lua->exportEnumToLua<GuiLayoutKind>();
+    lua->exportEnumToLua<ToggleKind>();
     root->parent = nullptr;
 }
 
@@ -335,7 +336,6 @@ GuiComponent *GuiComponent::getComponent_i(std::queue<uint>& childIndices) {
     return children.at(index)->getComponent_i(childIndices);
 }
 
-
 void GuiComponent::addComponent(std::queue<uint> childIndices, GuiComponent *component) {
     addComponent(childIndices, component, this);
 }
@@ -441,6 +441,11 @@ void GuiComponent::click(float x, float y) {
         context->lua->callFunction(luaHandlers["onClick"]);
 }
 
+void GuiComponent::toggle(ToggleKind kind) {
+    if (luaHandlers.contains("onToggle"))
+        context->lua->callFunction(luaHandlers["onToggle"], kind);
+}
+
 // Arguably I should just do this at the same time as maping the textures
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index) {
     if (dynamicNDC) resizeVertices();
@@ -470,8 +475,15 @@ std::map<std::string, int> luaHandlers)
 }
 
 void GuiLabel::resizeVertices() {
-    std::cout << "resizing vertices" << std::endl;
+    float height = vertices[2].pos.y - vertices[0].pos.y;
+    float right = vertices[2].pos.x + height * textures[0].widenessRatio * (float)context->height / context->width;
 
+    vertices[1].pos.x = right;
+    vertices[4].pos.x = right;
+    vertices[5].pos.x = right;
+}
+
+void GuiImage::resizeVertices() {
     float height = vertices[2].pos.y - vertices[0].pos.y;
     float right = vertices[2].pos.x + height * textures[0].widenessRatio * (float)context->height / context->width;
 
@@ -499,12 +511,15 @@ GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
 GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
     GuiComponent *ret = nullptr;
     switch (tree->kind) {
-        case GuiLayoutType::PANEL:
+        case GuiLayoutKind::PANEL:
             ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
-        case GuiLayoutType::TEXT_BUTTON:
+        case GuiLayoutKind::TEXT_BUTTON:
             ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            break;
+        case GuiLayoutKind::IMAGE_BUTTON:
+            ret = new GuiImage(this, tree->text.c_str(), { tree->x, tree->y }, tree->height, baseLayer, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
@@ -520,6 +535,12 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
         ret->children.push_back(fromLayout(child, baseLayer + 1));
     }
     return ret;
+}
+
+GuiImage::GuiImage(Gui *context, const char *file, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers)
+: GuiComponent(context, false, 0x00000000, 0x00000000, tl, height, layer, { GuiTextures::makeGuiTexture("test.png") }, luaHandlers, RMODE_IMAGE),
+state(0) {
+    dynamicNDC = true;
 }
 
 Textured::Textured()

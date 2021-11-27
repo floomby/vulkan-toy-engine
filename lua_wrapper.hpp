@@ -37,15 +37,16 @@ template<typename E> constexpr std::vector<std::string> enumNames() {
     return enumNames_i<E, static_cast<int>(E::COUNT) - 1>(ret);
 }
 
-enum class GuiLayoutType {
+enum class GuiLayoutKind {
     PANEL,
     TEXT_BUTTON,
+    IMAGE_BUTTON,
     COUNT
 };
 
 struct GuiLayoutNode {
     float x, y, height, width;
-    GuiLayoutType kind;
+    GuiLayoutKind kind;
     std::vector<GuiLayoutNode *> children;
     std::map<std::string, int> handlers;
     std::string text;
@@ -81,8 +82,33 @@ public:
     Entity *loadEntityFile(const std::string& filename);
     Weapon *loadWeaponFile(const std::string& filename);
     void callFunction(int index);
-    // void exportEcho();
-    // void exportTestFire();
+    void callFunction(const std::string& name);
+
+private:
+    template<typename T>
+    void stackPusher(const T& arg) {
+        if constexpr (std::is_arithmetic<T>::value) {
+            lua_pushnumber(luaState, arg);
+        }
+        if constexpr (std::is_enum<T>::value) {
+            lua_pushnumber(luaState, static_cast<int>(arg));
+        }
+        static_assert(std::is_arithmetic<T>::value || std::is_enum<T>::value, "Unsupported type");
+    }
+public:
+
+    template<typename N, typename T>
+    void callFunction(const N& n, const T& arg) {
+        stackPusher(arg);
+        callFunction(n);
+    }
+
+    template<typename N, typename T, typename... Args>
+    void callFunction(const N& n, const T& arg, Args... args) {
+        stackPusher(arg);
+        callFunction(n, arg);
+    }
+
     void apiExport();
     void loadFile(const std::string& filename);
 private:

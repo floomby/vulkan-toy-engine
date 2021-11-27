@@ -91,11 +91,11 @@ GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     filename += ".lua";
     if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
         error("Could not load gui file: %s", lua_tostring(luaState, -1));
-    
+
     lua_getglobal(luaState, name);
     if (!lua_istable(luaState, -1))
         error("%s should be a table", name);
-    
+
     auto ret = readGuiLayoutNode();
 
     return ret;
@@ -108,9 +108,9 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     ret->y = getNumberField("y");
     ret->height = getNumberField("height");
     ret->width = getNumberField("width");
-    ret->kind = (GuiLayoutType)(int)getNumberField("kind");
+    ret->kind = (GuiLayoutKind)(int)getNumberField("kind");
     ret->color = (uint32_t)getNumberField("color");
-    if (ret->kind == GuiLayoutType::TEXT_BUTTON) {
+    if (ret->kind == GuiLayoutKind::TEXT_BUTTON) {
         ret->text = getStringField("text");
     }
     getStringField("name", ret->name);
@@ -145,6 +145,10 @@ void LuaWrapper::callFunction(int index) {
     lua_pushvalue(luaState, index);
     if(lua_pcall(luaState, 0, 0, 0))
         error("Error running function: %s", lua_tostring(luaState, -1));
+}
+
+void LuaWrapper::callFunction(const std::string& name) {
+    throw std::runtime_error("not implemented");
 }
 
 void LuaWrapper::dumpStack() {
@@ -202,7 +206,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
 
     luaName[0] = tolower(luaName[0]);
     auto ret = new Entity(luaName.c_str(), model.c_str(), texture.c_str(), icon.c_str());
-    
+
     lua_pushstring(luaState, "weapons");
     lua_gettable(luaState, -2);
     if (!lua_isnil(luaState, -1)) {
@@ -214,7 +218,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
             lua_rawgeti(luaState, -1, i);
             if (!lua_isstring(luaState, -1))
                 error("Invalid weapon");
-            
+
             const char *s = lua_tostring(luaState, -1);
             size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
             lua_pop(luaState, 1);
@@ -233,7 +237,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
             lua_rawgeti(luaState, -1, i);
             if (!lua_isstring(luaState, -1))
                 error("Invalid unit ai");
-            
+
             const char *s = lua_tostring(luaState, -1);
             size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
             lua_pop(luaState, 1);
@@ -241,7 +245,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
         }
     }
     lua_pop(luaState, 1);
-    
+
     ret->maxSpeed = getNumberField("maxSpeed");
     ret->acceleration = getNumberField("acceleration");
     ret->maxOmega = getNumberField("maxOmega");

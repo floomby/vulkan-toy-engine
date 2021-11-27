@@ -136,6 +136,13 @@ class Gui;
 
 #include <iostream>
 
+enum class ToggleKind {
+    FOWARD,
+    BACKWARDS,
+    RESET,
+    COUNT
+};
+
 // important that this is non-movable
 class GuiComponent {
 public:
@@ -182,6 +189,7 @@ public:
     bool visible = true;
 
     virtual void click(float x, float y);
+    virtual void toggle(ToggleKind kind);
     uint32_t id, activeTexture = 0;
 
     GuiComponent *getComponent(std::queue<uint> childIdices);
@@ -208,6 +216,15 @@ public:
     std::string message;
 
     // virtual void click(float x, float y);
+private:
+    virtual void resizeVertices();
+};
+
+class GuiImage : public GuiComponent {
+public:
+    GuiImage(Gui *context, const char *file, std::pair<float, float> tl, float height, int layer, std::map<std::string, int> luaHandlers);
+
+    uint state;
 private:
     virtual void resizeVertices();
 };
