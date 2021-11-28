@@ -141,6 +141,10 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
         ret->handlers.insert({ "onToggle", lua_gettop(luaState) - 1 - handlerOffset});
         pushedHandlerCount++;
     }
+    if (getFunctionField("onSelectionChanged", pushedHandlerCount)) {
+        ret->handlers.insert({ "onSelectionChanged", lua_gettop(luaState) - 1 - handlerOffset});
+        pushedHandlerCount++;
+    }
     lua_pushstring(luaState, "children");
     int toRemove = lua_gettop(luaState);
     lua_gettable(luaState, -2 - pushedHandlerCount);
@@ -161,16 +165,6 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     lua_remove(luaState, toRemove);
     lua_remove(luaState, tableIndex);
     return ret;
-}
-
-void LuaWrapper::callFunction(int index) {
-    lua_pushvalue(luaState, index);
-    if(lua_pcall(luaState, 0, 0, 0))
-        error("Error running function: %s", lua_tostring(luaState, -1));
-}
-
-void LuaWrapper::callFunction(const std::string& name) {
-    throw std::runtime_error("not implemented");
 }
 
 void LuaWrapper::dumpStack() {

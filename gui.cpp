@@ -210,6 +210,8 @@ void Gui::pollChanges() {
                     }
                 }
                 delete command.data;
+            } else if (command.action == GUI_NOTIFY) {
+                root->propegateEngineNotification(command.data->str);
             }
             queueLock.lock();
         }
@@ -476,6 +478,14 @@ void GuiComponent::toggle() {
     context->changed = true;
 }
 
+void GuiComponent::propegateEngineNotification(const std::string& notification) {
+    if (luaHandlers.contains(notification))
+        context->lua->callFunction(luaHandlers[notification], activeTexture);
+    
+    for(const auto child : children)
+        child->propegateEngineNotification(notification);
+}
+
 // Arguably I should just do this at the same time as maping the textures
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index) {
     if (dynamicNDC) resizeVertices();
@@ -578,8 +588,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
 
 GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
     const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, color, tl, br, layer, luaHandlers, RMODE_IMAGE),
-state(0) {
+: GuiComponent(context, false, color, tl, br, layer, luaHandlers, RMODE_IMAGE), state(0) {
     dynamicNDC = true;
     for (const auto& image : images) {
         textures.push_back(GuiTextures::makeGuiTexture(image.c_str()));

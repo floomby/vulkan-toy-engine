@@ -192,6 +192,8 @@ public:
     virtual void toggle();
     uint32_t id, activeTexture = 0;
 
+    void propegateEngineNotification(const std::string& notification);
+
     GuiComponent *getComponent(std::queue<uint> childIdices);
 protected:
     bool dynamicNDC = false;
@@ -313,7 +315,7 @@ public:
         GUI_CLICK,
         GUI_LOAD,
         GUI_VISIBILITY,
-        // GUI_NOTIFY,
+        GUI_NOTIFY,
         GUI_REDRAW,
         GUI_TERMINATE
     };

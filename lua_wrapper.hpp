@@ -82,8 +82,27 @@ public:
     GuiLayoutNode *loadGuiFile(const char *name);
     Entity *loadEntityFile(const std::string& filename);
     Weapon *loadWeaponFile(const std::string& filename);
-    void callFunction(int index);
-    void callFunction(const std::string& name);
+
+    inline void callFunction(int index) {
+        callFunction<0>(index);
+    }
+
+    template<int argc>
+    void callFunction(int index) {
+        lua_pushvalue(luaState, index);
+        lua_insert(luaState, -1 - argc);
+        if(lua_pcall(luaState, argc, 0, 0))
+            error("Error running function: %s", lua_tostring(luaState, -1));
+    }
+
+    void callFunction(const std::string& name) {
+        callFunction<0>(name);
+    }
+
+    template<int argc>
+    void callFunction(const std::string& name) {
+        throw std::runtime_error("not implemented");
+    }
 
 private:
     template<typename T>
@@ -96,19 +115,30 @@ private:
         }
         static_assert(std::is_arithmetic<T>::value || std::is_enum<T>::value, "Unsupported type");
     }
+
+    template<int argc, typename N, typename T>
+    void callFunction(const N& n, const T& arg) {
+        stackPusher(arg);
+        callFunction<argc + 1>(n);
+    }
+
+    template<int argc, typename N, typename T, typename... Args>
+    void callFunction(const N& n, const T& arg, Args... args) {
+        stackPusher(arg);
+        callFunction<argc + 1>(n, arg);
+    }
 public:
 
     template<typename N, typename T>
     void callFunction(const N& n, const T& arg) {
-        stackPusher(arg);
-        callFunction(n);
+        callFunction<0>(n, arg);
     }
 
     template<typename N, typename T, typename... Args>
     void callFunction(const N& n, const T& arg, Args... args) {
-        stackPusher(arg);
-        callFunction(n, arg);
+        callFunction<0>(n, arg, args...);
     }
+
 
     void apiExport();
     void loadFile(const std::string& filename);

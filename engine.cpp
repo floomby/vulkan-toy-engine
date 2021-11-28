@@ -2602,8 +2602,13 @@ void Engine::handleInput() {
     }
 
     if (idsSelectedChanged) {
-        std::scoped_lock(apiEngineLock);
+        apiEngineLock.lock();
         this->idsSelected = idsSelected;
+        apiEngineLock.unlock();
+        GuiCommandData *what = new GuiCommandData();
+        // what->str = "onSelectionChanged";
+        what->str = "onToggle";
+        gui->submitCommand({ Gui::GUI_NOTIFY, what });
     }
 
     lastMousePosition.x = x;

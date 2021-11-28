@@ -1,12 +1,18 @@
 local inspect = require('libs/inspect')
 
+InstanceStates = {}
+
 local function click()
     print("You clicked me")
-    local r = eng_getSelectedInstances()
-    -- local r = eng_getTeamID(100)
-    for _, v in ipairs(r) do
-        print(inspect(eng_getTeamID(v)))
-    end
+    -- local r = eng_getSelectedInstances()
+    -- -- local r = eng_getTeamID(100)
+    -- for _, v in ipairs(r) do
+    --     print(inspect(eng_getTeamID(v)))
+    -- end
+end
+
+local function other(index)
+    eng_echo(index)
 end
 
 local function thing()
@@ -71,13 +77,13 @@ Hud = {
             y = 0.875,
             width = 0.5,
             height = 0.1,
-            onClick = testFire,
+            -- onClick = testFire,
+            onToggle = other,
+            onSelectionChanged = click,
             kind = GuiLayoutKind__IMAGE_BUTTON,
-            text = "test.png",
             images = {
                 "engage.png",
-                "retreat.png",
-                "test.png"
+                "retreat.png"
             },
             color = 0x000000ff,
             -- children = {}
