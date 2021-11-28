@@ -9,6 +9,7 @@
  * Fix the order line drawing bug
  * Font caching
  * Figure out engine to lua messaging - Options are piggyback off the gui to lua messaging or do something else entirly new. (Something new seems preferable.)
+ * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
 
 ## Considerations
  * I am linking to libpng now for freetype2, maybe I should stop using stbi

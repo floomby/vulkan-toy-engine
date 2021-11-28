@@ -2972,7 +2972,7 @@ void Engine::runCurrentScene() {
     glyphCache = new GlyphCache(this, glyphsToCache, engineSettings.rebuildFontCache);
     glyphCache->writeDescriptors(computeSets[CP_SDF_BLIT], 0);
 
-    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this, lua);
+    gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this);
     currentScene->initUnitAIs(lua, "unitai");
 
     // we need to get stuff for the first frame so we don't crash

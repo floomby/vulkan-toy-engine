@@ -280,7 +280,7 @@ public:
 
 class Gui {
 public:
-    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context, LuaWrapper *lua);
+    Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context);
     ~Gui();
 
     // These should be automatically deleted, but I want to be sure

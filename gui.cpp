@@ -17,9 +17,8 @@
 //     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
 // };
 
-Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context, LuaWrapper *lua)
-: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth),
-lua(lua) {
+Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
+: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
     // idLookup.erase(0);
     // root->id = UINT32_MAX;
     // idLookup.insert({ root->id, root });
@@ -31,6 +30,8 @@ lua(lua) {
     whichBuffer = 0;
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
+    lua = new LuaWrapper(true);
+    lua->apiExport();
     lua->exportEnumToLua<GuiLayoutKind>();
     lua->exportEnumToLua<ToggleKind>();
     root->parent = nullptr;
@@ -40,6 +41,7 @@ Gui::~Gui() {
     destroyBuffer(0);
     destroyBuffer(1);
     delete root;
+    delete lua;
     guiCommands.push({ GUI_TERMINATE });
     std::cout << "Waiting to join gui thread..." << std::endl;
     guiThread.join();
