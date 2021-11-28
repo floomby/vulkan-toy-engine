@@ -41,7 +41,7 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
 void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
     std::scoped_lock(context->authState.lock);
     // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
-    auto ent = context->currentScene->entities[name];
+    const auto ent = context->currentScene->entities.at(name);
     Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex, true);
     // lock it here
     inst.id = context->authState.counter++; // I dont like this line, it creates races, although technically the others race as well
@@ -106,4 +106,12 @@ void Api::gui_setVisibility(const char *name, bool visibility) {
     what->action = visibility;
     what->flags = GUIF_NAMED;
     context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
+}
+
+void Api::eng_setInstangeStateEngage(uint32_t unitID, IEngage state) {
+    std::cout << "Here " << unitID << " : " << static_cast<int>(state) << std::endl;
+    std::scoped_lock(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it == unitID) return;
+    it->state.engageKind = state;
 }

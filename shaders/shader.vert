@@ -42,7 +42,7 @@ void main() {
     normalInterp = vec3(ubo.normal * vec4(vertNormal, 0.0));
     fragTexCoord = inTexCoord;
     // Leave this in for now for debugging stuff if we want
-    outColor = inColor;
+    outColor = pushConstants.teamColor;
     skyCoord = inPosition;
 
     vec4 inLightingSpace = lighting.proj * lighting.view * worldPos;

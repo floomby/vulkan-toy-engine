@@ -2442,7 +2442,7 @@ void Engine::handleInput() {
                 mouseAction = MOUSE_NONE;
             }
         }
-        if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (mouseAction == MOUSE_NONE && mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_LEFT && gui->pushConstant.guiID == 0) {
             mouseAction = MOUSE_DRAGGING;
             // Unless the framerate is crap this should be almost identical to the mouseRay
             // dragStartRay = raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView);

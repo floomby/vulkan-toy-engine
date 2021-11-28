@@ -41,6 +41,15 @@ struct UniformBufferObject {
     glm::mat4 normal;
 };
 
+enum class IEngage {
+    ENGAGE,
+    AVOID
+};
+
+struct InstanceState {
+    IEngage engageKind;
+};
+
 class Instance {
 public:
     Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept;
@@ -70,6 +79,8 @@ public:
 
     Target target;
     std::vector<WeaponInstance> weapons;
+
+    InstanceState state { IEngage::ENGAGE };
 
     bool operator==(const Instance& other);
     bool operator==(uint32_t id);

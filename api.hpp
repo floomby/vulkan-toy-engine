@@ -2,6 +2,8 @@
 
 #include "utilities.hpp"
 
+enum class IEngage;
+
 class Entity;
 class Instance;
 
@@ -10,8 +12,7 @@ class Engine;
 enum class InsertionMode {
     FRONT,
     BACK,
-    OVERWRITE,
-    COUNT
+    OVERWRITE
 };
 
 // I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace
@@ -34,4 +35,5 @@ public:
     static std::vector<uint32_t> eng_getSelectedInstances();
     static int eng_getTeamID(uint32_t unitID);
     static void gui_setVisibility(const char *name, bool visibility);
+    static void eng_setInstangeStateEngage(uint32_t unitID, IEngage state);
 };

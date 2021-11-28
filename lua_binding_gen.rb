@@ -12,7 +12,7 @@ require 'rbgccxml'
 source = RbGCCXML.parse("api.hpp", :cxxflags => ["-std=c++20"])
 
 class BindingGenerator
-    @@enums = ["InsertionMode"]
+    @@enums = ["InsertionMode", "IEngage"]
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }

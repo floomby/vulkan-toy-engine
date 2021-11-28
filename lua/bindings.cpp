@@ -191,6 +191,20 @@ static void gui_setVisibilityExport(lua_State *ls) {
     lua_setglobal(ls, "gui_setVisibility");
 }
 
+static int eng_setInstangeStateEngageWrapper(lua_State *ls) {
+    luaL_checkinteger(ls, 1);
+    auto a0 = (uint32_t)lua_tointeger(ls, 1);
+    luaL_checkinteger(ls, 2);
+    auto a1 = (IEngage)lua_tointeger(ls, 2);
+    Api::eng_setInstangeStateEngage(a0, a1);
+    return 0;
+}
+
+static void eng_setInstangeStateEngageExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setInstangeStateEngageWrapper);
+    lua_setglobal(ls, "eng_setInstangeStateEngage");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -202,4 +216,5 @@ void LuaWrapper::apiExport() {
     eng_getSelectedInstancesExport(luaState);
     eng_getTeamIDExport(luaState);
     gui_setVisibilityExport(luaState);
+    eng_setInstangeStateEngageExport(luaState);
 }

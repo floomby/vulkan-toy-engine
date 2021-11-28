@@ -29,8 +29,7 @@ private:
 enum class WeaponKind {
     PLASMA_CANNON,
     BEAM,
-    GUIDED,
-    COUNT
+    GUIDED
 };
 
 class PlasmaCannon : public Weapon {

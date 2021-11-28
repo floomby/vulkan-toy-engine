@@ -139,8 +139,7 @@ class Gui;
 enum class ToggleKind {
     FOWARD,
     BACKWARDS,
-    RESET,
-    COUNT
+    RESET
 };
 
 // important that this is non-movable

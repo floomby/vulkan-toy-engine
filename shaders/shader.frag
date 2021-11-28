@@ -12,7 +12,7 @@ layout(binding = 3) uniform UniformBufferObject {
 } lighting;
 layout(binding = 4) uniform samplerCube skyboxSampler;
 
-layout(location = 0) in vec3 fragColor;
+layout(location = 0) in vec3 inColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 normalInterp;
 layout(location = 3) in vec3 vertPos;
@@ -124,7 +124,8 @@ void main() {
         return;
     }
 
-    vec3 diffuseColor = texture(texSampler[pushConstants.index], fragTexCoord).rgb;
+    vec4 c = texture(texSampler[pushConstants.index], fragTexCoord);
+    vec3 diffuseColor = mix(inColor, c.rgb, c.a);
     vec3 ambientColor = diffuseColor / 5.0f;
 
     vec3 normal = normalize(normalInterp);
@@ -159,7 +160,7 @@ void main() {
     outColor = vec4(colorLinear, 1.0);
 
     if (bool(rflags & RFLAG_HIGHLIGHT)) {
-        outColor = vectorMap(outColor, 0.0, 1.0, 0.4, 1.0);
+        outColor = vectorMap(outColor, 0.0, 1.0, 0.05, 1.0);
     }
 
     outColor = vec4((outColor * (getShadow(shadowCoord, 8) * 0.9 + 0.1)).rgb, 1.0);

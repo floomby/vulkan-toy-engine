@@ -143,7 +143,7 @@ private:
         glm::vec3 normedPointing;
         glm::uint32_t textureIndex;
         glm::uint32_t renderType;
-        glm::vec3 teamColor;
+        alignas(16) glm::vec3 teamColor;
     } pushConstants;
 
     Utilities::ViewProjPosNearFar lightingData;

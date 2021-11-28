@@ -7,6 +7,25 @@
 #include <string>
 #include <vector>
 
+template<typename E, E I> constexpr bool isValidEnumIndex() {
+    auto name = __PRETTY_FUNCTION__;
+    int i = strlen(name);
+    for (; i >= 0; --i) {
+        if (name[i] == ' ') return true;
+        if (name[i] == ')') return false;
+    }
+    return false;
+}
+
+template<typename E, int I> constexpr int getEnumCount() {
+    if constexpr (isValidEnumIndex<E, static_cast<E>(I)>()) return getEnumCount<E, I + 1>();
+    else return I + 1;
+}
+
+template<typename E> constexpr int getEnumCount() {
+    return getEnumCount<E, 0>();
+}
+
 template<typename E, E V> constexpr std::string getEnumString() {
     auto name = __PRETTY_FUNCTION__;
     int i = strlen(name), j;
@@ -31,17 +50,15 @@ template<typename E, int val> constexpr std::vector<std::string> enumNames_i(std
         return enumNames_i<E, val - 1>(ret);
 }
 
-// Last enum value must be COUNT
 template<typename E> constexpr std::vector<std::string> enumNames() {
     std::vector<std::string> ret;
-    return enumNames_i<E, static_cast<int>(E::COUNT) - 1>(ret);
+    return enumNames_i<E, static_cast<int>(getEnumCount<E>()) - 1>(ret);
 }
 
 enum class GuiLayoutKind {
     PANEL,
     TEXT_BUTTON,
-    IMAGE_BUTTON,
-    COUNT
+    IMAGE_BUTTON
 };
 
 struct GuiLayoutNode {

@@ -11,8 +11,15 @@ local function click()
     -- end
 end
 
+local function engret_visibility()
+    gui_setVisibility("engret", #eng_getSelectedInstances())
+end
+
 local function other(index)
-    eng_echo(index)
+    local r = eng_getSelectedInstances()
+    for _, v in ipairs(r) do
+        eng_setInstangeStateEngage(v, index)
+    end
 end
 
 local function thing()
@@ -78,7 +85,7 @@ Hud = {
             width = 0.5,
             height = 0.1,
             -- onClick = testFire,
-            onToggle = other,
+            onToggle = engret_visibility,
             onSelectionChanged = click,
             kind = GuiLayoutKind__IMAGE_BUTTON,
             images = {
@@ -87,7 +94,11 @@ Hud = {
             },
             color = 0x000000ff,
             -- children = {}
-            name = "broken",
+            name = "engret",
         }
     }
 }
+
+engret_visibility()
+
+eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2)
