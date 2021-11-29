@@ -24,7 +24,7 @@ public:
     static void cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode);
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
     static void cmd_stop(const uint32_t uintID, const InsertionMode mode);
-    static void eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
+    static uint32_t eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection);
     static void eng_echo(const char *message);
     static void test_fire();
@@ -35,5 +35,7 @@ public:
     static std::vector<uint32_t> eng_getSelectedInstances();
     static int eng_getTeamID(uint32_t unitID);
     static void gui_setVisibility(const char *name, bool visibility);
-    static void eng_setInstangeStateEngage(uint32_t unitID, IEngage state);
+    static void eng_setInstanceStateEngage(uint32_t unitID, IEngage state);
+    static void eng_setInstanceHealth(uint32_t uintID, float health);
+    static void state_dumpAuthStateIDs();
 };

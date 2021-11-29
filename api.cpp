@@ -38,7 +38,7 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     }
 }
 
-void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
+uint32_t Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
     std::scoped_lock(context->authState.lock);
     // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
     const auto ent = context->currentScene->entities.at(name);
@@ -50,9 +50,11 @@ void Api::eng_createInstance(const std::string& name, const glm::vec3& position,
     inst.position = position;
     inst.team = team;
     context->authState.instances.push_back(std::move(inst));
+    return inst.id;
 }
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection) {
+    return;
     std::scoped_lock(context->authState.lock);
     Instance inst(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
         context->currentScene->models.data() + projectileEntity->modelIndex, true);
@@ -96,7 +98,7 @@ std::vector<uint32_t> Api::eng_getSelectedInstances() {
 int Api::eng_getTeamID(uint32_t unitID) {
     std::scoped_lock(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it == unitID) return -1;
+    if (it == context->authState.instances.end() || *it != unitID) return -1;
     return it->id;
 }
 
@@ -108,10 +110,21 @@ void Api::gui_setVisibility(const char *name, bool visibility) {
     context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
 }
 
-void Api::eng_setInstangeStateEngage(uint32_t unitID, IEngage state) {
-    std::cout << "Here " << unitID << " : " << static_cast<int>(state) << std::endl;
+void Api::eng_setInstanceStateEngage(uint32_t unitID, IEngage state) {
     std::scoped_lock(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it == unitID) return;
+    if (it == context->authState.instances.end() || *it != unitID) return;
     it->state.engageKind = state;
+}
+
+void Api::eng_setInstanceHealth(uint32_t unitID, float health) {
+    std::scoped_lock(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it != unitID) return;
+    it->health = health;
+}
+
+void Api::state_dumpAuthStateIDs() {
+    std::scoped_lock(context->authState.lock);
+    context->authState.dump();
 }

@@ -110,6 +110,7 @@ public:
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
     }
     std::vector<Team> teams;
+    void dump();
 };
 
 class ObservableState {

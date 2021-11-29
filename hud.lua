@@ -3,12 +3,13 @@ local inspect = require('libs/inspect')
 InstanceStates = {}
 
 local function click()
-    print("You clicked me")
-    -- local r = eng_getSelectedInstances()
+    -- print("You clicked me")
+    state_dumpAuthState()
+    local r = eng_getSelectedInstances()
     -- -- local r = eng_getTeamID(100)
-    -- for _, v in ipairs(r) do
-    --     print(inspect(eng_getTeamID(v)))
-    -- end
+    for _, v in ipairs(r) do
+        print(inspect(eng_getTeamID(v)))
+    end
 end
 
 local function engret_visibility()
@@ -18,12 +19,13 @@ end
 local function other(index)
     local r = eng_getSelectedInstances()
     for _, v in ipairs(r) do
-        eng_setInstangeStateEngage(v, index)
+        eng_setInstanceStateEngage(v, index)
     end
 end
 
 local function thing()
-    gui_setVisibility("broken", 0)
+    eng_setInstanceHealth(101, 0.7)
+    -- gui_setVisibility("broken", 0)
 end
 
 local function centerSelected()
@@ -61,7 +63,7 @@ Hud = {
             y = 0.75,
             width = 0.5,
             height = 0.1,
-            onClick = thing,
+            onClick = click,
             kind = GuiLayoutKind__TEXT_BUTTON,
             text = "Click!!!",
             color = 0x101080ff,
@@ -101,4 +103,6 @@ Hud = {
 
 engret_visibility()
 
-eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2)
+local id = eng_createInstance("ship", { 3.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1);
+print("Created instance " .. id)
+eng_setInstanceHealth(id, 40)

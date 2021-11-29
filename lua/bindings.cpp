@@ -3,8 +3,7 @@
 #include "../api.hpp"
 
 static int cmd_moveWrapper(lua_State *ls) {
-    luaL_checkinteger(ls, 1);
-    auto a0 = (uint32_t)lua_tointeger(ls, 1);
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
     if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
     std::array<float, 3> v1;
     if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
@@ -15,8 +14,7 @@ static int cmd_moveWrapper(lua_State *ls) {
         lua_pop(ls, 1);
     }
     glm::vec3 a1(v1[0], v1[1], v1[2]);
-    luaL_checkinteger(ls, 3);
-    auto a2 = (InsertionMode)lua_tointeger(ls, 3);
+    auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
     Api::cmd_move(a0, a1, a2);
     return 0;
 }
@@ -27,10 +25,8 @@ static void cmd_moveExport(lua_State *ls) {
 }
 
 static int cmd_stopWrapper(lua_State *ls) {
-    luaL_checkinteger(ls, 1);
-    auto a0 = (uint32_t)lua_tointeger(ls, 1);
-    luaL_checkinteger(ls, 2);
-    auto a1 = (InsertionMode)lua_tointeger(ls, 2);
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto a1 = (InsertionMode)luaL_checkinteger(ls, 2);
     Api::cmd_stop(a0, a1);
     return 0;
 }
@@ -63,10 +59,9 @@ static int eng_createInstanceWrapper(lua_State *ls) {
         lua_pop(ls, 1);
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
-    luaL_checkinteger(ls, 4);
-    auto a3 = (int)lua_tointeger(ls, 4);
-    Api::eng_createInstance(a0, a1, a2, a3);
-    return 0;
+    auto a3 = (int)luaL_checkinteger(ls, 4);
+    auto r = Api::eng_createInstance(a0, a1, a2, a3);
+    lua_pushinteger(ls, r);    return 1;
 }
 
 static void eng_createInstanceExport(lua_State *ls) {
@@ -166,8 +161,7 @@ static void eng_getSelectedInstancesExport(lua_State *ls) {
 }
 
 static int eng_getTeamIDWrapper(lua_State *ls) {
-    luaL_checkinteger(ls, 1);
-    auto a0 = (uint32_t)lua_tointeger(ls, 1);
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
     auto r = Api::eng_getTeamID(a0);
     lua_pushinteger(ls, r);    return 1;
 }
@@ -180,8 +174,7 @@ static void eng_getTeamIDExport(lua_State *ls) {
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
-    luaL_checkinteger(ls, 2);
-    auto a1 = (bool)lua_tointeger(ls, 2);
+    auto a1 = (bool)luaL_checkinteger(ls, 2);
     Api::gui_setVisibility(a0, a1);
     return 0;
 }
@@ -191,18 +184,38 @@ static void gui_setVisibilityExport(lua_State *ls) {
     lua_setglobal(ls, "gui_setVisibility");
 }
 
-static int eng_setInstangeStateEngageWrapper(lua_State *ls) {
-    luaL_checkinteger(ls, 1);
-    auto a0 = (uint32_t)lua_tointeger(ls, 1);
-    luaL_checkinteger(ls, 2);
-    auto a1 = (IEngage)lua_tointeger(ls, 2);
-    Api::eng_setInstangeStateEngage(a0, a1);
+static int eng_setInstanceStateEngageWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto a1 = (IEngage)luaL_checkinteger(ls, 2);
+    Api::eng_setInstanceStateEngage(a0, a1);
     return 0;
 }
 
-static void eng_setInstangeStateEngageExport(lua_State *ls) {
-    lua_pushcfunction(ls, eng_setInstangeStateEngageWrapper);
-    lua_setglobal(ls, "eng_setInstangeStateEngage");
+static void eng_setInstanceStateEngageExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setInstanceStateEngageWrapper);
+    lua_setglobal(ls, "eng_setInstanceStateEngage");
+}
+
+static int eng_setInstanceHealthWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto a1 = (float)luaL_checknumber(ls, 2);
+    Api::eng_setInstanceHealth(a0, a1);
+    return 0;
+}
+
+static void eng_setInstanceHealthExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setInstanceHealthWrapper);
+    lua_setglobal(ls, "eng_setInstanceHealth");
+}
+
+static int state_dumpAuthStateIDsWrapper(lua_State *ls) {
+    Api::state_dumpAuthStateIDs();
+    return 0;
+}
+
+static void state_dumpAuthStateIDsExport(lua_State *ls) {
+    lua_pushcfunction(ls, state_dumpAuthStateIDsWrapper);
+    lua_setglobal(ls, "state_dumpAuthStateIDs");
 }
 
 void LuaWrapper::apiExport() {
@@ -216,5 +229,7 @@ void LuaWrapper::apiExport() {
     eng_getSelectedInstancesExport(luaState);
     eng_getTeamIDExport(luaState);
     gui_setVisibilityExport(luaState);
-    eng_setInstangeStateEngageExport(luaState);
+    eng_setInstanceStateEngageExport(luaState);
+    eng_setInstanceHealthExport(luaState);
+    state_dumpAuthStateIDsExport(luaState);
 }

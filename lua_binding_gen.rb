@@ -17,6 +17,7 @@ class BindingGenerator
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
     @@integers = ["uint32_t", "int", "unsigned int", "bool"]
+    @@floats = ["float"]
 
     def initialize(name, rettype, argtypes)
         @name = name
@@ -37,13 +38,15 @@ class BindingGenerator
         case argtype
         when *@@integers
             return <<-END
-    luaL_checkinteger(ls, #{i + 1});
-    auto a#{i} = (#{argtype})lua_tointeger(ls, #{i + 1});
+    auto a#{i} = (#{argtype})luaL_checkinteger(ls, #{i + 1});
+END
+        when *@@floats
+            return <<-END
+    auto a#{i} = (#{argtype})luaL_checknumber(ls, #{i + 1});
 END
         when *@@enums
             return <<-END
-    luaL_checkinteger(ls, #{i + 1});
-    auto a#{i} = (#{argtype})lua_tointeger(ls, #{i + 1});
+    auto a#{i} = (#{argtype})luaL_checkinteger(ls, #{i + 1});
 END
         when *["char*","std::string"]
             return <<-END
@@ -104,6 +107,7 @@ END
 
     # stuff that takes up one lua stack address (obviously this function is not complete yet)
     def basic_pusher(typestr)
+        typestr.gsub!(/^::/, "")
         if is_class_ptr(typestr)
             return -> (x) { "lua_pushlightuserdata(ls, #{x});" }
         elsif @@integers.include?(typestr)

@@ -28,7 +28,7 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
     if (inPlay && !entity->isProjectile) _state.healthBarModel = view_1proj_1 * 
         translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w - 0.2, clipCoord.z / clipCoord.w - 0.1)) *
         scale(glm::vec3(0.1f / aspectRatio, 0.01f, 0.1f));
-    _state.health = health;
+    _state.health =  health / entity->maxHealth;
 
     return &_state;
 }
@@ -39,6 +39,8 @@ void Instance::syncToAuthInstance(const Instance& other) {
     dP = other.dP;
     // dH = other.dH;
     commandList = other.commandList;
+    health = other.health;
+    state = other.state;
 }
 
 // NOTE: direction has to be normalized

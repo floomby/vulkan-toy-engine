@@ -85,6 +85,7 @@ void AuthoritativeState::doUpdateTick() {
             inst.position += inst.dP * timeDelta;
         } else if (!inst.commandList.empty()) {
             // TODO projectile vs unit collision check
+            // TODO check if unit is alive
             const auto& cmd = inst.commandList.front();
             float distance;
             switch (cmd.kind){
@@ -104,7 +105,10 @@ void AuthoritativeState::doUpdateTick() {
                     inst.commandList.clear();
                     break;
             }
-            // TODO Do unit vs unit collision check and repulsion deltas
+            for (auto& other : instances) {
+                if (other == inst) continue;
+                Pathgen::collide(other, inst);
+            }
         } else if (inst.entity->isUnit) {
             Pathgen::stop(inst);
         }
@@ -116,4 +120,12 @@ void AuthoritativeState::doUpdateTick() {
             weapon.fire(inst.position);
         }
     }
+}
+
+void AuthoritativeState::dump() {
+    std::cout << "Have instances: { ";
+    for (const auto& inst : this->instances) {
+        std::cout << inst.id << " ";
+    }
+    std::cout << " }" << std::endl;
 }

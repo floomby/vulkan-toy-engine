@@ -39,6 +39,7 @@ public:
     // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
     float maxOmega = 0.1f;
     std::string name;
+    float maxHealth = 1.0f;
 
     float dv;
     float v_m;

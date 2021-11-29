@@ -48,5 +48,18 @@ namespace Pathgen {
     void stop(Instance& inst) {
         applySteering(inst, -inst.dP);
     }
+
+    const float kick = 0.1f;
+
+    void collide(Instance& a, Instance& b) {
+        auto v = a.position - b.position;
+        auto d2 = length2(v);
+        auto db2 = sq(a.entity->boundingRadius + b.entity->boundingRadius);
+        if (d2 < db2) {
+            auto amount = db2 - d2;
+            a.dP += amount * kick * normalize(v);
+            b.dP -= amount * kick * normalize(v);
+        }
+    }
 }
 
