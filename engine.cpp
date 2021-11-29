@@ -2875,7 +2875,7 @@ void Engine::drawFrame() {
 void Engine::allocateLightingBuffers() {
     // uniformBuffers.resize(swapChainImages.size());
     // uniformBufferAllocations.resize(swapChainImages.size());
-    // uniformSkip = calculateUniformSkipForUBO<UniformBufferObject>();
+    // uniformSkip = calculateUniformSkipForUBO<InstanceUBO>();
     lightingBuffers.resize(concurrentFrames);
     lightingBufferAllocations.resize(concurrentFrames);
 
@@ -2915,7 +2915,7 @@ void Engine::runCurrentScene() {
     allocateLightingBuffers();
     createMainDescriptors(currentScene->textures, {});
     createShadowDescriptorSets();
-    uniformSync = new DynUBOSyncer<UniformBufferObject>(this, {{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
+    uniformSync = new DynUBOSyncer<InstanceUBO>(this, {{ &mainPass.descriptorSets, 0 }, { &shadow.descriptorSets, 0 }});
 
     VkDescriptorPoolSize linePoolSize {};
     linePoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -3454,6 +3454,16 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         // We can bundle draw commands the entities are the same (this includes the textures), I doubt that the bottleneck is recording the command buffers
         vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+        if (!currentScene->state.instances[j].entity->isProjectile) {
+            const auto ent = currentScene->state.instances[j].entity;
+            vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+            pushConstants.renderType = RINT_HEALTH;
+            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->missingIcon; // ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
+            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
+            vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
+            continue;
+        }
     }
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
@@ -4586,7 +4596,7 @@ void Scene::makeBuffers() {
 
 void Scene::updateUniforms(int idx) {
     float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
-    context->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> UniformBufferObject * {
+    context->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
         return this->state.instances[n].getUBO(context->pushConstants.view, context->cammera.cached.projView, context->cammera.cached.view_1Proj_1, aspectRatio,
             context->cammera.minClip, context->cammera.maxClip);
     });

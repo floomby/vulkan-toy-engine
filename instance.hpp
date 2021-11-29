@@ -36,9 +36,11 @@ struct SceneModelInfo {
     size_t vertexOffset, indexOffset, indexCount;
 };
 
-struct UniformBufferObject {
+struct InstanceUBO {
     glm::mat4 model;
     glm::mat4 normal;
+    glm::mat4 healthBarModel;
+    float health;
 };
 
 enum class IEngage {
@@ -57,7 +59,7 @@ public:
 
     SceneModelInfo* sceneModelInfo;
 
-    UniformBufferObject *getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
+    InstanceUBO *getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
 
     bool rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
     EntityTexture* texture;
@@ -71,6 +73,7 @@ public:
     InstanceID id;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
+    float health = 0.3f;
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -86,5 +89,5 @@ public:
     bool operator==(uint32_t id);
     bool operator<(uint32_t id);
 private:
-    UniformBufferObject _state;
+    InstanceUBO _state;
 };

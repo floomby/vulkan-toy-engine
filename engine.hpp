@@ -96,7 +96,7 @@ class Engine {
     friend class TextResource;
     friend class ComputeManager;
 
-    friend class DynUBOSyncer<UniformBufferObject>;
+    friend class DynUBOSyncer<InstanceUBO>;
     friend class DynUBOSyncer<LineUBO>;
 public:
     Engine(EngineSettings engineSettings);
@@ -425,7 +425,7 @@ private:
     std::list<LineHolder *> lineObjects;
     LineHolder *cursorLines;
 
-    DynUBOSyncer<UniformBufferObject> *uniformSync;
+    DynUBOSyncer<InstanceUBO> *uniformSync;
     DynUBOSyncer<LineUBO> *lineSync;
     std::vector<VkBuffer> lightingBuffers;
     std::vector<VmaAllocation> lightingBufferAllocations;

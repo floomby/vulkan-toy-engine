@@ -14,16 +14,22 @@ Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* scene
     }
 }
 
-UniformBufferObject *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
+InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
+    auto clipCoord = projView * glm::vec4(position.x, position.y, position.z, 1.0);
     if (renderAsIcon) {
-        auto clipCoord = projView * glm::vec4(position.x, position.y, position.z, 1.0);
 
         _state.model = view_1proj_1 * translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w, clipCoord.z / clipCoord.w))
             * scale(glm::vec3(0.1f / aspectRatio, 0.1f, 0.1f));
+
     } else {
         _state.model = translate(position) * glm::toMat4(heading);
     }
     _state.normal = transpose(inverse(view * _state.model));
+    if (inPlay && !entity->isProjectile) _state.healthBarModel = view_1proj_1 * 
+        translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w - 0.2, clipCoord.z / clipCoord.w - 0.1)) *
+        scale(glm::vec3(0.1f / aspectRatio, 0.01f, 0.1f));
+    _state.health = health;
+
     return &_state;
 }
 

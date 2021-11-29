@@ -18,6 +18,7 @@ layout(location = 2) in vec3 normalInterp;
 layout(location = 3) in vec3 vertPos;
 layout(location = 4) in vec3 shadowCoord;
 layout(location = 5) in vec3 skyCoord;
+layout(location = 6) in flat float inHealth;
 
 layout(location = 0) out vec4 outColor;
 
@@ -106,6 +107,15 @@ void main() {
 
     if (rtype == RINT_ICON) {
         outColor = texture(texSampler[pushConstants.index], fragTexCoord);
+        if (bool(rflags & RFLAG_HIGHLIGHT)) {
+            outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
+        }
+        if (outColor.a < 0.1) discard;
+        return;
+    }
+
+    if (rtype == RINT_HEALTH) {
+        outColor = fragTexCoord.x > inHealth ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0);
         if (bool(rflags & RFLAG_HIGHLIGHT)) {
             outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
         }
