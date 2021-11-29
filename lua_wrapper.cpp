@@ -321,3 +321,7 @@ void LuaWrapper::loadFile(const std::string& filename) {
     if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
         error("Could not load file: %s", lua_tostring(luaState, -1));
 }
+
+void LuaWrapper::doString(const char *str) {
+    luaL_dostring(luaState, str);
+}

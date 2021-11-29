@@ -3,7 +3,6 @@
 
 #include <iostream>
 
-
 // Tbh the layers should probably just be created when the vertex buffer is built and be just the parent layer plus one
 
 // we use ndc
@@ -107,7 +106,7 @@ void Gui::setCursorID(uint32_t id) {
 }
 
 void Gui::submitCommand(GuiCommand&& command) {
-    std::scoped_lock(queueLock);
+    std::scoped_lock l(queueLock);
     guiCommands.push(command);
 }
 
@@ -416,7 +415,6 @@ std::vector<GuiTexture *>& GuiComponent::mapTextures(std::vector<GuiTexture *>& 
     lastTextureMap = resourceMap;
     return acm;
 }
-
 
 void GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx) {
     for (int i = 0; i < textures.size(); i++) {

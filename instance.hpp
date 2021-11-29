@@ -8,8 +8,6 @@
 #include "entity.hpp"
 #include "team.hpp"
 
-typedef uint32_t InstanceID;
-
 enum class CommandKind {
     MOVE,
     ATTACK,
@@ -54,7 +52,7 @@ struct InstanceState {
 
 class Instance {
 public:
-    Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept;
+    Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept;
     void syncToAuthInstance(const Instance& other);
 
     SceneModelInfo* sceneModelInfo;
@@ -84,6 +82,8 @@ public:
     std::vector<WeaponInstance> weapons;
 
     InstanceState state { IEngage::ENGAGE };
+
+    InstanceID parentID = 0;
 
     bool operator==(const Instance& other);
     bool operator==(uint32_t id);

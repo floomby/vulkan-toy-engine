@@ -2,15 +2,15 @@
 
 #include <iostream>
 
-Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, bool inPlay) noexcept
-: id(0), inPlay(inPlay) {
+Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept
+: id(id), inPlay(inPlay) {
     this->entity = entity;
     this->texture = texture;
     this->sceneModelInfo = sceneModelInfo;
 
     weapons.reserve(entity->weapons.size());
     for (auto& weapon : entity->weapons) {
-        weapons.push_back(WeaponInstance(weapon));
+        weapons.push_back(WeaponInstance(weapon, id));
     }
 }
 

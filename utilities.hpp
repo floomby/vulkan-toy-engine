@@ -151,6 +151,7 @@ namespace std {
     }
 }
 
+typedef uint32_t InstanceID;
 typedef void* ResourceID;
 
 template <typename T> int sgn(T x) {

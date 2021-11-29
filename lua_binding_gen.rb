@@ -112,6 +112,10 @@ END
             return -> (x) { "lua_pushlightuserdata(ls, #{x});" }
         elsif @@integers.include?(typestr)
             return -> (x) { "lua_pushinteger(ls, #{x});" }
+        elsif @@floats.include?(typestr)
+            return -> (x) { "lua_pushnumber(ls, #{x});" }
+        elsif typestr == "std::string"
+            return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else
             raise "Unsuported basic type #{typestr}"
         end

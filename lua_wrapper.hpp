@@ -159,6 +159,8 @@ public:
 
     void apiExport();
     void loadFile(const std::string& filename);
+
+    void doString(const char *str);
 private:
     void error(const char *fmt, ...);
     double getNumberField(const char *key);

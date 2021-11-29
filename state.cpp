@@ -1,3 +1,6 @@
+#include "engine.hpp"
+
+
 #include <coroutine>
 
 #include "state.hpp"
@@ -56,10 +59,10 @@ void ObservableState::doUpdate(float timeDelta) {
 void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     uint highestSynced = 0;
     uint syncIndex = 0;
-    std::scoped_lock(state.lock);
+    state.lock.lock();
     for (int i = 0; i < instances.size(); i++) {
         if (instances[i].inPlay) {
-            if (state.instances[syncIndex].id > instances[i].id) {
+            if (syncIndex >= state.instances.size() || state.instances[syncIndex].id > instances[i].id) {
                 instances[i].orphaned = true;
             } else if (state.instances[syncIndex].id == instances[i].id) {
                 instances[i].syncToAuthInstance(state.instances[syncIndex]);
@@ -72,53 +75,77 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     for (; syncIndex < state.instances.size(); syncIndex++) {
         instances.push_back(state.instances[syncIndex]);
     }
+    state.lock.unlock();
+    instances.erase(std::remove_if(instances.begin(), instances.end(), [](const auto& x){ return x.orphaned; }), instances.end());
 }
 
 #include "pathgen.hpp"
 
+// TODO This function is really ineffecient and holds the auth state lock the whole time it runs
 void AuthoritativeState::doUpdateTick() {
     const float timeDelta = Net::secondsPerTick;
-    std::scoped_lock(lock);
-    for (auto& inst : instances) {
-        assert(inst.inPlay);
-        if (inst.entity->isProjectile) {
-            inst.position += inst.dP * timeDelta;
-        } else if (!inst.commandList.empty()) {
+    std::scoped_lock l(lock);
+    auto size = instances.size();
+    for (int i = 0; i < size;) {
+        // std::cout << it->id << std::endl;
+        bool removed = false;
+        auto it = instances.begin() + i;
+        assert(it->inPlay);
+        if (it->entity->isProjectile) {
+            for (auto& other : instances) {
+                if (it->parentID == other.id || other.entity->isProjectile) continue;
+                float d;
+                float l = length(it->dP);
+                if (other.rayIntersects(it->position, normalize(it->dP), d)) {
+                    if (d < l * timeDelta) {
+                        instances.erase(it);
+                        removed = true;
+                        std::cout << it->id << " hit " << other.id << std::endl;
+                    }
+                }
+                if (removed) break;
+            }
+            if (!removed) it->position += it->dP * timeDelta;
+        } else if (!it->commandList.empty()) {
             // TODO projectile vs unit collision check
             // TODO check if unit is alive
-            const auto& cmd = inst.commandList.front();
+            const auto& cmd = it->commandList.front();
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    distance = Pathgen::arrive(inst, cmd.data.dest);
-                    if (inst.commandList.size() > 1) {
+                    distance = Pathgen::arrive(*it, cmd.data.dest);
+                    if (it->commandList.size() > 1) {
                         if (distance < Pathgen::arrivalDeltaContinuing) {
-                            inst.commandList.pop_front();
+                            it->commandList.pop_front();
                         }
                     } else {
                         if (distance < Pathgen::arrivalDeltaStopping) {
-                            inst.commandList.pop_front();
+                            it->commandList.pop_front();
                         }
                     }
                     break;
                 case CommandKind::STOP:
-                    inst.commandList.clear();
+                    it->commandList.clear();
                     break;
             }
             for (auto& other : instances) {
-                if (other == inst) continue;
-                Pathgen::collide(other, inst);
+                if (other == *it | other.entity->isProjectile) continue;
+                Pathgen::collide(other, *it);
             }
-        } else if (inst.entity->isUnit) {
-            Pathgen::stop(inst);
+        } else if (it->entity->isUnit) {
+            Pathgen::stop(*it);
         }
-        for (const auto& ai : inst.entity->ais) {
-            ai->run(inst);
+        if (!removed) {
+            for (const auto& ai : it->entity->ais) {
+                ai->run(*it);
+            }
+            for (auto& weapon : it->weapons) {
+                // TODO Weapon targeting
+                weapon.fire(it->position);
+            }
         }
-        for (auto& weapon : inst.weapons) {
-            // TODO Weapon targeting
-            weapon.fire(inst.position);
-        }
+        if (removed) size--;
+        else i++;
     }
 }
 
@@ -128,4 +155,7 @@ void AuthoritativeState::dump() {
         std::cout << inst.id << " ";
     }
     std::cout << " }" << std::endl;
+}
+
+AuthoritativeState::AuthoritativeState() {
 }

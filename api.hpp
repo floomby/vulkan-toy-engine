@@ -25,9 +25,9 @@ public:
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
     static void cmd_stop(const uint32_t uintID, const InsertionMode mode);
     static uint32_t eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
-    static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection);
+    static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
     static void eng_echo(const char *message);
-    static void test_fire();
+    // static void test_fire();
     static void cmd_setTargetLocation(Instance *instance, const glm::vec3& location);
     // I see no way to handle the pointers being invalidated without much jankyness (using special values on the heap and checking if they are 
     // there after polling the os to see if that portion if the heap is still mapped in virtual memory)
@@ -37,5 +37,7 @@ public:
     static void gui_setVisibility(const char *name, bool visibility);
     static void eng_setInstanceStateEngage(uint32_t unitID, IEngage state);
     static void eng_setInstanceHealth(uint32_t uintID, float health);
+    static float eng_getInstanceHealth(uint32_t unitID);
     static void state_dumpAuthStateIDs();
+    static std::string eng_getInstanceEntityName(uint32_t unitID);
 };

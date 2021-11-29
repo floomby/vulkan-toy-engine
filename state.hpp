@@ -101,11 +101,13 @@ template<typename StateType> struct CommandGenerator {
 // I feel like I am doing this all wrong
 class AuthoritativeState {
 public:
+    AuthoritativeState();
+
     std::vector<Instance> instances;
     uint totalElapsedTicks;
     void doUpdateTick();
     InstanceID counter = 100;
-    std::mutex lock;
+    std::recursive_mutex lock;
     inline std::vector<Instance>::iterator getInstance(InstanceID id) {
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
     }

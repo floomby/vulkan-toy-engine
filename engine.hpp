@@ -113,6 +113,7 @@ public:
     VmaAllocator memoryAllocator;
     GlyphCache *glyphCache;
 
+    AuthoritativeState authState;
 private:
     std::mutex apiEngineLock;
 
@@ -196,6 +197,11 @@ private:
 
     void initWidow();
     void initVulkan();
+
+    void handleConsoleInput();
+    std::atomic<bool> done = false;
+    std::thread consoleThread;
+    LuaWrapper *consoleLua;
 
     GLFWwindow *window;
     bool framebufferResized;
@@ -477,7 +483,6 @@ private:
     float updateScene(int index);
 
     Scene *currentScene;
-    AuthoritativeState authState;
     void loadDefaultScene();
 
     void cleanupSwapChain();

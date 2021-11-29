@@ -92,7 +92,8 @@ static int eng_createBallisticProjectileWrapper(lua_State *ls) {
         lua_pop(ls, 1);
     }
     glm::vec3 a2(v2[0], v2[1], v2[2]);
-    Api::eng_createBallisticProjectile(a0, a1, a2);
+    auto a3 = (uint32_t)luaL_checkinteger(ls, 4);
+    Api::eng_createBallisticProjectile(a0, a1, a2, a3);
     return 0;
 }
 
@@ -111,16 +112,6 @@ static int eng_echoWrapper(lua_State *ls) {
 static void eng_echoExport(lua_State *ls) {
     lua_pushcfunction(ls, eng_echoWrapper);
     lua_setglobal(ls, "eng_echo");
-}
-
-static int test_fireWrapper(lua_State *ls) {
-    Api::test_fire();
-    return 0;
-}
-
-static void test_fireExport(lua_State *ls) {
-    lua_pushcfunction(ls, test_fireWrapper);
-    lua_setglobal(ls, "test_fire");
 }
 
 static int cmd_setTargetLocationWrapper(lua_State *ls) {
@@ -208,6 +199,17 @@ static void eng_setInstanceHealthExport(lua_State *ls) {
     lua_setglobal(ls, "eng_setInstanceHealth");
 }
 
+static int eng_getInstanceHealthWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceHealth(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void eng_getInstanceHealthExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceHealthWrapper);
+    lua_setglobal(ls, "eng_getInstanceHealth");
+}
+
 static int state_dumpAuthStateIDsWrapper(lua_State *ls) {
     Api::state_dumpAuthStateIDs();
     return 0;
@@ -218,18 +220,30 @@ static void state_dumpAuthStateIDsExport(lua_State *ls) {
     lua_setglobal(ls, "state_dumpAuthStateIDs");
 }
 
+static int eng_getInstanceEntityNameWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceEntityName(a0);
+    lua_pushstring(ls, r.c_str());    return 1;
+}
+
+static void eng_getInstanceEntityNameExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceEntityNameWrapper);
+    lua_setglobal(ls, "eng_getInstanceEntityName");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
     eng_createInstanceExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_echoExport(luaState);
-    test_fireExport(luaState);
     cmd_setTargetLocationExport(luaState);
     eng_getSelectedInstancesExport(luaState);
     eng_getTeamIDExport(luaState);
     gui_setVisibilityExport(luaState);
     eng_setInstanceStateEngageExport(luaState);
     eng_setInstanceHealthExport(luaState);
+    eng_getInstanceHealthExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
+    eng_getInstanceEntityNameExport(luaState);
 }

@@ -103,6 +103,7 @@ Hud = {
 
 engret_visibility()
 
-local id = eng_createInstance("ship", { 3.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1);
-print("Created instance " .. id)
-eng_setInstanceHealth(id, 40)
+local id = eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1);
+-- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
+-- eng_setInstanceHealth(id, 40)
+-- print(eng_getInstanceHealth(id))

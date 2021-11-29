@@ -2116,7 +2116,7 @@ void Gui::reallocateBuffer(int index, size_t newSize) {
 
 // This one just searches the vertex buffer oblivious to the gui component tree, this means we can run it directly on the buffer
 uint32_t Gui::idUnderPoint(float x, float y) {
-    std::scoped_lock(dataMutex);
+    std::scoped_lock l(dataMutex);
     uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
     float maxLayer = 1.0;
     for(int i = Gui::dummyVertexCount; i < usedSizes[whichBuffer]; i += 6){
@@ -2908,6 +2908,28 @@ void Engine::destroyLightingBuffers() {
     }
 }
 
+void Engine::handleConsoleInput() {
+    int flags = fcntl(0, F_GETFL, 0);
+    fcntl(0, F_SETFL, flags | O_NONBLOCK);
+    char buf[4096];
+    std::cout << ">> ";
+    while (!done) {
+        try {
+            std::cin.getline(buf, 4096);
+            if (strlen(buf)) {
+                consoleLua->doString(buf);
+                std::cout << ">> ";
+            }
+            std::cin.clear();
+            if (!strlen(buf)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        } catch (const std::exception& e) { 
+            std::cerr << e.what() << std::endl;
+        }
+    }
+}
+
 // This function is a shmorgishborg of random stuff
 void Engine::runCurrentScene() {
     // We only need to create model buffers once for each scene since we load this into vram once
@@ -3015,6 +3037,10 @@ void Engine::runCurrentScene() {
     what2->action = GUIA_VISIBLE;
     what2->flags = GUIF_PANEL_NAME;
     gui->submitCommand({ Gui::GUI_VISIBILITY, what2 });
+
+    consoleLua = new LuaWrapper(true);
+    consoleLua->apiExport();
+    consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
@@ -3672,6 +3698,9 @@ void Engine::cleanup() {
 Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
+    done = true;
+    consoleThread.join();
+    delete consoleLua;
     textureRefs.clear();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
@@ -4575,7 +4604,7 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
 void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading) {
     assert(models.size());
     auto ent = entities[name];
-    state.instances.push_back(Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, false));
+    state.instances.push_back(Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, false));
     state.instances.back().position = std::move(position);
     state.instances.back().heading = std::move(heading);
 }
@@ -5113,7 +5142,7 @@ namespace GuiTextures {
     // I know what you are thinking...
     //  ...that this should be an object since I practically gave it a destructor with the atexit bit
     void initFreetype2(Engine *context) {
-        std::scoped_lock(ftLock);
+        std::scoped_lock l(ftLock);
         GuiTextures::context = context;
         FT_Error error = FT_Init_FreeType(&library);
         if (error) throw std::runtime_error("Unable to initialize freetype.");
@@ -5234,7 +5263,7 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
         }
     }
 
-    std::scoped_lock(GuiTextures::ftLock);
+    std::scoped_lock l(GuiTextures::ftLock);
     memset(GuiTextures::textTextureBuffer, 0, GuiTextures::maxGlyphHeight * 2 * GuiTextures::maxTextWidth);
     defaultGlyph = new GuiTexture(context, GuiTextures::textTextureBuffer, defaultGlyphWidth,
         GuiTextures::maxGlyphHeight * 2, 1, GuiTextures::maxTextWidth, VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
@@ -5556,13 +5585,13 @@ ComputeManager::~ComputeManager() {
 uint64_t ComputeManager::submitJob(ComputeOp&& op) {
     static std::atomic<int> id;
     op.id = id;
-    std::scoped_lock(inLock);
+    std::scoped_lock l(inLock);
     inQueue.push(op);
     return id++;
 }
 
 bool ComputeManager::getJob(uint64_t id, ComputeOp& op) {
-    std::scoped_lock(outLock);
+    std::scoped_lock l(outLock);
     for (auto it = outList.begin(); it != outList.end(); it++) {
         if (it->id == id) {
             op = *it;
