@@ -40,4 +40,5 @@ public:
     static float eng_getInstanceHealth(uint32_t unitID);
     static void state_dumpAuthStateIDs();
     static std::string eng_getInstanceEntityName(uint32_t unitID);
+    static void gui_setLabelText(const std::string& name, const std::string& text);
 };

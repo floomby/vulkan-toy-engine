@@ -2463,7 +2463,8 @@ void Engine::handleInput() {
             idsSelected.clear();
             idsSelectedChanged = true;
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
-                if (!currentScene->state.instances[i].inPlay) continue;
+                if (!currentScene->state.instances[i].entity->isUnit || !currentScene->state.instances[i].inPlay) continue;
+                assert(currentScene->state.instances[i].inPlay);
                 if (whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
                     whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
@@ -3279,12 +3280,14 @@ void Engine::writeHudDescriptors() {
     }
 }
 
-// This is a hack to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
-static std::vector<GuiTexture> textureRefs;
+// This is to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
+// I think if concurrent frams was higher this would need more layers (I have concurrent frames = 2 right now)
+static std::vector<GuiTexture> textureRefs, textureRefsOld;
 static size_t oldSize = textureRefs.size();
 
 void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
     if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
+    textureRefsOld = textureRefs;
     textureRefs.clear();
 
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
@@ -3702,6 +3705,7 @@ Engine::~Engine() {
     consoleThread.join();
     delete consoleLua;
     textureRefs.clear();
+    textureRefsOld.clear();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
@@ -4846,9 +4850,11 @@ CubeMap& CubeMap::operator=(const CubeMap& other) {
 }
 
 CubeMap::CubeMap(CubeMap&& other) noexcept
-: imageView(other.imageView), sampler(other.sampler),
-image(other.image), context(other.context), allocation(other.allocation)
-{ CubeMaps::references[image]++; }
+: image(other.image), context(other.context), allocation(other.allocation) {
+    imageView = other.imageView;
+    sampler = other.sampler;
+    CubeMaps::references[image]++;
+}
 
 CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
     if (--CubeMaps::references[image] == 0) {
@@ -5193,7 +5199,7 @@ namespace GuiTextures {
     }
 }
 
-template<typename T> void printIfLineUBO(T obj) {
+template<typename T> void printIfLineUBO(const T& obj) {
     if constexpr (std::is_same<T, LineUBO>::value)
         std::cout << obj.a << " - " << obj.b << std::endl;
 }

@@ -87,7 +87,6 @@ void AuthoritativeState::doUpdateTick() {
     std::scoped_lock l(lock);
     auto size = instances.size();
     for (int i = 0; i < size;) {
-        // std::cout << it->id << std::endl;
         bool removed = false;
         auto it = instances.begin() + i;
         assert(it->inPlay);
@@ -107,7 +106,6 @@ void AuthoritativeState::doUpdateTick() {
             }
             if (!removed) it->position += it->dP * timeDelta;
         } else if (!it->commandList.empty()) {
-            // TODO projectile vs unit collision check
             // TODO check if unit is alive
             const auto& cmd = it->commandList.front();
             float distance;

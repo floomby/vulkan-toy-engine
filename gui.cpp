@@ -213,6 +213,24 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_NOTIFY) {
                 root->propegateEngineNotification(command.data->str);
+            } else if (command.action == GUI_TEXT) {
+                if (command.data->flags == GUIF_INDEX) {
+                    auto comp = root->getComponent(command.data->childIndices);
+                    if (comp->getText() != command.data->str2) {
+                        comp->setText(std::move(command.data->str2));
+                        changed = true;
+                    }
+                } else if (command.data->flags == GUIF_NAMED) {
+                    if (namedComponents.contains(command.data->str)) {
+                        auto comp = namedComponents.at(command.data->str);
+                        if (comp->getText() != command.data->str2) {
+                            comp->setText(std::move(command.data->str2));
+                            changed = true;
+                        }
+                    } else {
+                        std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                    }
+                } else std::cerr << "Unable to find named component: " << command.data->str << std::endl;
             }
             queueLock.lock();
         }
@@ -615,3 +633,31 @@ void GuiImage::click(float x, float y, int mods) {
 
 Textured::Textured()
 : imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE) {}
+
+void GuiComponent::setText(const std::string& text) {
+    throw std::runtime_error("This component does not support text setting");
+}
+
+void GuiLabel::setText(const std::string& text) {
+    message = text;
+    textures = { context->context->glyphCache->makeGuiTexture(text) };
+    context->guiThreadNeedTextureSync = true;
+}
+
+void GuiComponent::setText(std::string&& text) {
+    throw std::runtime_error("This component does not support text setting");
+}
+
+void GuiLabel::setText(std::string&& text) {
+    message = std::move(text);
+    textures = { context->context->glyphCache->makeGuiTexture(message) };
+    context->guiThreadNeedTextureSync = true;
+}
+
+const std::string& GuiComponent::getText() {
+    throw std::runtime_error("This component does not support text getting");
+}
+
+const std::string& GuiLabel::getText() {
+    return message;
+}

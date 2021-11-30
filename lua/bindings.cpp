@@ -231,6 +231,20 @@ static void eng_getInstanceEntityNameExport(lua_State *ls) {
     lua_setglobal(ls, "eng_getInstanceEntityName");
 }
 
+static int gui_setLabelTextWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::gui_setLabelText(a0, a1);
+    return 0;
+}
+
+static void gui_setLabelTextExport(lua_State *ls) {
+    lua_pushcfunction(ls, gui_setLabelTextWrapper);
+    lua_setglobal(ls, "gui_setLabelText");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -246,4 +260,5 @@ void LuaWrapper::apiExport() {
     eng_getInstanceHealthExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
     eng_getInstanceEntityNameExport(luaState);
+    gui_setLabelTextExport(luaState);
 }

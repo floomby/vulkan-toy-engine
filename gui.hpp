@@ -189,6 +189,9 @@ public:
 
     virtual void click(float x, float y, int mods);
     virtual void toggle();
+    virtual void setText(const std::string& text);
+    virtual void setText(std::string&& text);
+    virtual const std::string& getText();
     uint32_t id, activeTexture = 0;
 
     void propegateEngineNotification(const std::string& notification);
@@ -216,6 +219,9 @@ public:
         int layer, std::map<std::string, int> luaHandlers);
     std::string message;
 
+    virtual void setText(const std::string& text);
+    virtual void setText(std::string&& text);
+    virtual const std::string& getText();
     // virtual void click(float x, float y);
 private:
     virtual void resizeVertices();
@@ -274,7 +280,7 @@ public:
     uint32_t id;
     uint action;
     uint flags;
-    std::string str;
+    std::string str, str2;
 };
 
 class Gui {
@@ -315,6 +321,7 @@ public:
         GUI_LOAD,
         GUI_VISIBILITY,
         GUI_NOTIFY,
+        GUI_TEXT,
         GUI_REDRAW,
         GUI_TERMINATE
     };

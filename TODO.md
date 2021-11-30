@@ -5,11 +5,14 @@
  * gui - I still need some more components, but this seems really low priority right now
  * Finish the path following/steering code
  * Finish unit ais
- * Fix the order line drawing bug
+ * Fix the order line drawing bug (I may have fixed this when I was fixing other things)
  * Figure out engine to lua messaging - Options are piggyback off the gui to lua messaging or do something else entirly new. (Something new seems preferable.)
- * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
+ * I guess I will go back to drawing in z sorted order for getting cloaking working
+ * Sheilds?
+ * I need a pipeline without alpha discard for drawing cloaked stuff (I only need to switch to it for drawing cloaked units)
 
 ## Considerations
+ * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
  * I am linking to libpng now for freetype2, maybe I should stop using stbi
  * The string of glyphs to cache is pretty silly imo
  * cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I profile stuff)

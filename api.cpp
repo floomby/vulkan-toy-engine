@@ -75,7 +75,7 @@ void Api::cmd_setTargetLocation(Instance *instance, const glm::vec3& location) {
 }
 
 void Api::eng_echo(const char *message) {
-    std::string msg(">>");
+    std::string msg("  > ");
     msg += message;
     msg += '\n';
     std::cout << msg << std::flush;
@@ -143,4 +143,12 @@ std::string Api::eng_getInstanceEntityName(uint32_t unitID) {
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return "<invalid id>";
     return it->entity->name;
+}
+
+void Api::gui_setLabelText(const std::string& name, const std::string& text) {
+    GuiCommandData *what = new GuiCommandData();
+    what->str = name;
+    what->str2 = text;
+    what->flags = GUIF_NAMED;
+    context->gui->submitCommand({ Gui::GUI_TEXT, what });
 }
