@@ -1,6 +1,5 @@
 #pragma once
 
-#include "net.hpp"
 #include "unit_ai.hpp"
 #include "utilities.hpp"
 #include "weapon.hpp"

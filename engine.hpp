@@ -11,6 +11,7 @@
 #include "state.hpp"
 #include "team.hpp"
 #include "net.hpp"
+#include "base.hpp"
 
 #include <boost/lockfree/spsc_queue.hpp>
 #include <codecvt>
@@ -85,13 +86,13 @@ private:
     Engine *context;
 };
 
-class Engine {
+class Engine : public Base {
     // Mmmm, tasty spahgetti
     friend class EntityTexture;
     friend class CubeMap;
     friend class GuiTexture;
     friend class Scene;
-    friend class Api;
+    // friend class Api;
     friend class GlyphCache;
     friend class TextResource;
     friend class ComputeManager;
@@ -101,7 +102,7 @@ class Engine {
 public:
     Engine(EngineSettings engineSettings);
     void init();
-    void runCurrentScene();
+    virtual void runCurrentScene();
 
     ~Engine();
     Engine(const Engine& other) = delete;
@@ -113,10 +114,8 @@ public:
     VmaAllocator memoryAllocator;
     GlyphCache *glyphCache;
 
-    AuthoritativeState authState;
+    std::vector<uint32_t> idsSelected;
 private:
-    std::mutex apiEngineLock;
-
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -152,7 +151,7 @@ private:
     Utilities::ViewProj linePushConstans;
 
     bool guiOutOfDate = false;
-    Gui *gui = nullptr;
+    // Gui *gui = nullptr;
 
     TeamID teamIAm = 1;
 
@@ -173,7 +172,6 @@ private:
     } cammera;
     void stateObserver(ObservableState& state);
 
-    Net net;
     std::chrono::time_point<std::chrono::steady_clock> lastTime;
     int serverTicksSinceLastSynchronization;
 
@@ -243,7 +241,6 @@ private:
         glm::vec3 ray;
     };
 
-    std::vector<uint32_t> idsSelected;
     std::vector<Instance *> instancesSelected; // not authstate instances
 
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
@@ -482,7 +479,7 @@ private:
 
     float updateScene(int index);
 
-    Scene *currentScene;
+    // Scene *currentScene;
     void loadDefaultScene();
 
     void cleanupSwapChain();
@@ -532,7 +529,6 @@ private:
     void writeShadowBufferToFile(const VkCommandBuffer& buffer, const char *filename, int idx);
     void doShadowDebugWrite();
 
-    LuaWrapper *lua;
     ComputeManager *manager;
 };
 

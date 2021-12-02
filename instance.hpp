@@ -5,8 +5,9 @@
 
 #include <coroutine>
 #include <list>
-#include "entity.hpp"
+
 #include "team.hpp"
+#include "utilities.hpp"
 
 enum class CommandKind {
     MOVE,
@@ -26,6 +27,9 @@ struct Command {
     InstanceID id;
     CommandData data;
 };
+
+#include "entity.hpp"
+#include "weapon.hpp"
 
 class EntityTexture;
 
@@ -49,6 +53,8 @@ enum class IEngage {
 struct InstanceState {
     IEngage engageKind;
 };
+
+class Entity;
 
 class Instance {
 public:

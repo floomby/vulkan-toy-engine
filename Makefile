@@ -1,4 +1,4 @@
-CFLAGS = -std=c++20 -Ofast -ggdb -DBOOST_STACKTRACE_USE_BACKTRACE -Ilibs/freetype/freetype/include -Ilibs/freetype/freetype/build/include -MMD -fcoroutines -pedantic -DDONT_PRINT_MEMORY_LOG
+CFLAGS = -std=c++2a -Ofast -ggdb -DBOOST_STACKTRACE_USE_BACKTRACE -Ilibs/freetype/freetype/include -Ilibs/freetype/freetype/build/include -MMD -fcoroutines -pedantic -DDONT_PRINT_MEMORY_LOG
 LDFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -lboost_program_options -lbacktrace $(shell pwd)/libs/freetype/freetype/build/libfreetype.a -lz -lpng16 -lbrotlidec -lbrotlicommon $(shell pwd)/lua/LuaJIT/src/libluajit.a
 
 SRC = $(wildcard *.cpp)
@@ -22,7 +22,6 @@ shaders: $(GLSL) shaders/render_modes.h
 
 lua/bindings.cpp: api.hpp lua_binding_gen.rb
 	ruby lua_binding_gen.rb > lua/bindings.cpp
-
 
 .PHONY: clean check_formats
 

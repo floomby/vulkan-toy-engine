@@ -5,13 +5,12 @@
 #include <filesystem>
 
 std::vector<Entity *> Scene::loadEntitiesFromLua(const char *directory) {
-    LuaWrapper lua;
     std::vector<Entity *> ret;
 
     for (const auto & entry : std::filesystem::directory_iterator(directory)) {
         try {
             if (entry.path().string().find(".lua") == entry.path().string().length() - 4) {
-                ret.push_back(lua.loadEntityFile(entry.path()));
+                ret.push_back(context->lua->loadEntityFile(entry.path()));
             }
         } catch (const std::exception& e) {
             std::string msg = "Error reading unit (";
@@ -26,14 +25,14 @@ std::vector<Entity *> Scene::loadEntitiesFromLua(const char *directory) {
 }
 
 std::vector<Weapon *> Scene::loadWeaponsFromLua(const char *directory) {
-    LuaWrapper lua;
-    lua.exportEnumToLua<WeaponKind>();
+    context->lua->exportEnumToLua<WeaponKind>();
+
     std::vector<Weapon *> ret;
 
     for (const auto & entry : std::filesystem::directory_iterator(directory)) {
         try {
             if (entry.path().string().find(".lua") == entry.path().string().length() - 4) {
-                ret.push_back(lua.loadWeaponFile(entry.path()));
+                ret.push_back(context->lua->loadWeaponFile(entry.path()));
             }
         } catch (const std::exception& e) {
             std::string msg = "Error reading weapon (";
@@ -86,5 +85,30 @@ Scene::~Scene() {
 
     for (auto& [name, ai] : ais) {
         delete ai;
+    }
+}
+
+#include "server.hpp"
+
+Scene::Scene(Server *context)
+: context(context) {
+    auto weapons = loadWeaponsFromLua("weapons");
+    for (const auto& weapon : weapons) {
+        if (weapon->hasEntity()) {
+            this->entities.insert({ weapon->entity->name, weapon->entity.get() });
+        }
+        this->weapons.insert({ weapon->name, weapon });
+    }
+    auto ents = loadEntitiesFromLua("units");
+    for (const auto& entity : ents) {
+        this->entities.insert({ entity->name, entity });
+        // Populate the weapon vector
+        for (auto& weapon : entity->weaponNames) {
+            if (this->weapons.contains(weapon)) {
+                entity->weapons.push_back(this->weapons[weapon]);
+            } else {
+                std::cerr << "Weapon not found: " << weapon << std::endl;
+            }
+        }
     }
 }

@@ -7,7 +7,7 @@ enum class IEngage;
 class Entity;
 class Instance;
 
-class Engine;
+class Base;
 
 enum class InsertionMode {
     FRONT,
@@ -20,7 +20,7 @@ enum class InsertionMode {
 class Api {
 public:
     Api() = delete;
-    static Engine *context;
+    static Base *context;
     static void cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode);
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
     static void cmd_stop(const uint32_t uintID, const InsertionMode mode);

@@ -5,6 +5,7 @@
 #include <memory>
 
 class Entity;
+class Instance;
 
 class Target {
 public:

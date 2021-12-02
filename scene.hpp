@@ -1,15 +1,18 @@
 #pragma once
 
 #include "utilities.hpp"
+#include "base.hpp"
 
 #include <map>
 
 class Engine;
+class Server;
 
 class CubeMap : public Textured {
 public:
     // front, back, up, down, right, left
     CubeMap(Engine *context, std::array<const char *, 6> files);
+    CubeMap();
     CubeMap(const CubeMap&);
     CubeMap& operator=(const CubeMap&);
     CubeMap(CubeMap&& other) noexcept;
@@ -40,7 +43,8 @@ public:
     }};
 
     // vertex and index offsets for the model
-    Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>>, std::array<const char *, 6> skyboxImages);
+    Scene(Engine *context, std::vector<std::tuple<const char *, const char *, const char *, const char *>>, std::array<const char *, 6> skyboxImages);
+    Scene(Server *context);
     ~Scene();
 
     // I don't really want to accidentally be copying or moving the scene even though it is now safe to do so
@@ -75,11 +79,11 @@ public:
     
     void updateUniforms(int idx);
 
-    InstanceZSorter zSorter;
+    // InstanceZSorter zSorter;
 
     void initUnitAIs(LuaWrapper *lua, const char *directory);
 private:
-    Engine* context;
+    Base* context;
 
     std::vector<Entity *> loadEntitiesFromLua(const char *directory);
     std::vector<Weapon *> loadWeaponsFromLua(const char *directory);

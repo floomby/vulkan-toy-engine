@@ -5,6 +5,7 @@
 #include "libs/tiny_obj_loader.h"
 
 #include "entity.hpp"
+#include "net.hpp"
 
 #include <csignal>
 #include <iostream>

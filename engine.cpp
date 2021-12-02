@@ -2603,9 +2603,9 @@ void Engine::handleInput() {
     }
 
     if (idsSelectedChanged) {
-        apiEngineLock.lock();
+        apiLock.lock();
         this->idsSelected = idsSelected;
-        apiEngineLock.unlock();
+        apiLock.unlock();
         GuiCommandData *what = new GuiCommandData();
         // what->str = "onSelectionChanged";
         what->str = "onToggle";
@@ -2982,7 +2982,6 @@ void Engine::runCurrentScene() {
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
-    lua = new LuaWrapper(true);
     lua->apiExport();
 
     manager = new ComputeManager(this);
@@ -3715,7 +3714,6 @@ Engine::~Engine() {
     // Hmmmm.......
     tooltipResource.~GuiTexture();
     tooltipStillInUse.~GuiTexture();
-    delete lua;
     cleanup();
 }
 
@@ -4552,7 +4550,7 @@ EntityTexture& EntityTexture::operator=(EntityTexture&& other) noexcept {
 #include "unit_ai.hpp"
 
 Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>> entities, std::array<const char *, 6> skyboxImages)
-: skybox(context, skyboxImages), zSorter(InstanceZSorter(this)) {
+: skybox(context, skyboxImages) {
     this->context = context;
     auto icon = new Entity(ENT_ICON);
     for (const auto& entityData : entities) {
@@ -4628,10 +4626,11 @@ void Scene::makeBuffers() {
 }
 
 void Scene::updateUniforms(int idx) {
-    float aspectRatio = context->swapChainExtent.width / (float) context->swapChainExtent.height;
-    context->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
-        return this->state.instances[n].getUBO(context->pushConstants.view, context->cammera.cached.projView, context->cammera.cached.view_1Proj_1, aspectRatio,
-            context->cammera.minClip, context->cammera.maxClip);
+    float aspectRatio = static_cast<Engine *>(context)->swapChainExtent.width / (float) static_cast<Engine *>(context)->swapChainExtent.height;
+    static_cast<Engine *>(context)->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
+        return this->state.instances[n].getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->cammera.cached.projView,
+            static_cast<Engine *>(context)->cammera.cached.view_1Proj_1, aspectRatio, static_cast<Engine *>(context)->cammera.minClip,
+            static_cast<Engine *>(context)->cammera.maxClip);
     });
 
     std::vector<uint> inPlayIndices;
@@ -4642,13 +4641,14 @@ void Scene::updateUniforms(int idx) {
 
     auto cmdGen = state.getCommandGenerator(&inPlayIndices);
 
-    auto lineObjectSize = std::accumulate(context->lineObjects.begin(), context->lineObjects.end(), 0UL, [](size_t s, LineHolder *x) -> size_t {
+    auto lineObjectSize = std::accumulate(static_cast<Engine *>(context)->lineObjects.begin(), static_cast<Engine *>(context)->lineObjects.end(),
+        0UL, [](size_t s, LineHolder *x) -> size_t {
         return s + x->lines.size();
     });
     // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
     std::vector<LineUBO> lineTmp(commandCount + lineObjectSize);
 
-    for (const auto&  lineHolder : context->lineObjects) {
+    for (const auto&  lineHolder : static_cast<Engine *>(context)->lineObjects) {
         lineTmp.insert(lineTmp.end(), lineHolder->lines.begin(), lineHolder->lines.end());
     }
 
@@ -4664,12 +4664,14 @@ void Scene::updateUniforms(int idx) {
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
 
-    context->lineSync->sync(idx, lineTmp);
+    static_cast<Engine *>(context)->lineSync->sync(idx, lineTmp);
 }
 
 namespace CubeMaps {
     static std::map<VkImage, uint> references = {};
 }
+
+CubeMap::CubeMap() : Textured() {}
 
 CubeMap::CubeMap(Engine *context, std::array<const char *, 6> files) {
     this->context = context;
@@ -4837,6 +4839,7 @@ CubeMap::~CubeMap() {
 }
 
 CubeMap::CubeMap(const CubeMap& other) {
+    assert(other.image);
     imageView = other.imageView;
     image = other.image;
     sampler = other.sampler;
@@ -4846,17 +4849,20 @@ CubeMap::CubeMap(const CubeMap& other) {
 }
 
 CubeMap& CubeMap::operator=(const CubeMap& other) {
+    assert(other.image);
     return *this = CubeMap(other);
 }
 
 CubeMap::CubeMap(CubeMap&& other) noexcept
 : image(other.image), context(other.context), allocation(other.allocation) {
+    assert(other.image);
     imageView = other.imageView;
     sampler = other.sampler;
     CubeMaps::references[image]++;
 }
 
 CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
+    assert(other.image);
     if (--CubeMaps::references[image] == 0) {
         vkDestroySampler(context->device, sampler, nullptr);
         vkDestroyImageView(context->device, imageView, nullptr);
@@ -5608,7 +5614,7 @@ bool ComputeManager::getJob(uint64_t id, ComputeOp& op) {
     return false;
 }
 
-// TODO This needs to be refactored to make the concerns of the actual compute stuff seperate from the function
+// TODO This needs to be refactored to make the concerns of the actual compute stuff seperate from the polling
 void ComputeManager::poll() {
     bool running = true;
     ComputeOp op, *runningOp = nullptr;

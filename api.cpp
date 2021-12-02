@@ -1,6 +1,6 @@
 #include "engine.hpp"
 
-Engine *Api::context = nullptr;
+Base *Api::context = nullptr;
 
 void Api::cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode) {
     std::scoped_lock l(context->authState.lock);
@@ -93,8 +93,8 @@ void Api::eng_echo(const char *message) {
 // }
 
 std::vector<uint32_t> Api::eng_getSelectedInstances() {
-    std::scoped_lock l(context->apiEngineLock);
-    return context->idsSelected;
+    std::scoped_lock l(context->apiLock);
+    return static_cast<Engine *>(context)->idsSelected;
 }
 
 int Api::eng_getTeamID(uint32_t unitID) {
