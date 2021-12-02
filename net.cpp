@@ -1,33 +1,37 @@
 #include "net.hpp"
 
+#include <boost/bind/bind.hpp>
 #include <chrono>
+#include <iostream>
 
 namespace ip = boost::asio::ip;
 
-Net::Net() {
-    toExit = false;
-    unprocessedSeverTicks = 0;
-}
+Net::Net()
+: timer(io, boost::asio::chrono::milliseconds(msPerTick)) { }
 
 Net::~Net() {
-    toExit = true;
-    try {
-        pretendServerThread.join();
-    } catch(const std::exception& e) {}
-}
-
-void Net::start() {
-    pretendServerThread = std::thread(&Net::ticker, this);
-}
-
-void Net::ticker() {
-    while (!toExit) {
-        unprocessedSeverTicks++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(msPerTick));
+    if (ioThread.joinable()) {
+        std::cout << "Joining net thread..." << std::endl;
+        ioThread.join();
     }
 }
 
-#include <iostream>
+void Net::stateUpdater() {
+    // std::cout << "!!!!!" << std::endl;
+    state->doUpdateTick();
+    if (done) return;
+    timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
+    timer.async_wait(boost::bind(&Net::stateUpdater, this));
+}
+
+void Net::bindStateUpdater(AuthoritativeState *state) {
+    this->state = state;
+    timer.async_wait(boost::bind(&Net::stateUpdater, this));
+}
+
+void Net::launchIo() {
+    ioThread = std::thread([this](){ io.run(); });
+}
 
 namespace Networking {
 

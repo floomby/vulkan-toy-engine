@@ -3009,7 +3009,6 @@ void Engine::runCurrentScene() {
     guiIdToBufferIndex = std::move(get<1>(bufRet));
     hudBuffer = get<2>(bufRet);
     lastTime = std::chrono::steady_clock::now();
-    net.start();
     updateScene(0);
     vkDeviceWaitIdle(device);
 
@@ -3047,16 +3046,16 @@ void Engine::runCurrentScene() {
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
+    net.bindStateUpdater(&authState);
+    net.launchIo();
+
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
         handleInput();
-        // catch up to the sever (this will actually be in a seperate thread, but for now it goes here)
-        while (net.unprocessedSeverTicks) {
-            net.unprocessedSeverTicks--;
-            authState.doUpdateTick();
-        }
     }
+
+    net.done = true;
 
     delete cursorLines;
 
@@ -3705,6 +3704,7 @@ void Engine::cleanup() {
 Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
+    net.~Net();
     done = true;
     consoleThread.join();
     delete consoleLua;
@@ -3716,7 +3716,6 @@ Engine::~Engine() {
     delete gui;
     delete glyphCache;
     delete manager;
-    // Hmmmm.......
     tooltipResource.~GuiTexture();
     tooltipStillInUse.~GuiTexture();
     cleanup();

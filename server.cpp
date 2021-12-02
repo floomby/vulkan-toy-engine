@@ -3,9 +3,7 @@
 #include <iostream>
 
 Server::Server()
-: server(Networking::Server(net.io, 5555)) {
-    pollThread = std::thread(&Server::poll, this);
-}
+: server(Networking::Server(net.io, 5555)) { }
 
 void Server::poll() {
     std::string str;
@@ -19,7 +17,6 @@ void Server::runCurrentScene() {
     } catch (const std::exception& e) { 
         std::cerr << e.what() << std::endl;
     }
-    pollThread.join();
 }
 
 void Server::send(const ApiProtocol& data) {

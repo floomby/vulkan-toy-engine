@@ -7,24 +7,27 @@
 
 #include "state.hpp"
 
+
+
 class Net {
 public:
     Net();
     ~Net();
-    void start();
-    std::atomic<int> unprocessedSeverTicks;
-    static constexpr uint msPerTick = 33;
-    static constexpr float ticksPerSecond = 1000.0f / (float)msPerTick;
-    static constexpr float secondsPerTick = 1.0f / ticksPerSecond;
-    // std::mutex lock;
+
+    void stateUpdater();
+    void bindStateUpdater(AuthoritativeState *state);
+    void launchIo();
 
     boost::asio::io_context io;
     std::atomic<bool> done = false;
+    
+    static constexpr uint msPerTick = 33;
+    static constexpr float ticksPerSecond = 1000.0f / (float)msPerTick;
+    static constexpr float secondsPerTick = 1.0f / ticksPerSecond;
 private:
-
-    std::atomic<bool> toExit;
-    std::thread pretendServerThread;
-    void ticker();
+    boost::asio::steady_timer timer;
+    std::thread ioThread;
+    AuthoritativeState *state;
 };
 
 #include "api.hpp"
