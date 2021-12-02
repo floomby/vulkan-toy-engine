@@ -152,3 +152,10 @@ void Api::gui_setLabelText(const std::string& name, const std::string& text) {
     what->flags = GUIF_NAMED;
     context->gui->submitCommand({ Gui::GUI_TEXT, what });
 }
+
+void Api::net_declareTeam(int team, const std::string& name) {
+    ApiProtocol data = { ApiProtocolKind::TEAM_DECLARATION };
+    strncpy(data.buf, name.c_str(), ApiTextBufferSize);
+    data.buf[ApiTextBufferSize - 1] = '\0';
+    context->send(data);
+}

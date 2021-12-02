@@ -14,6 +14,7 @@ public:
     Base();
     ~Base();
     virtual void runCurrentScene() = 0;
+    virtual void send(const ApiProtocol& data) = 0;
     LuaWrapper *lua;
 protected:
     Gui *gui = nullptr;

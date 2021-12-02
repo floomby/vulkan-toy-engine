@@ -6,8 +6,8 @@ class Server : public Base {
 public:
     Server();
     virtual void runCurrentScene();
+    virtual void send(const ApiProtocol& data);
 private:
     void poll();
-    std::thread pollThread;
-    std::atomic<bool> done;
+    Networking::Server server;
 };

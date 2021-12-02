@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
         ("debug", "Enable extra debug options")
         ("use-one-queue", "Disable use of the transfer queue")
         ("rebuild-font-cache", "Forcefuly rebuild the font cache")
-        // ("server", "Spawn a server")
+        ("server", "Spawn a server")
         ("is-server", "Run headless as a server instance")
     ;
 
@@ -41,11 +41,11 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
-    // if (vm.count("server")) {
+    if (vm.count("server")) {
         std::string str = argv[0];
         str += " --is-server";
         serverProcess = prc::child(str, prc::std_in < ops);
-    // }
+    }
 
     EngineSettings settings = {};
     if (vm.count("use-one-queue"))

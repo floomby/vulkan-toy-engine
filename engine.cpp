@@ -156,10 +156,15 @@ static const std::vector<const char*> requiredInstanceExtensions = {
     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 };
 
-Engine::Engine(EngineSettings engineSettings) {
+Engine::Engine(EngineSettings engineSettings)
+: client(net.io, "127.0.0.1", "5555") {
     this->engineSettings = engineSettings;
     // std::cout << "Engine main thread is " << gettid() << std::endl;
     Api::context = this;
+}
+
+void Engine::send(const ApiProtocol& data) {
+    client.writeData(data);
 }
 
 std::set<std::string> Engine::getSupportedInstanceExtensions() {

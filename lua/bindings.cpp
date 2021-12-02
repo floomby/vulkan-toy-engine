@@ -245,6 +245,19 @@ static void gui_setLabelTextExport(lua_State *ls) {
     lua_setglobal(ls, "gui_setLabelText");
 }
 
+static int net_declareTeamWrapper(lua_State *ls) {
+    auto a0 = (int)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::net_declareTeam(a0, a1);
+    return 0;
+}
+
+static void net_declareTeamExport(lua_State *ls) {
+    lua_pushcfunction(ls, net_declareTeamWrapper);
+    lua_setglobal(ls, "net_declareTeam");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_stopExport(luaState);
@@ -261,4 +274,5 @@ void LuaWrapper::apiExport() {
     state_dumpAuthStateIDsExport(luaState);
     eng_getInstanceEntityNameExport(luaState);
     gui_setLabelTextExport(luaState);
+    net_declareTeamExport(luaState);
 }

@@ -115,6 +115,8 @@ public:
     GlyphCache *glyphCache;
 
     std::vector<uint32_t> idsSelected;
+
+    virtual void send(const ApiProtocol& data);
 private:
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -530,6 +532,8 @@ private:
     void doShadowDebugWrite();
 
     ComputeManager *manager;
+
+    Networking::Client client;
 };
 
 namespace GuiTextures {

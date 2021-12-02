@@ -41,4 +41,16 @@ public:
     static void state_dumpAuthStateIDs();
     static std::string eng_getInstanceEntityName(uint32_t unitID);
     static void gui_setLabelText(const std::string& name, const std::string& text);
+    static void net_declareTeam(int team, const std::string& name);
+};
+
+enum class ApiProtocolKind {
+    TEAM_DECLARATION
+};
+
+const uint ApiTextBufferSize = 256;
+
+struct ApiProtocol {
+    ApiProtocolKind kind;
+    char buf[ApiTextBufferSize];
 };
