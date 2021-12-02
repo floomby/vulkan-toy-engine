@@ -3056,6 +3056,7 @@ void Engine::runCurrentScene() {
     }
 
     net.done = true;
+    net.io.stop();
 
     delete cursorLines;
 
@@ -3063,20 +3064,12 @@ void Engine::runCurrentScene() {
 }
 
 void Engine::loadDefaultScene() {
-    //currentScene = new Scene(this, {{"models/viking_room.obj", "textures/viking_room.png"}}, 50);
-    // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
     currentScene = new Scene(this, {
-        // {"models/spaceship.obj", "textures/spaceship.png", "textures/spaceship_icon.png", "ship"},
         {"models/sphere.obj", "textures/sphere.png", "", "sphere"}
     }, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance("sphere", { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    // currentScene->addInstance(0, { 0.0f, 1.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    // currentScene->addInstance(1, { 5.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    // currentScene->addInstance(0, { 0.0f, 0.0f, 1.0f}, { 0.0f, 0.0f, 0.0f});
-
-    // currentScene->panels.insert({ "hud", Panel("panels/hud.yaml") });
 
     // +x = -x, +y = -y, z = -z
     lightingData.pos = { -50.0f, -110.0, 0.0f };

@@ -25,6 +25,7 @@ void Net::stateUpdater() {
         strcpy(data.buf, "Test server message");
         state->emit(data);
     }
+    if (done) io.stop();
     timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }

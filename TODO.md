@@ -47,3 +47,4 @@
     - also it can mess up the gui more frequently (I try and suspend drawing to the gui if I have resized, but not rebuilt the gui)
     - I actually think there are three seperate bugs... *exasperated walrus noises* (one with the framebuffer image extent, one where the gui buffer is used while it is still copying or 
  * Get the nvidia api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
+ * In the networking code for Networking::Client when shutting down there is a use after free (asan is giving me a trace that leads back to the io service starting, but it is so burried in the asio library I have a hard time understanding what I am doing to cause it)

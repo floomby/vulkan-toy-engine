@@ -8,7 +8,7 @@ Server::Server()
 void Server::poll() {
     std::string str;
     std::cin >> str;
-    net.io.stop();
+    net.done = true;
 }
 
 void Server::runCurrentScene() {

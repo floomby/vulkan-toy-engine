@@ -154,7 +154,7 @@ public:
         int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl,
         float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
-    ~GuiComponent();
+    virtual ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
     GuiComponent& operator=(const GuiComponent& other) = delete;
@@ -218,6 +218,7 @@ public:
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height,
         int layer, std::map<std::string, int> luaHandlers);
     std::string message;
+    virtual ~GuiLabel() = default;
 
     virtual void setText(const std::string& text);
     virtual void setText(std::string&& text);
@@ -231,6 +232,7 @@ class GuiImage : public GuiComponent {
 public:
     GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
         const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers);
+    virtual ~GuiImage() = default;
 
     uint state;
 
@@ -238,10 +240,6 @@ public:
     // virtual void toggle();
 private:
     virtual void resizeVertices();
-};
-
-class GuiSprite : public GuiComponent {
-public:
 };
 
 // for the quickly updating stuff in the gui (right now just the drag box) 
