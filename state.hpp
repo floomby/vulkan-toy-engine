@@ -98,10 +98,13 @@ template<typename StateType> struct CommandGenerator {
     };
 };
 
+struct ApiProtocol;
+class Base;
+
 // I feel like I am doing this all wrong
 class AuthoritativeState {
 public:
-    AuthoritativeState();
+    AuthoritativeState(Base *context);
 
     std::vector<Instance> instances;
     uint totalElapsedTicks;
@@ -113,6 +116,13 @@ public:
     }
     std::vector<Team> teams;
     void dump();
+    
+    void process(ApiProtocol *data);
+    void emit(const ApiProtocol& data);
+
+    size_t frame = 0;
+private:
+    Base *context;
 };
 
 class ObservableState {

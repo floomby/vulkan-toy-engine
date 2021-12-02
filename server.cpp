@@ -8,15 +8,18 @@ Server::Server()
 void Server::poll() {
     std::string str;
     std::cin >> str;
-    net.done = true;
+    net.io.stop();
 }
 
 void Server::runCurrentScene() {
+    std::thread ioThread(&Server::poll, this);
     try {
+        net.bindStateUpdater(&authState, Net::Mode::SERVER);
         net.io.run();
     } catch (const std::exception& e) { 
         std::cerr << e.what() << std::endl;
     }
+    ioThread.join();
 }
 
 void Server::send(const ApiProtocol& data) {
@@ -25,6 +28,6 @@ void Server::send(const ApiProtocol& data) {
 
 #include "lua_wrapper.hpp"
 
-Base::Base() : lua(new LuaWrapper(true)) {}
+Base::Base() : lua(new LuaWrapper(true)), authState(this) {}
 
 Base::~Base() { delete lua; }

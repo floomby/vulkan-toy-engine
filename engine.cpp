@@ -3046,7 +3046,7 @@ void Engine::runCurrentScene() {
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
-    net.bindStateUpdater(&authState);
+    net.bindStateUpdater(&authState, Net::Mode::CLIENT, &client);
     net.launchIo();
 
     while (!glfwWindowShouldClose(window)) {
@@ -3067,7 +3067,6 @@ void Engine::loadDefaultScene() {
     // currentScene = new Scene(this, {{"models/spaceship.obj", "textures/spaceship.png"}}, 50);
     currentScene = new Scene(this, {
         // {"models/spaceship.obj", "textures/spaceship.png", "textures/spaceship_icon.png", "ship"},
-        {"models/viking_room.obj", "textures/viking_room.png", "", "room"},
         {"models/sphere.obj", "textures/sphere.png", "", "sphere"}
     }, {"skyboxes/front.png", "skyboxes/back.png", "skyboxes/up.png", "skyboxes/down.png", "skyboxes/right.png", "skyboxes/left.png"});
     currentScene->makeBuffers();

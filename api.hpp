@@ -45,6 +45,8 @@ public:
 };
 
 enum class ApiProtocolKind {
+    FRAME_ADVANCE,
+    SERVER_MESSAGE,
     TEAM_DECLARATION
 };
 
@@ -52,5 +54,6 @@ const uint ApiTextBufferSize = 256;
 
 struct ApiProtocol {
     ApiProtocolKind kind;
+    uint64_t frame;
     char buf[ApiTextBufferSize];
 };

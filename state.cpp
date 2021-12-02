@@ -1,6 +1,5 @@
 #include "engine.hpp"
 
-
 #include <coroutine>
 
 #include "state.hpp"
@@ -145,6 +144,7 @@ void AuthoritativeState::doUpdateTick() {
         if (removed) size--;
         else i++;
     }
+    frame++;
 }
 
 void AuthoritativeState::dump() {
@@ -155,5 +155,13 @@ void AuthoritativeState::dump() {
     std::cout << " }" << std::endl;
 }
 
-AuthoritativeState::AuthoritativeState() {
+AuthoritativeState::AuthoritativeState(Base *context)
+: context(context) { }
+
+void AuthoritativeState::process(ApiProtocol *data) {
+    std::cout << "Server sent something: " << data->buf << std::endl;
+}
+
+void AuthoritativeState::emit(const ApiProtocol& data) {
+    context->send(data);
 }

@@ -38,6 +38,7 @@ int main(int argc, char **argv) {
         std::cout << "Running server" << std::endl;
         Server server;
         server.runCurrentScene();
+        // while (true) std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         return EXIT_SUCCESS;
     }
 
@@ -74,16 +75,18 @@ int main(int argc, char **argv) {
         if (vm.count("server")) {
             ops << "quit" << std::endl;
             std::cout << "Waiting for server to shut down..." << std::endl;
+            serverProcess.wait();
+            std::cout << "did shutdown" << std::endl;
         }
-        serverProcess.wait();
         return EXIT_FAILURE;
     }
 
     if (vm.count("server")) {
         ops << "quit" << std::endl;
         std::cout << "Waiting for server to shut down..." << std::endl;
+        serverProcess.wait();
+        std::cout << "did shutdown" << std::endl;
     }
-    serverProcess.wait();
     return EXIT_SUCCESS;
 }
 
