@@ -11,7 +11,7 @@ Net::Net()
 
 Net::~Net() {
     if (ioThread.joinable()) {
-        std::cout << "Joining net thread..." << std::endl;
+        std::cout << "Waiting to join net thread..." << std::endl;
         ioThread.join();
     }
 }

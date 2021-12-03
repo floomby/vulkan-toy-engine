@@ -2,7 +2,7 @@
 
 Base *Api::context = nullptr;
 
-void Api::cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode) {
+void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
     // std::scoped_lock l(context->authState.lock);
     // const auto& inst = context->authState.getInstance(unitID);
     // const auto cmd = Command { CommandKind::MOVE, inst->id, { destination, inst->id } };
@@ -22,7 +22,7 @@ void Api::cmd_move(const uint32_t unitID, const glm::vec3& destination, const In
     context->send(data);
 }
 
-void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
+void Api::cmd_stop(const InstanceID unitID, const InsertionMode mode) {
     std::scoped_lock l(context->authState.lock);
     const auto& inst = context->currentScene->getInstance(unitID);
     const auto cmd = Command { CommandKind::STOP, inst->id, { glm::vec3(0.0f), {}, inst->id } };
@@ -40,7 +40,7 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     }
 }
 
-void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
+void Api::cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE }};
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
@@ -58,6 +58,11 @@ void Api::eng_createInstance(const std::string& name, const glm::vec3& position,
     // inst.team = team;
     // context->authState.instances.push_back(std::move(inst));
     // return inst.id;
+}
+
+void Api::cmd_destroyInstance(InstanceID unitID) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, 0, { {}, {}, 0 }, InsertionMode::NONE }};
+    context->send(data);
 }
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
@@ -88,23 +93,12 @@ void Api::eng_echo(const char *message) {
     std::cout << msg << std::flush;
 }
 
-// void Api::test_fire() {
-//     std::scoped_lock l(context->authState.lock);
-//     auto ent = context->currentScene->entities["basic_plasma"];
-//     Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex, true);
-//     inst.dP = { ent->maxSpeed, 0.0f, 0.0f };
-//     inst.position = { 0.0f, 0.0f, 0.0f };
-//     inst.heading = { 1.0f, 0.0f, 0.0f, 0.0f };
-//     inst.id = std::numeric_limits<uint32_t>::max();
-//     context->authState.instances.push_back(std::move(inst));
-// }
-
 std::vector<uint32_t> Api::eng_getSelectedInstances() {
     std::scoped_lock l(context->apiLock);
     return static_cast<Engine *>(context)->idsSelected;
 }
 
-int Api::eng_getTeamID(uint32_t unitID) {
+int Api::eng_getTeamID(InstanceID unitID) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return -1;
@@ -119,21 +113,21 @@ void Api::gui_setVisibility(const char *name, bool visibility) {
     context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
 }
 
-void Api::eng_setInstanceStateEngage(uint32_t unitID, IEngage state) {
+void Api::eng_setInstanceStateEngage(InstanceID unitID, IEngage state) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return;
     it->state.engageKind = state;
 }
 
-void Api::eng_setInstanceHealth(uint32_t unitID, float health) {
+void Api::eng_setInstanceHealth(InstanceID unitID, float health) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return;
     it->health = health;
 }
 
-float Api::eng_getInstanceHealth(uint32_t unitID) {
+float Api::eng_getInstanceHealth(InstanceID unitID) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return -1.0f;
@@ -145,7 +139,7 @@ void Api::state_dumpAuthStateIDs() {
     context->authState.dump();
 }
 
-std::string Api::eng_getInstanceEntityName(uint32_t unitID) {
+std::string Api::eng_getInstanceEntityName(InstanceID unitID) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return "<invalid id>";
@@ -160,7 +154,7 @@ void Api::gui_setLabelText(const std::string& name, const std::string& text) {
     context->gui->submitCommand({ Gui::GUI_TEXT, what });
 }
 
-void Api::net_declareTeam(int team, const std::string& name) {
+void Api::net_declareTeam(TeamID team, const std::string& name) {
     ApiProtocol data = { ApiProtocolKind::TEAM_DECLARATION };
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';

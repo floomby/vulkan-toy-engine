@@ -57,6 +57,7 @@ struct LineHolder {
     std::vector<LineUBO> lines;
     void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius,
         const uint segmentCount = 20, const glm::vec4& color = glm::vec4({ 1.0f, 1.0f, 1.0f, 1.0f }));
+    void addAxes(float length, const glm::vec4& orginColor, const glm::vec4& peripheryColor);
 };
 
 template<typename T> class DynUBOSyncer;
@@ -429,7 +430,7 @@ private:
     // void createHudBuffers();
 
     std::list<LineHolder *> lineObjects;
-    LineHolder *cursorLines;
+    LineHolder *cursorLines, *staticLines;
 
     DynUBOSyncer<InstanceUBO> *uniformSync;
     DynUBOSyncer<LineUBO> *lineSync;

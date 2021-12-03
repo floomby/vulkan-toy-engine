@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-typedef uint8_t TeamID;
+#include "utilities.hpp"
 
 class Team {
 public:

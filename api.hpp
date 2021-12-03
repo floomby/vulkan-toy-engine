@@ -15,25 +15,28 @@ class Api {
 public:
     Api() = delete;
     static Base *context;
-    static void cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode);
+
+    static void cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode);
+    static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
+    static void cmd_setTargetLocation(Instance *instance, const glm::vec3& location);
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
-    static void cmd_stop(const uint32_t uintID, const InsertionMode mode);
-    static void eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
+
+    static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team);
+    static void cmd_destroyInstance(InstanceID unitID);
+
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
     static void eng_echo(const char *message);
-    // static void test_fire();
-    static void cmd_setTargetLocation(Instance *instance, const glm::vec3& location);
-    // I see no way to handle the pointers being invalidated without much jankyness (using special values on the heap and checking if they are 
-    // there after polling the os to see if that portion if the heap is still mapped in virtual memory)
-    // static std::vector<Instance *> eng_getSelectedInstances();
+    static int eng_getTeamID(InstanceID unitID);
     static std::vector<uint32_t> eng_getSelectedInstances();
-    static int eng_getTeamID(uint32_t unitID);
+    static void eng_setInstanceStateEngage(InstanceID unitID, IEngage state);
+    static void eng_setInstanceHealth(InstanceID uintID, float health);
+    static float eng_getInstanceHealth(InstanceID unitID);
+    static std::string eng_getInstanceEntityName(InstanceID unitID);
+
     static void gui_setVisibility(const char *name, bool visibility);
-    static void eng_setInstanceStateEngage(uint32_t unitID, IEngage state);
-    static void eng_setInstanceHealth(uint32_t uintID, float health);
-    static float eng_getInstanceHealth(uint32_t unitID);
-    static void state_dumpAuthStateIDs();
-    static std::string eng_getInstanceEntityName(uint32_t unitID);
     static void gui_setLabelText(const std::string& name, const std::string& text);
-    static void net_declareTeam(int team, const std::string& name);
+
+    static void state_dumpAuthStateIDs();
+
+    static void net_declareTeam(TeamID team, const std::string& name);
 };

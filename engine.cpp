@@ -2285,6 +2285,15 @@ void LineHolder::addCircle(const glm::vec3& center, const glm::vec3& normal, con
     }
 }
 
+void LineHolder::addAxes(float length, const glm::vec4& orginColor, const glm::vec4& peripheryColor) {
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, {  length, 0.0f, 0.0f }, orginColor, peripheryColor });
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, { -length, 0.0f, 0.0f }, orginColor, peripheryColor });
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, { 0.0f,  length, 0.0f }, orginColor, peripheryColor });
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, { 0.0f, -length, 0.0f }, orginColor, peripheryColor });
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f,  length }, orginColor, peripheryColor });
+    lines.push_back({{ 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -length }, orginColor, peripheryColor });
+}
+
 namespace GuiTextures {
     static GuiTexture *defaultTexture;
     static int maxGlyphHeight;
@@ -2544,8 +2553,10 @@ void Engine::handleInput() {
     if (mouseAction == MOUSE_PANNING) {
         cammera.position -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
         cammera.target -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
-        cammera.position -= cammera.fowarding * 4.0f * deltaY / (cammera.position.z / pointingLength) * pointingLength / 5.2;
-        cammera.target -= cammera.fowarding * 4.0f * deltaY / (cammera.position.z / pointingLength) * pointingLength / 5.2;
+        cammera.position -= cammera.fowarding * 4.0f * deltaY / (sgn(cammera.position.z) * std::clamp(fabs(cammera.position.z) / pointingLength,
+            0.5f, std::numeric_limits<float>::max())) * pointingLength / 5.2;
+        cammera.target -= cammera.fowarding * 4.0f * deltaY / (sgn(cammera.position.z) * std::clamp(fabs(cammera.position.z) / pointingLength,
+            0.5f, std::numeric_limits<float>::max())) * pointingLength / 5.2;
     } else if (mouseAction == MOUSE_ROTATING) {
         if (deltaY != 0.0f) {
             auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, cammera.strafing);
@@ -3016,12 +3027,15 @@ void Engine::runCurrentScene() {
     updateScene(0);
     vkDeviceWaitIdle(device);
 
-    // Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})), 1);
+    // Api::cmd_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})), 1);
 
     iconModelIndex = currentScene->entities["icon"]->modelIndex;
 
+    staticLines = new LineHolder();
     cursorLines = new LineHolder();
-    lineObjects = { cursorLines };
+    lineObjects = { cursorLines, staticLines };
+
+    staticLines->addAxes(60, { 0.7f, 0.1f, 0.1f, 1.0f }, { 0.4f, 0.05f, 0.05f, 0.7f });
 
     gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
     gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
@@ -3062,6 +3076,7 @@ void Engine::runCurrentScene() {
     net.io.stop();
 
     delete cursorLines;
+    delete staticLines;
 
     vkDeviceWaitIdle(device);
 }
@@ -3495,7 +3510,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
 
-    vkCmdSetLineWidth(buffer, 4.0);
+    vkCmdSetLineWidth(buffer, 1.0);
 
     for (int j = 0; j < lineSync->validCount[index]; j++) {
         dynamicOffset = j * uniformSync->uniformSkip;

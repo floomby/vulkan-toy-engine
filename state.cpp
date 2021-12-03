@@ -98,7 +98,7 @@ void AuthoritativeState::doUpdateTick() {
                     if (d < l * timeDelta) {
                         instances.erase(it);
                         removed = true;
-                        std::cout << it->id << " hit " << other.id << std::endl;
+                        // std::cout << it->id << " hit " << other.id << std::endl;
                     }
                 }
                 if (removed) break;
@@ -170,7 +170,10 @@ void AuthoritativeState::process(ApiProtocol *data) {
 
             lock.lock();
             it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
-            if (it == instances.end() || *it != data->command.id) return;
+            if (it == instances.end() || *it != data->command.id) {
+                lock.unlock();
+                return;
+            };
 
             switch (data->command.mode) {
                 case InsertionMode::BACK:
@@ -202,6 +205,18 @@ void AuthoritativeState::process(ApiProtocol *data) {
             inst.team = data->command.data.id;
             context->authState.instances.push_back(std::move(inst));
 
+            lock.unlock();
+
+        } else if (data->command.kind == CommandKind::DESTROY) {
+
+            lock.lock();
+            it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
+            if (it == instances.end() || *it != data->command.id) {
+                lock.unlock();
+                return;
+            };
+
+            instances.erase(it);
             lock.unlock();
 
         }

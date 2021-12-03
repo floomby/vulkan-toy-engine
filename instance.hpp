@@ -15,6 +15,7 @@ enum class CommandKind {
     MOVE,
     STOP,
     CREATE,
+    DESTROY,
     //.....
 };
 

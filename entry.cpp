@@ -11,6 +11,16 @@ namespace prc = boost::process;
 
 void run(EngineSettings& settings);
 
+void dupPipeToStdOut(prc::ipstream *ips, ConsoleColorCode mods) {
+    std::string buf;
+    while(getline(*ips, buf)) {
+        // avoid interleaving output
+        std::stringstream ss;
+        ss << "\033[" << static_cast<int>(mods) << "m" << buf << "\033[0m\n";
+        std::cout << ss.str() << std::flush;
+    }
+}
+
 int main(int argc, char **argv) {
     po::options_description desc("Allowed options");
     desc.add_options()
@@ -33,6 +43,7 @@ int main(int argc, char **argv) {
 
     prc::child serverProcess;
     prc::opstream ops;
+    prc::ipstream ips, eps;
 
     if (vm.count("is-server")) {
         std::cout << "Running server" << std::endl;
@@ -42,10 +53,15 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
+    std::thread epst, ipst;
+
     if (vm.count("server")) {
         std::string str = argv[0];
         str += " --is-server";
-        serverProcess = prc::child(str, prc::std_in < ops);
+        serverProcess = prc::child(str, prc::std_in < ops, prc::std_out > ips, prc::std_err > eps);
+
+        ipst = std::thread(&dupPipeToStdOut, &ips, ConsoleColorCode::FG_GREEN);
+        epst = std::thread(&dupPipeToStdOut, &eps, ConsoleColorCode::FG_RED);
     }
 
     EngineSettings settings = {};
@@ -76,7 +92,8 @@ int main(int argc, char **argv) {
             ops << "quit" << std::endl;
             std::cout << "Waiting for server to shut down..." << std::endl;
             serverProcess.wait();
-            std::cout << "did shutdown" << std::endl;
+            ipst.join();
+            epst.join();
         }
         return EXIT_FAILURE;
     }
@@ -85,7 +102,8 @@ int main(int argc, char **argv) {
         ops << "quit" << std::endl;
         std::cout << "Waiting for server to shut down..." << std::endl;
         serverProcess.wait();
-        std::cout << "did shutdown" << std::endl;
+        ipst.join();
+        epst.join();
     }
     return EXIT_SUCCESS;
 }
