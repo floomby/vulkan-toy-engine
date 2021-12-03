@@ -80,11 +80,11 @@ private:
 // TODO The client has a use after free bug when shutting down
 class Client : public std::enable_shared_from_this<Client> {
 public:
-    Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port);
+    Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port, AuthoritativeState *state);
     void writeData(const ApiProtocol& data);
-    void bindToState(AuthoritativeState *state);
     void doRead();
 private:
+    void bindToState(AuthoritativeState *state);
     boost::asio::ip::tcp::socket socket;
     char data[sizeof(ApiProtocol)];
     boost::asio::io_context *ioContext;

@@ -157,7 +157,7 @@ static const std::vector<const char*> requiredInstanceExtensions = {
 };
 
 Engine::Engine(EngineSettings engineSettings)
-: client(std::make_shared<Networking::Client>(net.io, "127.0.0.1", "5555")) {
+: client(std::make_shared<Networking::Client>(net.io, "127.0.0.1", "5555", &authState)) {
     this->engineSettings = engineSettings;
     // std::cout << "Engine main thread is " << gettid() << std::endl;
     Api::context = this;
@@ -3035,7 +3035,7 @@ void Engine::runCurrentScene() {
 
     // Adding ui panels from lua is not thread safe. (It requires exclusive access of the lua stack).
     // This that they are added before any other lua stuff runs
-    net.bindStateUpdater(&authState, client);
+    // net.bindStateUpdater(&authState, client);
     net.launchIo();
 
     assert(std::filesystem::exists("hud.lua"));

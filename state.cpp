@@ -188,7 +188,6 @@ void AuthoritativeState::process(ApiProtocol *data) {
 
         } else if (data->command.kind == CommandKind::CREATE) {
 
-            std::raise(SIGTRAP);
             const auto ent = Api::context->currentScene->entities.at(data->buf);
             lock.lock();
             Instance inst;

@@ -111,7 +111,7 @@ struct ApiProtocol {
     ApiProtocolKind kind;
     uint64_t frame;
     char buf[ApiTextBufferSize];
-    Command command;
+    alignas(16) Command command;
 };
 
 #include <iostream>

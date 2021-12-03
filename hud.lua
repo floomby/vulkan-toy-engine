@@ -110,3 +110,5 @@ gui_setLabelText("button", "Hello")
 -- eng_setInstanceHealth(id, 40)
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
+
+-- eng_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)

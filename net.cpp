@@ -20,10 +20,9 @@ Net::~Net() {
 void Net::stateUpdater() {
     while (!server->queue.empty()) {
         state->process(&server->queue.front());
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
         state->emit(server->queue.front());
-        // ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
-        // state->emit(advance);
+            ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
+            state->emit(advance);
         server->queue.pop();
     }
     state->doUpdateTick();
@@ -39,11 +38,11 @@ void Net::stateUpdater() {
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }
 
-void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Client> client) {
-    this->state = state;
-    this->mode = Mode::CLIENT;
-    client->bindToState(state);
-}
+// void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Client> client) {
+//     this->state = state;
+//     this->mode = Mode::CLIENT;
+//     client->bindToState(state);
+// }
 
 void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Server> server) {
     this->state = state;
@@ -111,22 +110,22 @@ void Server::writeData(const ApiProtocol& data) {
     }
 }
 
-Client::Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port)
+Client::Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port, AuthoritativeState *state)
 : socket(ioContext), ioContext(&ioContext) {
-    ip::tcp::resolver resolver(ioContext);
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    boost::asio::connect(socket, resolver.resolve(hostname, port));
+    ioContext.post([this, hostname, port, state](){ 
+        ip::tcp::resolver resolver(*this->ioContext);
+        boost::asio::connect(socket, resolver.resolve(hostname, port));
+        bindToState(state);
+    });
 }
 
 void Client::writeData(const ApiProtocol& data) {
     ioContext->post([data, this](){
         // std::cout << "Doing write from thread " << std::this_thread::get_id() << std::endl;
-        socket.async_write_some(boost::asio::buffer(&data, sizeof(ApiProtocol)),
+        boost::asio::async_write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)),
             [](const boost::system::error_code& err, size_t length) {
                 if (err) std::cerr << "Error writing to socket " << err << std::endl;
-                else {
-                    std::cout << "Wrote bytes: " << length << " should have writen " << sizeof(ApiProtocol) << std::endl;
-                }
             });
     });
 }
@@ -135,8 +134,6 @@ void Client::bindToState(AuthoritativeState *state) {
     auto self(shared_from_this());
     boost::asio::async_read(socket, boost::asio::buffer(data),
     [state, self](boost::system::error_code err, size_t length) {
-        // Idk what is up???
-        std::cout << "Got length of " << length << std::endl;
         if (!err) {
             state->process(reinterpret_cast<ApiProtocol *>(self->data));
             self->bindToState(state);
