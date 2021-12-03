@@ -159,7 +159,57 @@ AuthoritativeState::AuthoritativeState(Base *context)
 : context(context) { }
 
 void AuthoritativeState::process(ApiProtocol *data) {
-    std::cout << "Server sent something: " << data->buf << std::endl;
+    
+    std::cout << *data << std::endl;
+
+    std::vector<Instance>::iterator it;
+
+    if (data->kind == ApiProtocolKind::COMMAND) {
+
+        if (data->command.kind == CommandKind::MOVE) {
+
+            lock.lock();
+            it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
+            if (it == instances.end() || *it != data->command.id) return;
+
+            switch (data->command.mode) {
+                case InsertionMode::BACK:
+                    it->commandList.push_back(data->command);
+                    break;
+                case InsertionMode::FRONT:
+                    it->commandList.push_front(data->command);
+                    break;
+                case InsertionMode::OVERWRITE:
+                    it->commandList.clear();
+                    it->commandList.push_back(data->command);
+                    break;
+            }
+            lock.unlock();
+
+        } else if (data->command.kind == CommandKind::CREATE) {
+
+            std::raise(SIGTRAP);
+            const auto ent = Api::context->currentScene->entities.at(data->buf);
+            lock.lock();
+            Instance inst;
+            if (Api::context->headless) {
+                inst = Instance(ent, counter++);
+            } else {
+                inst = Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex, Api::context->currentScene->models.data() + ent->modelIndex,
+                    counter++, true);
+            }
+            inst.heading = data->command.data.heading;
+            inst.position = data->command.data.dest;
+            inst.team = data->command.data.id;
+            context->authState.instances.push_back(std::move(inst));
+
+            lock.unlock();
+
+        }
+
+    } else if (data->kind == ApiProtocolKind::FRAME_ADVANCE) {
+        doUpdateTick();
+    }
 }
 
 void AuthoritativeState::emit(const ApiProtocol& data) {

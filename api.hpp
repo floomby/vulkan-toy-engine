@@ -9,12 +9,6 @@ class Instance;
 
 class Base;
 
-enum class InsertionMode {
-    FRONT,
-    BACK,
-    OVERWRITE
-};
-
 // I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace
 // The other thing is everything here is reentrant
 class Api {
@@ -24,7 +18,7 @@ public:
     static void cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode);
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
     static void cmd_stop(const uint32_t uintID, const InsertionMode mode);
-    static uint32_t eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
+    static void eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team);
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
     static void eng_echo(const char *message);
     // static void test_fire();
@@ -42,18 +36,4 @@ public:
     static std::string eng_getInstanceEntityName(uint32_t unitID);
     static void gui_setLabelText(const std::string& name, const std::string& text);
     static void net_declareTeam(int team, const std::string& name);
-};
-
-enum class ApiProtocolKind {
-    FRAME_ADVANCE,
-    SERVER_MESSAGE,
-    TEAM_DECLARATION
-};
-
-const uint ApiTextBufferSize = 256;
-
-struct ApiProtocol {
-    ApiProtocolKind kind;
-    uint64_t frame;
-    char buf[ApiTextBufferSize];
 };

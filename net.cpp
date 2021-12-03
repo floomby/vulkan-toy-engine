@@ -18,27 +18,38 @@ Net::~Net() {
 
 // Server state update
 void Net::stateUpdater() {
-    // std::cout << "!!!!!" << std::endl;
-    state->doUpdateTick();
-    if (!(state->frame % 30)) {
-        ApiProtocol data { ApiProtocolKind::SERVER_MESSAGE, state->frame };
-        strcpy(data.buf, "Test server message");
-        state->emit(data);
+    while (!server->queue.empty()) {
+        state->process(&server->queue.front());
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+        state->emit(server->queue.front());
+        // ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
+        // state->emit(advance);
+        server->queue.pop();
     }
-    if (done) io.stop();
+    state->doUpdateTick();
+    // if (!(state->frame % 30)) {
+    //     ApiProtocol data { ApiProtocolKind::SERVER_MESSAGE, state->frame };
+    //     strcpy(data.buf, "Test server message");
+    //     state->emit(data);
+    // }
+    ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
+    // state->emit(advance);
+    if (done) { io.stop(); return; }
     timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }
 
-void Net::bindStateUpdater(AuthoritativeState *state, Mode mode, Networking::Client *client) {
+void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Client> client) {
     this->state = state;
-    this->mode = mode;
-    if (mode == Mode::SERVER) {
-        timer.async_wait(boost::bind(&Net::stateUpdater, this));
-    } else { // mode == Mode::CLIENT
-        assert(client);
-        client->bindToState(state, &done);
-    }
+    this->mode = Mode::CLIENT;
+    client->bindToState(state);
+}
+
+void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Server> server) {
+    this->state = state;
+    this->mode = Mode::SERVER;
+    this->server = server;
+    timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }
 
 void Net::launchIo() {
@@ -47,8 +58,8 @@ void Net::launchIo() {
 
 namespace Networking {
 
-Session::Session(ip::tcp::socket&& socket)
-: socket(std::move(socket)) {}
+Session::Session(ip::tcp::socket&& socket, std::weak_ptr<Server> server)
+: socket(std::move(socket)), server(server) { }
 
 void Session::start() {
     doRead();
@@ -56,24 +67,16 @@ void Session::start() {
 
 void Session::doRead() {
     auto self(shared_from_this());
-    socket.async_read_some(boost::asio::buffer(data, MAX_LENGTH),
+    boost::asio::async_read(socket, boost::asio::buffer(data, sizeof(ApiProtocol)),
         [this, self](boost::system::error_code err, size_t length) {
             if (!err) {
-                // doWrite(length);
-                std::cout << reinterpret_cast<ApiProtocol *>(data)->buf << std::endl;
+                // std::cout << "We are here" << std::endl;
+                // std::cout << reinterpret_cast<ApiProtocol *>(data)->buf << std::endl;
+                server.lock()->queue.push(*reinterpret_cast<ApiProtocol *>(data));
+                doRead();
             }
         });
 }
-
-// void Session::doWrite(size_t size) {
-//     auto self(shared_from_this());
-//     boost::asio::async_write(socket, boost::asio::buffer(data, size),
-//         [this, self](boost::system::error_code err, std::size_t /*length*/) {
-//             if (!err) {
-//                 doRead();
-//             }
-//         });
-// }
 
 void Session::writeData(const ApiProtocol& data) {
     boost::asio::write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)));
@@ -81,19 +84,24 @@ void Session::writeData(const ApiProtocol& data) {
 
 Server::Server(boost::asio::io_context& ioContext, short port)
 : acceptor(ioContext, ip::tcp::endpoint(ip::tcp::v4(), port)) {
-    doAccept();
+    boost::asio::steady_timer timer(ioContext, boost::asio::chrono::milliseconds(1));
+    timer.async_wait(boost::bind(&Server::init, this));
 }
 
-void Server::doAccept() {
+void Server::init() {
+    doAccept(weak_from_this());
+}
+
+void Server::doAccept(std::weak_ptr<Server> self) {
     acceptor.async_accept(
-        [this](boost::system::error_code err, ip::tcp::socket socket) {
+        [this, self](boost::system::error_code err, ip::tcp::socket socket) {
             if (!err) {
-                auto ses = std::make_shared<Session>(std::move(socket));
+                auto ses = std::make_shared<Session>(std::move(socket), self);
                 sessions.push_back(ses);
                 ses->start();
             }
 
-            doAccept();
+            doAccept(self);
         });
 }
 
@@ -104,23 +112,35 @@ void Server::writeData(const ApiProtocol& data) {
 }
 
 Client::Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port)
-: socket(ioContext) {
+: socket(ioContext), ioContext(&ioContext) {
     ip::tcp::resolver resolver(ioContext);
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     boost::asio::connect(socket, resolver.resolve(hostname, port));
 }
 
 void Client::writeData(const ApiProtocol& data) {
-    boost::asio::write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)));
+    ioContext->post([data, this](){
+        // std::cout << "Doing write from thread " << std::this_thread::get_id() << std::endl;
+        socket.async_write_some(boost::asio::buffer(&data, sizeof(ApiProtocol)),
+            [](const boost::system::error_code& err, size_t length) {
+                if (err) std::cerr << "Error writing to socket " << err << std::endl;
+                else {
+                    std::cout << "Wrote bytes: " << length << " should have writen " << sizeof(ApiProtocol) << std::endl;
+                }
+            });
+    });
 }
 
-void Client::bindToState(AuthoritativeState *state, std::atomic<bool> *done) {
-    socket.async_read_some(boost::asio::buffer(data, MAX_LENGTH),
-    [this, state, done](boost::system::error_code err, size_t length) {
+void Client::bindToState(AuthoritativeState *state) {
+    auto self(shared_from_this());
+    boost::asio::async_read(socket, boost::asio::buffer(data),
+    [state, self](boost::system::error_code err, size_t length) {
+        // Idk what is up???
+        std::cout << "Got length of " << length << std::endl;
         if (!err) {
-            state->process(reinterpret_cast<ApiProtocol *>(data));
-            if (!*done) bindToState(state, done);
-        } else std::cerr << "Networking error: " << err << std::endl;
+            state->process(reinterpret_cast<ApiProtocol *>(self->data));
+            self->bindToState(state);
+        } else std::cerr << "Networking error: " << err << " thread id: " << std::this_thread::get_id() << std::endl;
     });
 }
 

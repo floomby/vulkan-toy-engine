@@ -117,6 +117,7 @@ public:
     std::vector<uint32_t> idsSelected;
 
     virtual void send(const ApiProtocol& data);
+    virtual void send(ApiProtocol&& data);
 private:
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -533,7 +534,7 @@ private:
 
     ComputeManager *manager;
 
-    Networking::Client client;
+    std::shared_ptr<Networking::Client> client;
 };
 
 namespace GuiTextures {

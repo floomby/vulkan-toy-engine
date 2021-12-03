@@ -60,8 +60,8 @@ static int eng_createInstanceWrapper(lua_State *ls) {
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
     auto a3 = (int)luaL_checkinteger(ls, 4);
-    auto r = Api::eng_createInstance(a0, a1, a2, a3);
-    lua_pushinteger(ls, r);    return 1;
+    Api::eng_createInstance(a0, a1, a2, a3);
+    return 0;
 }
 
 static void eng_createInstanceExport(lua_State *ls) {

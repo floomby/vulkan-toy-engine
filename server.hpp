@@ -5,9 +5,11 @@
 class Server : public Base {
 public:
     Server();
+    ~Server();
     virtual void runCurrentScene();
     virtual void send(const ApiProtocol& data);
+    virtual void send(ApiProtocol&& data);
 private:
     void poll();
-    Networking::Server server;
+    std::shared_ptr<Networking::Server> server;
 };

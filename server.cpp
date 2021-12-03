@@ -2,8 +2,18 @@
 
 #include <iostream>
 
+#include "scene.hpp"
+
 Server::Server()
-: server(Networking::Server(net.io, 5555)) { }
+: server(std::make_shared<Networking::Server>(net.io, 5555)) {
+    headless = true;
+    currentScene = new Scene(this);
+    Api::context = this;
+}
+
+Server::~Server() {
+    delete currentScene;
+}
 
 void Server::poll() {
     std::string str;
@@ -14,7 +24,7 @@ void Server::poll() {
 void Server::runCurrentScene() {
     std::thread ioThread(&Server::poll, this);
     try {
-        net.bindStateUpdater(&authState, Net::Mode::SERVER);
+        net.bindStateUpdater(&authState, server);
         net.io.run();
     } catch (const std::exception& e) { 
         std::cerr << e.what() << std::endl;
@@ -23,7 +33,11 @@ void Server::runCurrentScene() {
 }
 
 void Server::send(const ApiProtocol& data) {
-    server.writeData(data);
+    server->writeData(data);
+}
+
+void Server::send(ApiProtocol&& data) {
+    server->writeData(data);
 }
 
 #include "lua_wrapper.hpp"

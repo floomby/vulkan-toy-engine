@@ -157,14 +157,18 @@ static const std::vector<const char*> requiredInstanceExtensions = {
 };
 
 Engine::Engine(EngineSettings engineSettings)
-: client(net.io, "127.0.0.1", "5555") {
+: client(std::make_shared<Networking::Client>(net.io, "127.0.0.1", "5555")) {
     this->engineSettings = engineSettings;
     // std::cout << "Engine main thread is " << gettid() << std::endl;
     Api::context = this;
 }
 
 void Engine::send(const ApiProtocol& data) {
-    client.writeData(data);
+    client->writeData(data);
+}
+
+void Engine::send(ApiProtocol&& data) {
+    client->writeData(data);
 }
 
 std::set<std::string> Engine::getSupportedInstanceExtensions() {
@@ -3012,7 +3016,7 @@ void Engine::runCurrentScene() {
     updateScene(0);
     vkDeviceWaitIdle(device);
 
-    Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})), 1);
+    // Api::eng_createInstance("ship", { 0.0f, 1.0f, 0.0f}, normalize(glm::quat({ 1.0f, 1.0f, 1.0f, 0.0f})), 1);
 
     iconModelIndex = currentScene->entities["icon"]->modelIndex;
 
@@ -3031,6 +3035,9 @@ void Engine::runCurrentScene() {
 
     // Adding ui panels from lua is not thread safe. (It requires exclusive access of the lua stack).
     // This that they are added before any other lua stuff runs
+    net.bindStateUpdater(&authState, client);
+    net.launchIo();
+
     assert(std::filesystem::exists("hud.lua"));
     GuiCommandData *what = new GuiCommandData();
     what->str = "Hud";
@@ -3046,16 +3053,12 @@ void Engine::runCurrentScene() {
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
-    net.bindStateUpdater(&authState, Net::Mode::CLIENT, &client);
-    net.launchIo();
-
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
         handleInput();
     }
 
-    net.done = true;
     net.io.stop();
 
     delete cursorLines;
@@ -3696,7 +3699,6 @@ void Engine::cleanup() {
 Engine::~Engine() {
     // Lazy badness
     if (std::uncaught_exceptions()) return;
-    net.~Net();
     done = true;
     consoleThread.join();
     delete consoleLua;

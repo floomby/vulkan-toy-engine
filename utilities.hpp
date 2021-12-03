@@ -131,7 +131,7 @@ namespace std {
     }
 
     inline ostream& operator<<(ostream& os, const glm::quat& qat) {
-        os << " w:" << qat.w << "x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
+        os << "w:" << qat.w << " x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
         return os;
     }
 
@@ -146,13 +146,20 @@ namespace std {
     }
 
     inline ostringstream& operator<<(ostringstream& os, const glm::quat& qat) {
-        os << " w:" << qat.w << "x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
+        os << "w:" << qat.w << " x:" << qat.x << " y:" << qat.y << " z:" << qat.z;
         return os;
     }
 }
 
 typedef uint32_t InstanceID;
 typedef void* ResourceID;
+
+enum class InsertionMode {
+    FRONT,
+    BACK,
+    OVERWRITE,
+    NONE
+};
 
 template <typename T> int sgn(T x) {
     return (T(0) < x) - (x < T(0));

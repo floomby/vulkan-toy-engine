@@ -8,6 +8,8 @@ class Gui;
 class Scene;
 class LuaWrapper;
 
+#include "state.hpp"
+
 class Base {
     friend class Api;
 public:
@@ -15,7 +17,10 @@ public:
     ~Base();
     virtual void runCurrentScene() = 0;
     virtual void send(const ApiProtocol& data) = 0;
+    virtual void send(ApiProtocol&& data) = 0;
     LuaWrapper *lua;
+    friend void AuthoritativeState::process(ApiProtocol *data);
+    bool headless = false;
 protected:
     Gui *gui = nullptr;
     AuthoritativeState authState;

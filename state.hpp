@@ -98,7 +98,33 @@ template<typename StateType> struct CommandGenerator {
     };
 };
 
-struct ApiProtocol;
+enum class ApiProtocolKind {
+    FRAME_ADVANCE,
+    SERVER_MESSAGE,
+    TEAM_DECLARATION,
+    COMMAND
+};
+
+const uint ApiTextBufferSize = 128;
+
+struct ApiProtocol {
+    ApiProtocolKind kind;
+    uint64_t frame;
+    char buf[ApiTextBufferSize];
+    Command command;
+};
+
+#include <iostream>
+
+static const std::vector<std::string> ApiProtocolKinds = enumNames2<ApiProtocolKind>();
+
+namespace std {
+    inline ostream& operator<<(ostream& os, const ApiProtocol& data) {
+        os << "Kind: " << ApiProtocolKinds[static_cast<int>(data.kind)] << " frame: " << data.frame << " buf: " << data.buf << " " << data.command;
+        return os;
+    }
+}
+
 class Base;
 
 // I feel like I am doing this all wrong

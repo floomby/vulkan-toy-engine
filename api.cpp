@@ -3,27 +3,29 @@
 Base *Api::context = nullptr;
 
 void Api::cmd_move(const uint32_t unitID, const glm::vec3& destination, const InsertionMode mode) {
-    std::scoped_lock l(context->authState.lock);
-    const auto& inst = context->authState.getInstance(unitID);
-    const auto cmd = Command { CommandKind::MOVE, inst->id, { destination, inst->id } };
-    switch (mode) {
-        case InsertionMode::BACK:
-            inst->commandList.push_back(std::move(cmd));
-            break;
-        case InsertionMode::FRONT:
-            inst->commandList.push_front(std::move(cmd));
-            break;
-        case InsertionMode::OVERWRITE:
-            inst->commandList.clear();
-            inst->commandList.push_back(std::move(cmd));
-            break;
-    }
+    // std::scoped_lock l(context->authState.lock);
+    // const auto& inst = context->authState.getInstance(unitID);
+    // const auto cmd = Command { CommandKind::MOVE, inst->id, { destination, inst->id } };
+    // switch (mode) {
+    //     case InsertionMode::BACK:
+    //         inst->commandList.push_back(std::move(cmd));
+    //         break;
+    //     case InsertionMode::FRONT:
+    //         inst->commandList.push_front(std::move(cmd));
+    //         break;
+    //     case InsertionMode::OVERWRITE:
+    //         inst->commandList.clear();
+    //         inst->commandList.push_back(std::move(cmd));
+    //         break;
+    // }
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
+    context->send(data);
 }
 
 void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     std::scoped_lock l(context->authState.lock);
     const auto& inst = context->currentScene->getInstance(unitID);
-    const auto cmd = Command { CommandKind::STOP, inst->id, { glm::vec3(0.0f), inst->id } };
+    const auto cmd = Command { CommandKind::STOP, inst->id, { glm::vec3(0.0f), {}, inst->id } };
     switch (mode) {
         case InsertionMode::BACK:
             inst->commandList.push_back(std::move(cmd));
@@ -38,19 +40,24 @@ void Api::cmd_stop(const uint32_t unitID, const InsertionMode mode) {
     }
 }
 
-uint32_t Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
-    std::scoped_lock l(context->authState.lock);
-    // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
-    const auto ent = context->currentScene->entities.at(name);
-    Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex,
-        context->authState.counter++, true);
-    // lock it here
-    // I probably just need a way to ensure order of api calls is consistent across every copy of the game like uuid sorting or something
-    inst.heading = heading;
-    inst.position = position;
-    inst.team = team;
-    context->authState.instances.push_back(std::move(inst));
-    return inst.id;
+void Api::eng_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, int team) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE }};
+    strncpy(data.buf, name.c_str(), ApiTextBufferSize);
+    data.buf[ApiTextBufferSize - 1] = '\0';
+    context->send(data);
+
+    // std::scoped_lock l(context->authState.lock);
+    // // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
+    // const auto ent = context->currentScene->entities.at(name);
+    // Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex,
+    //     context->authState.counter++, true);
+    // // lock it here
+    // // I probably just need a way to ensure order of api calls is consistent across every copy of the game like uuid sorting or something
+    // inst.heading = heading;
+    // inst.position = position;
+    // inst.team = team;
+    // context->authState.instances.push_back(std::move(inst));
+    // return inst.id;
 }
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {

@@ -8,17 +8,19 @@
 
 #include "team.hpp"
 #include "utilities.hpp"
+#include "enum_helper.hpp"
 
 enum class CommandKind {
-    MOVE,
     ATTACK,
+    MOVE,
     STOP,
-    COUNT,
+    CREATE,
     //.....
 };
 
 struct CommandData {
     glm::vec3 dest;
+    glm::quat heading;
     uint32_t id;
 };
 
@@ -26,7 +28,19 @@ struct Command {
     CommandKind kind;
     InstanceID id;
     CommandData data;
+    InsertionMode mode;
 };
+
+static const std::vector<std::string> CommandKinds = enumNames2<CommandKind>();
+static const std::vector<std::string> InsertionModes = enumNames2<InsertionMode>();
+
+namespace std {
+    inline ostream& operator<<(ostream& os, const Command& command) {
+        os << "Command kind: " << CommandKinds[static_cast<int>(command.kind)] << " id: " << command.id << " mode: "
+            << InsertionModes[static_cast<int>(command.mode)] << " " << command.data.dest << " - " << command.data.heading << " other id: " << command.data.id;
+        return os;
+    }
+}
 
 #include "entity.hpp"
 #include "weapon.hpp"
@@ -58,6 +72,8 @@ class Entity;
 
 class Instance {
 public:
+    Instance();
+    Instance(Entity* entity, InstanceID id) noexcept;
     Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept;
     void syncToAuthInstance(const Instance& other);
 

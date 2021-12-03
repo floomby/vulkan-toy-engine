@@ -104,9 +104,9 @@ Hud = {
 
 engret_visibility()
 
-local id = eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
+-- eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 gui_setLabelText("button", "Hello")
 -- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
 -- eng_setInstanceHealth(id, 40)
 -- print(eng_getInstanceHealth(id))
-net_declareTeam(1, "josh")
+-- net_declareTeam(1, "josh")

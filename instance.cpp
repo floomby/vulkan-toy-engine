@@ -2,11 +2,13 @@
 
 #include <iostream>
 
+Instance::Instance() { }
+
+Instance::Instance(Entity *entity, InstanceID id) noexcept
+: Instance(entity, nullptr, nullptr, id, true) { }
+
 Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept
-: id(id), inPlay(inPlay) {
-    this->entity = entity;
-    this->texture = texture;
-    this->sceneModelInfo = sceneModelInfo;
+: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo) {
 
     weapons.reserve(entity->weapons.size());
     for (auto& weapon : entity->weapons) {
