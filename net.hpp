@@ -70,8 +70,6 @@ public:
     friend void Session::doRead();
     friend void Net::stateUpdater();
 private:
-    // I need to initialize stuff outside of the constructor
-    void init();
     void doAccept(std::weak_ptr<Server> self);
     boost::asio::ip::tcp::acceptor acceptor;
     std::queue<ApiProtocol> queue;

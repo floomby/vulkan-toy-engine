@@ -160,7 +160,7 @@ AuthoritativeState::AuthoritativeState(Base *context)
 
 void AuthoritativeState::process(ApiProtocol *data) {
     
-    std::cout << *data << std::endl;
+    // std::cout << *data << std::endl;
 
     std::vector<Instance>::iterator it;
 

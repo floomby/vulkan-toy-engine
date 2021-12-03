@@ -32,7 +32,7 @@ void Net::stateUpdater() {
     //     state->emit(data);
     // }
     ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
-    // state->emit(advance);
+    state->emit(advance);
     if (done) { io.stop(); return; }
     timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
@@ -46,7 +46,6 @@ void Net::stateUpdater() {
 
 void Net::bindStateUpdater(AuthoritativeState *state, std::shared_ptr<Networking::Server> server) {
     this->state = state;
-    this->mode = Mode::SERVER;
     this->server = server;
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }
@@ -83,12 +82,7 @@ void Session::writeData(const ApiProtocol& data) {
 
 Server::Server(boost::asio::io_context& ioContext, short port)
 : acceptor(ioContext, ip::tcp::endpoint(ip::tcp::v4(), port)) {
-    boost::asio::steady_timer timer(ioContext, boost::asio::chrono::milliseconds(1));
-    timer.async_wait(boost::bind(&Server::init, this));
-}
-
-void Server::init() {
-    doAccept(weak_from_this());
+    ioContext.post([this](){ doAccept(weak_from_this()); });
 }
 
 void Server::doAccept(std::weak_ptr<Server> self) {
