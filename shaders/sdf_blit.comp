@@ -1,13 +1,17 @@
 #version 450
 
+#include "render_modes.h"
+
 #extension GL_EXT_nonuniform_qualifier : enable
 
 layout(set = 0, binding = 0, r8) uniform readonly image2D sdfGlyphs[128];
 layout(set = 0, binding = 1, r8) uniform image2D resultImage;
 layout(set = 0, binding = 2) uniform GlyphsUBO {
-    uint writeCount;
     uint pixelOffset;
     uint totalWidth;
+    uint lineCount;
+    uint lineHeight;
+    uint writeCounts[ECONF_MAX_LINES_IN_TEXT];
 } glyphsUBO;
 
 struct IndexWidth {
@@ -22,24 +26,39 @@ layout(set = 0, binding = 3) buffer readonly IndexWidths {
 void main() {
     ivec2 coord;
     uint offset = 0;
-    for (int i = 0; i < glyphsUBO.totalWidth; i++) {
-        coord = ivec2(i, gl_GlobalInvocationID.x);
-        imageStore(resultImage, coord, vec4(0.0, 0.0, 0.0, 0.0));
-        // imageStore(resultImage, coord, ); imageLoad(sdfGlyphs[0], coord).r
-    }
-    for (int j = 0; j < glyphsUBO.writeCount; j++) {
+    // This has a slight redundancy, but who cares, it is still super fast
+    for (int j = 0; j < glyphsUBO.lineCount; j++) {
         for (int i = 0; i < glyphsUBO.totalWidth; i++) {
-            if (i + offset > glyphsUBO.totalWidth) continue; 
-            coord = ivec2(i + offset, gl_GlobalInvocationID.x);
-            ivec2 srcCoord = ivec2(i, gl_GlobalInvocationID.x);
-            vec4 curValue = imageLoad(resultImage, coord);
-            vec4 srcValue = imageLoad(sdfGlyphs[indexWidths.data[j].index], srcCoord);
-            if (curValue.r > srcValue.r) {
-                imageStore(resultImage, coord, curValue);
-            } else {
-                imageStore(resultImage, coord, srcValue);
-            }
+            coord = ivec2(i, gl_GlobalInvocationID.x + j * glyphsUBO.lineHeight);
+            imageStore(resultImage, coord, vec4(0.0, 0.0, 0.0, 0.0));
+            // imageStore(resultImage, coord, ); imageLoad(sdfGlyphs[0], coord).r
         }
-        offset += indexWidths.data[j].width;
+    }
+
+    memoryBarrier();
+    barrier();
+
+    uint readCount = 0;
+    for (int k = 0; k < glyphsUBO.lineCount; k++) {
+        for (int j = 0; j < glyphsUBO.writeCounts[k]; j++) {
+        // for (int j = 0; j < 5; j++) {
+            for (int i = 0; i < glyphsUBO.totalWidth; i++) {
+                if (i + offset > glyphsUBO.totalWidth) continue; 
+                coord = ivec2(i + offset, gl_GlobalInvocationID.x + k * glyphsUBO.lineHeight);
+                ivec2 srcCoord = ivec2(i, gl_GlobalInvocationID.x);
+                vec4 curValue = imageLoad(resultImage, coord);
+                vec4 srcValue = imageLoad(sdfGlyphs[indexWidths.data[readCount].index], srcCoord);
+                if (curValue.r > srcValue.r) {
+                    imageStore(resultImage, coord, curValue);
+                } else {
+                    imageStore(resultImage, coord, srcValue);
+                }
+            }
+            offset += indexWidths.data[readCount].width;
+            readCount++;
+        }
+        offset = 0;
+        memoryBarrier();
+        barrier();
     }
 }

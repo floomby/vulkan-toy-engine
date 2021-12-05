@@ -123,6 +123,7 @@ private:
     std::string getStringField(const char *key);
     void getStringField(const char *key, std::string& str);
     void getStringsField(const char *key, std::vector<std::string>& strs);
+    bool getBooleanField(const char *key);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
     lua_State *luaState;
 

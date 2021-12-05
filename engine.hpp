@@ -549,9 +549,14 @@ namespace GuiTextures {
 
 // the alignment appears to be correct, but only the first 58 bytes work?
 struct GlyphInfoUBO {
-    glm::uint32_t writeCount;
     glm::uint32_t pixelOffset;
     glm::uint32_t totalWidth;
+    glm::uint32_t lineCount;
+    glm::uint32_t lineHeight;
+    // I should read the rules about vulkan memomry alignment cause this seems stupid to have to make this 4 times as big
+    // as it seems like it should be
+    glm::uint32_t writeCounts[ECONF_MAX_LINES_IN_TEXT * 4];
+
 };
 
 struct IndexWidthSSBO {
@@ -572,11 +577,11 @@ public:
     };
     std::map<char32_t, GlyphData> glyphDatum;
     uint bufferWidth;
-    uint height;
+    uint height, lineHeight;
 
     void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
-    uint writeUBO(GlyphInfoUBO *buffer, const std::string& str, bool cacheWidth = false);
-    uint widthOf(const std::string& str, bool cacheWidth = false);
+    std::pair<uint, uint> writeUBO(GlyphInfoUBO *buffer, const std::string& str, bool cacheWidth = false);
+    // uint widthOf(const std::string& str, bool cacheWidth = false);
 
     // I don't know if I want to cache widths or not
     std::map<std::string, uint> cachedWidths;

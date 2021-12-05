@@ -2598,7 +2598,7 @@ void Engine::handleInput() {
         for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
         if (tooltipStatus) {
             std::ostringstream tooltipText;
-            tooltipText << mousedOver->position;
+            tooltipText << mousedOver->position << "\ntesttesttestaoeunthaoesunth";
             if (!tooltipJob) setTooltip(tooltipText.str());
         }
         drawTooltip = true;
@@ -5263,7 +5263,7 @@ template<typename T> void DynUBOSyncer<T>::sync(int descriptorIndex, const std::
 }
 
 GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted, bool rebuildFontCache)
-: context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2) {
+: context(context), bufferWidth(GuiTextures::maxGlyphHeight / 2), lineHeight(GuiTextures::maxGlyphHeight + GuiTextures::maxGlyphHeight / 2) {
     height = GuiTextures::maxGlyphHeight + 2 * bufferWidth;
     struct FontCacheData {
         char32_t glyph;
@@ -5403,56 +5403,68 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 }
 
 // returns the width of the needed buffer
-uint GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str, bool cacheWidth) {
-    uint width = 0;
-    auto wstr = converter.from_bytes(str);
+std::pair<uint, uint> GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::string& str, bool cacheWidth) {
+    uint maxWidth = 0;
     int index = 0;
     IndexWidthSSBO *buf = nullptr;
-    for (const auto& chr : wstr) {
-        buf = syncer->ensureSize(buf, index);
-        if (!glyphDatum.contains(chr)) {
-            std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
-            // TODO continuing is not the correct behavior, priting an error character should be correct
-            continue;
-        }
-        const auto& data = glyphDatum.at(chr);
-        buf[index].index = data.descriptorIndex;
-        buf[index].width = data.width;
-        width += data.width;
-        index++;
-    }
-    glyphInfo->writeCount = index;
+
+    auto ss = std::stringstream { str };
+
+    glyphInfo->lineHeight = lineHeight;
     glyphInfo->pixelOffset = bufferWidth;
-    glyphInfo->totalWidth = width + 2 * bufferWidth;
+
+    glyphInfo->lineCount = 0;
+    for (std::string line; std::getline(ss, line);) {
+        uint width = 0;
+        auto wstr = converter.from_bytes(line);
+        for (const auto& chr : wstr) {
+            buf = syncer->ensureSize(buf, index);
+            if (!glyphDatum.contains(chr)) {
+                std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
+                // TODO continuing is not the correct behavior, priting an error character should be correct
+                continue;
+            }
+            const auto& data = glyphDatum.at(chr);
+            buf[index].index = data.descriptorIndex;
+            buf[index].width = data.width;
+            width += data.width;
+            index++;
+        }
+        glyphInfo->writeCounts[glyphInfo->lineCount * 4] = wstr.length();
+
+        glyphInfo->lineCount++;
+        maxWidth = std::max(width, maxWidth);
+    }
+    glyphInfo->totalWidth = maxWidth + 2 * bufferWidth;
 
     syncer->sync();
 
-    if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
-    return width + 2 * bufferWidth;
+    if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, glyphInfo->totalWidth });
+    return { glyphInfo->totalWidth, height + lineHeight * (glyphInfo->lineCount - 1) };
 }
 
-uint GlyphCache::widthOf(const std::string& str, bool cacheWidth) {
-    if (cacheWidth && cachedWidths.contains(str)) {
-        return cachedWidths[str];
-    }
+// uint GlyphCache::widthOf(const std::string& str, bool cacheWidth) {
+//     if (cacheWidth && cachedWidths.contains(str)) {
+//         return cachedWidths[str];
+//     }
 
-    uint width = 0;
-    auto wstr = converter.from_bytes(str);
-    int index = 0;
-    for (const auto& chr : wstr) {
-        if (!glyphDatum.contains(chr)) {
-            std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
-            // TODO continuing is not the correct behavior, priting an error character should be correct
-            continue;
-        }
-        const auto& data = glyphDatum.at(chr);
-        width += data.width;
-        index++;
-    }
+//     uint width = 0;
+//     auto wstr = converter.from_bytes(str);
+//     int index = 0;
+//     for (const auto& chr : wstr) {
+//         if (!glyphDatum.contains(chr)) {
+//             std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
+//             // TODO continuing is not the correct behavior, priting an error character should be correct
+//             continue;
+//         }
+//         const auto& data = glyphDatum.at(chr);
+//         width += data.width;
+//         index++;
+//     }
 
-    if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
-    return width + 2 * bufferWidth;
-}
+//     if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
+//     return width + 2 * bufferWidth;
+// }
 
 GlyphCache::~GlyphCache() {
     delete defaultGlyph;
@@ -5663,9 +5675,12 @@ void ComputeManager::poll() {
                 switch (op.kind) {
                     case ComputeKind::TEXT:
                         {
-                            uint width = context->glyphCache->writeUBO((GlyphInfoUBO *)context->sdfUBOAllocation->GetMappedData(), *reinterpret_cast<std::string *>(op.data));
+                            auto wh = context->glyphCache->writeUBO((GlyphInfoUBO *)context->sdfUBOAllocation->GetMappedData(),
+                                *reinterpret_cast<std::string *>(op.data));
 
-                            textResource = std::make_unique<TextResource>(context, context->glyphCache->height, width);
+                            const uint& width = wh.first;
+                            const uint& height = wh.second;
+                            textResource = std::make_unique<TextResource>(context, height, width);
                             textResource->writeDescriptor(context->computeSets[Engine::CP_SDF_BLIT]);
                             
                             auto buffer = context->beginSingleTimeCommands(context->guiCommandPool);

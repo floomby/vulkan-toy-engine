@@ -102,6 +102,18 @@ void LuaWrapper::getStringsField(const char *key, std::vector<std::string>& strs
     lua_pop(luaState, 1);
 }
 
+bool LuaWrapper::getBooleanField(const char *key) {
+    lua_pushstring(luaState, key);
+    lua_gettable(luaState, -2);
+    if (!lua_isboolean(luaState, -1)) {
+        lua_pop(luaState, 1);
+        return false;
+    }
+    bool ret = lua_toboolean(luaState, -1);
+    lua_pop(luaState, 1);
+    return ret;
+}
+
 GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     std::string filename = std::string(name);
     std::transform(filename.begin(), filename.end(), filename.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -266,6 +278,8 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->acceleration = getNumberField("acceleration");
     ret->maxOmega = getNumberField("maxOmega");
     ret->maxHealth = getNumberField("maxHealth");
+    ret->minable = getBooleanField("minable");
+    ret->resources = getNumberField("resources");
 
     ret->precompute();
 

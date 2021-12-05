@@ -11,5 +11,6 @@ Ship = {
     },
     unitAIs = {
         "shooter_tester"
-    }
+    },
+    resources = 20
 }

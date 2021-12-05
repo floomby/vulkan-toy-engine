@@ -9,5 +9,6 @@ Asteroid = {
     weapons = {
     },
     unitAIs = {
-    }
+    },
+    resources = 500,
 }
