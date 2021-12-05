@@ -104,11 +104,15 @@ Hud = {
 
 engret_visibility()
 
--- eng_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
+-- cmd_createInstance("ship", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 gui_setLabelText("button", "Hello")
 -- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
 -- eng_setInstanceHealth(id, 40)
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
 
--- eng_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
+-- cmd_createInstance("asteroid", { 0.0, -5.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 0)
+
+net_declareTeam(1, "josh")
+state_giveResources(1, 55.3)
+print(state_getResources(1))

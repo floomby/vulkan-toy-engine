@@ -2,6 +2,10 @@
 
 #include <iostream>
 
+void crcString(boost::crc_32_type& crc, const std::string& str) {
+    crc.process_bytes(str.data(), str.length());
+}
+
 Instance::Instance() { }
 
 Instance::Instance(Entity *entity, InstanceID id) noexcept
@@ -60,4 +64,9 @@ bool Instance::operator==(uint32_t id) {
 
 bool Instance::operator<(uint32_t id) {
     return this->id < id;
+}
+
+void Instance::doCrc(boost::crc_32_type& crc) const {
+    crcString(crc, entity->name);
+    // TODO Finish this
 }

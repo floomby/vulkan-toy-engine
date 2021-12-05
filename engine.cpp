@@ -171,6 +171,10 @@ void Engine::send(ApiProtocol&& data) {
     client->writeData(data);
 }
 
+void Engine::quit() {
+    glfwSetWindowShouldClose(window, true);
+}
+
 std::set<std::string> Engine::getSupportedInstanceExtensions() {
     uint32_t count;
     vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
@@ -5023,10 +5027,6 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.subresourceRange.layerCount = 1;
     textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
-
-    if ((unsigned long)image == 0xd0e29300000000aa) {
-        std::cout << boost::stacktrace::stacktrace() << std::endl;
-    }
 
     GuiTextures::references.insert({ image, 1 });
 

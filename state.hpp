@@ -101,8 +101,10 @@ template<typename StateType> struct CommandGenerator {
 enum class ApiProtocolKind {
     FRAME_ADVANCE,
     SERVER_MESSAGE,
+    PAUSE,
     TEAM_DECLARATION,
-    COMMAND
+    COMMAND,
+    RESOURCES
 };
 
 const uint ApiTextBufferSize = 128;
@@ -111,7 +113,8 @@ struct ApiProtocol {
     ApiProtocolKind kind;
     uint64_t frame;
     char buf[ApiTextBufferSize];
-    alignas(16) Command command;
+    Command command;
+    double dbl;
 };
 
 #include <iostream>
@@ -133,20 +136,24 @@ public:
     AuthoritativeState(Base *context);
 
     std::vector<Instance> instances;
-    uint totalElapsedTicks;
-    void doUpdateTick();
+    size_t frame = 0;
     InstanceID counter = 100;
+    std::vector<Team> teams;
+
+    std::atomic<bool> paused = true;
+
+    void doUpdateTick();
     std::recursive_mutex lock;
     inline std::vector<Instance>::iterator getInstance(InstanceID id) {
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
     }
-    std::vector<Team> teams;
+
     void dump();
-    
+    uint32_t crc();
+
     void process(ApiProtocol *data);
     void emit(const ApiProtocol& data);
 
-    size_t frame = 0;
 private:
     Base *context;
 };
@@ -154,13 +161,13 @@ private:
 class ObservableState {
 public:
     std::vector<Instance> instances;
-    uint totalElapsedTicks;
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
     // player economy state and metadata stuff and so forth....
     // Updating does not really belong here
     void doUpdate(float timeDelta);
     void syncToAuthoritativeState(AuthoritativeState& state);
+    std::vector<Team> teams;
 };
 
 

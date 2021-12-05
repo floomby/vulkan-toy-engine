@@ -27,16 +27,20 @@ public:
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
     static void eng_echo(const char *message);
     static int eng_getTeamID(InstanceID unitID);
-    static std::vector<uint32_t> eng_getSelectedInstances();
+    static std::vector<InstanceID> eng_getSelectedInstances();
     static void eng_setInstanceStateEngage(InstanceID unitID, IEngage state);
     static void eng_setInstanceHealth(InstanceID uintID, float health);
     static float eng_getInstanceHealth(InstanceID unitID);
     static std::string eng_getInstanceEntityName(InstanceID unitID);
+    static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);
 
     static void state_dumpAuthStateIDs();
+    static void state_giveResources(TeamID teamID, double resourceUnits);
+    static double state_getResources(TeamID teamID);
 
-    static void net_declareTeam(TeamID team, const std::string& name);
+    static void net_declareTeam(TeamID teamID, const std::string& name);
+    static void net_pause(bool pause);
 };

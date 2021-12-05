@@ -18,6 +18,7 @@ public:
     virtual void runCurrentScene() = 0;
     virtual void send(const ApiProtocol& data) = 0;
     virtual void send(ApiProtocol&& data) = 0;
+    virtual void quit() = 0;
     LuaWrapper *lua;
     friend void AuthoritativeState::process(ApiProtocol *data);
     bool headless = false;

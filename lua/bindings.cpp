@@ -219,6 +219,16 @@ static void eng_getInstanceEntityNameExport(lua_State *ls) {
     lua_setglobal(ls, "eng_getInstanceEntityName");
 }
 
+static int eng_quitWrapper(lua_State *ls) {
+    Api::eng_quit();
+    return 0;
+}
+
+static void eng_quitExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_quitWrapper);
+    lua_setglobal(ls, "eng_quit");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -256,6 +266,29 @@ static void state_dumpAuthStateIDsExport(lua_State *ls) {
     lua_setglobal(ls, "state_dumpAuthStateIDs");
 }
 
+static int state_giveResourcesWrapper(lua_State *ls) {
+    auto a0 = (TeamID)luaL_checkinteger(ls, 1);
+    auto a1 = (double)luaL_checknumber(ls, 2);
+    Api::state_giveResources(a0, a1);
+    return 0;
+}
+
+static void state_giveResourcesExport(lua_State *ls) {
+    lua_pushcfunction(ls, state_giveResourcesWrapper);
+    lua_setglobal(ls, "state_giveResources");
+}
+
+static int state_getResourcesWrapper(lua_State *ls) {
+    auto a0 = (TeamID)luaL_checkinteger(ls, 1);
+    auto r = Api::state_getResources(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void state_getResourcesExport(lua_State *ls) {
+    lua_pushcfunction(ls, state_getResourcesWrapper);
+    lua_setglobal(ls, "state_getResources");
+}
+
 static int net_declareTeamWrapper(lua_State *ls) {
     auto a0 = (TeamID)luaL_checkinteger(ls, 1);
     luaL_checkstring(ls, 2);
@@ -267,6 +300,17 @@ static int net_declareTeamWrapper(lua_State *ls) {
 static void net_declareTeamExport(lua_State *ls) {
     lua_pushcfunction(ls, net_declareTeamWrapper);
     lua_setglobal(ls, "net_declareTeam");
+}
+
+static int net_pauseWrapper(lua_State *ls) {
+    auto a0 = (bool)luaL_checkinteger(ls, 1);
+    Api::net_pause(a0);
+    return 0;
+}
+
+static void net_pauseExport(lua_State *ls) {
+    lua_pushcfunction(ls, net_pauseWrapper);
+    lua_setglobal(ls, "net_pause");
 }
 
 void LuaWrapper::apiExport() {
@@ -283,8 +327,12 @@ void LuaWrapper::apiExport() {
     eng_setInstanceHealthExport(luaState);
     eng_getInstanceHealthExport(luaState);
     eng_getInstanceEntityNameExport(luaState);
+    eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
+    state_giveResourcesExport(luaState);
+    state_getResourcesExport(luaState);
     net_declareTeamExport(luaState);
+    net_pauseExport(luaState);
 }

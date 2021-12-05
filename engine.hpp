@@ -119,6 +119,7 @@ public:
 
     virtual void send(const ApiProtocol& data);
     virtual void send(ApiProtocol&& data);
+    virtual void quit();
 private:
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;

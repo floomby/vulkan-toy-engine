@@ -16,8 +16,21 @@ Server::~Server() {
 }
 
 void Server::poll() {
+    std::chrono::seconds timeout(5);
+    while (!net.done) {
+        auto future = std::async(&Server::poll_, this);
+        if (future.wait_for(timeout) == std::future_status::ready)
+            future.get();
+    }
+}
+
+void Server::poll_() {
     std::string str;
     std::cin >> str;
+    net.done = true;
+}
+
+void Server::quit() {
     net.done = true;
 }
 

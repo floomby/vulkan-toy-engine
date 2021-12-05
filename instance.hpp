@@ -3,12 +3,15 @@
 // One of the big things about this code is that this class is storing information pertinent to rendering as well
 // as the information about the game state of this object, I have no idea if this is good or not (I suspect it is the later)
 
+#include <boost/crc.hpp>
 #include <coroutine>
 #include <list>
 
 #include "team.hpp"
 #include "utilities.hpp"
 #include "enum_helper.hpp"
+
+void crcString(boost::crc_32_type& crc, const std::string& str);
 
 enum class CommandKind {
     ATTACK,
@@ -111,6 +114,8 @@ public:
     bool operator==(const Instance& other);
     bool operator==(uint32_t id);
     bool operator<(uint32_t id);
+
+    void doCrc(boost::crc_32_type& crc) const;
 private:
     InstanceUBO _state;
 };

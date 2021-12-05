@@ -21,18 +21,13 @@ void Net::stateUpdater() {
     while (!server->queue.empty()) {
         state->process(&server->queue.front());
         state->emit(server->queue.front());
-            ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
-            state->emit(advance);
         server->queue.pop();
     }
-    state->doUpdateTick();
-    // if (!(state->frame % 30)) {
-    //     ApiProtocol data { ApiProtocolKind::SERVER_MESSAGE, state->frame };
-    //     strcpy(data.buf, "Test server message");
-    //     state->emit(data);
-    // }
-    ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
-    state->emit(advance);
+    if (!state->paused) {
+        state->doUpdateTick();
+        ApiProtocol advance = { ApiProtocolKind::FRAME_ADVANCE, state->frame };
+        state->emit(advance);
+    }
     if (done) { io.stop(); return; }
     timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
     timer.async_wait(boost::bind(&Net::stateUpdater, this));

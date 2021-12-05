@@ -4,6 +4,8 @@
 
 #include "state.hpp"
 
+#include <boost/crc.hpp>
+
 uint ObservableState::commandCount(const std::vector<uint>& which) {
     uint acm = 0;
     for (auto& idx : which) {
@@ -82,6 +84,8 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 
 // TODO This function is really ineffecient and holds the auth state lock the whole time it runs
 void AuthoritativeState::doUpdateTick() {
+    if (frame % 30 == 1) std::cout << std::hex << crc() << std::endl;
+
     const float timeDelta = Net::secondsPerTick;
     std::scoped_lock l(lock);
     auto size = instances.size();
@@ -155,6 +159,16 @@ void AuthoritativeState::dump() {
     std::cout << " }" << std::endl;
 }
 
+uint32_t AuthoritativeState::crc() {
+    boost::crc_32_type crc;
+    std::scoped_lock l(lock);
+    crc.process_bytes(&frame, sizeof(frame));
+    for (const auto& inst : instances) {
+        inst.doCrc(crc);
+    }
+    return crc.checksum();
+}
+
 AuthoritativeState::AuthoritativeState(Base *context)
 : context(context) { }
 
@@ -165,16 +179,13 @@ void AuthoritativeState::process(ApiProtocol *data) {
     std::vector<Instance>::iterator it;
 
     if (data->kind == ApiProtocolKind::COMMAND) {
-
         if (data->command.kind == CommandKind::MOVE) {
-
             lock.lock();
             it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
             if (it == instances.end() || *it != data->command.id) {
                 lock.unlock();
                 return;
             };
-
             switch (data->command.mode) {
                 case InsertionMode::BACK:
                     it->commandList.push_back(data->command);
@@ -188,9 +199,7 @@ void AuthoritativeState::process(ApiProtocol *data) {
                     break;
             }
             lock.unlock();
-
         } else if (data->command.kind == CommandKind::CREATE) {
-
             const auto ent = Api::context->currentScene->entities.at(data->buf);
             lock.lock();
             Instance inst;
@@ -204,25 +213,33 @@ void AuthoritativeState::process(ApiProtocol *data) {
             inst.position = data->command.data.dest;
             inst.team = data->command.data.id;
             context->authState.instances.push_back(std::move(inst));
-
             lock.unlock();
-
         } else if (data->command.kind == CommandKind::DESTROY) {
-
             lock.lock();
             it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
             if (it == instances.end() || *it != data->command.id) {
                 lock.unlock();
                 return;
             };
-
             instances.erase(it);
             lock.unlock();
-
         }
-
     } else if (data->kind == ApiProtocolKind::FRAME_ADVANCE) {
         doUpdateTick();
+        frame = data->frame;
+    } else if (data->kind == ApiProtocolKind::PAUSE) {
+        paused = (bool)data->frame;
+    } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {
+        lock.lock();
+        teams.push_back(Team((TeamID)data->frame, data->buf));
+        lock.unlock();
+    } else if (data->kind == ApiProtocolKind::RESOURCES) {
+        lock.lock();
+        auto it = find(teams.begin(), teams.end(), (TeamID)data->frame);
+        if (it != teams.end()) it->resourceUnits = it->resourceUnits + data->dbl;
+        lock.unlock();
+    } else if (data->kind == ApiProtocolKind::SERVER_MESSAGE) {
+        Api::eng_echo(data->buf);
     }
 }
 

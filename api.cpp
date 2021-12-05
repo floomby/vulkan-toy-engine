@@ -3,21 +3,6 @@
 Base *Api::context = nullptr;
 
 void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
-    // std::scoped_lock l(context->authState.lock);
-    // const auto& inst = context->authState.getInstance(unitID);
-    // const auto cmd = Command { CommandKind::MOVE, inst->id, { destination, inst->id } };
-    // switch (mode) {
-    //     case InsertionMode::BACK:
-    //         inst->commandList.push_back(std::move(cmd));
-    //         break;
-    //     case InsertionMode::FRONT:
-    //         inst->commandList.push_front(std::move(cmd));
-    //         break;
-    //     case InsertionMode::OVERWRITE:
-    //         inst->commandList.clear();
-    //         inst->commandList.push_back(std::move(cmd));
-    //         break;
-    // }
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
     context->send(data);
 }
@@ -93,7 +78,7 @@ void Api::eng_echo(const char *message) {
     std::cout << msg << std::flush;
 }
 
-std::vector<uint32_t> Api::eng_getSelectedInstances() {
+std::vector<InstanceID> Api::eng_getSelectedInstances() {
     std::scoped_lock l(context->apiLock);
     return static_cast<Engine *>(context)->idsSelected;
 }
@@ -103,14 +88,6 @@ int Api::eng_getTeamID(InstanceID unitID) {
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return -1;
     return it->id;
-}
-
-void Api::gui_setVisibility(const char *name, bool visibility) {
-    GuiCommandData *what = new GuiCommandData();
-    what->str = name;
-    what->action = visibility;
-    what->flags = GUIF_NAMED;
-    context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
 }
 
 void Api::eng_setInstanceStateEngage(InstanceID unitID, IEngage state) {
@@ -134,16 +111,23 @@ float Api::eng_getInstanceHealth(InstanceID unitID) {
     return it->health;
 }
 
-void Api::state_dumpAuthStateIDs() {
-    std::scoped_lock l(context->authState.lock);
-    context->authState.dump();
-}
-
 std::string Api::eng_getInstanceEntityName(InstanceID unitID) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
     if (it == context->authState.instances.end() || *it != unitID) return "<invalid id>";
     return it->entity->name;
+}
+
+void Api::eng_quit() {
+    context->quit();
+}
+
+void Api::gui_setVisibility(const char *name, bool visibility) {
+    GuiCommandData *what = new GuiCommandData();
+    what->str = name;
+    what->action = visibility;
+    what->flags = GUIF_NAMED;
+    context->gui->submitCommand({ Gui::GUI_VISIBILITY, what });
 }
 
 void Api::gui_setLabelText(const std::string& name, const std::string& text) {
@@ -154,9 +138,32 @@ void Api::gui_setLabelText(const std::string& name, const std::string& text) {
     context->gui->submitCommand({ Gui::GUI_TEXT, what });
 }
 
-void Api::net_declareTeam(TeamID team, const std::string& name) {
-    ApiProtocol data = { ApiProtocolKind::TEAM_DECLARATION };
+void Api::state_dumpAuthStateIDs() {
+    std::scoped_lock l(context->authState.lock);
+    context->authState.dump();
+}
+
+void Api::state_giveResources(TeamID team, double resourceUnits) {
+    ApiProtocol data { ApiProtocolKind::RESOURCES, team };
+    data.dbl = resourceUnits;
+    context->send(data);
+}
+
+double Api::state_getResources(TeamID teamID) {
+    std::scoped_lock l(context->authState.lock);
+    auto it = find(context->authState.teams.begin(), context->authState.teams.end(), teamID);
+    if (it != context->authState.teams.end()) return it->resourceUnits;
+    return 0.0;
+}
+
+void Api::net_declareTeam(TeamID teamID, const std::string& name) {
+    ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
+    context->send(data);
+}
+
+void Api::net_pause(bool pause) {
+    ApiProtocol data { ApiProtocolKind::PAUSE, (uint64_t)pause };
     context->send(data);
 }
