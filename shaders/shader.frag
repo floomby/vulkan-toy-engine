@@ -19,6 +19,7 @@ layout(location = 3) in vec3 vertPos;
 layout(location = 4) in vec3 shadowCoord;
 layout(location = 5) in vec3 skyCoord;
 layout(location = 6) in flat float inHealth;
+layout(location = 7) in flat float inResources;
 
 layout(location = 0) out vec4 outColor;
 
@@ -119,7 +120,14 @@ void main() {
         if (bool(rflags & RFLAG_HIGHLIGHT)) {
             outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
         }
-        if (outColor.a < 0.1) discard;
+        return;
+    }
+
+    if (rtype == RINT_RESOURCE) {
+        outColor = fragTexCoord.x > inResources ? vec4(0.3, 0.3, 0.3, 1.0) : vec4(0.05, 0.3, 0.9, 1.0);
+        if (bool(rflags & RFLAG_HIGHLIGHT)) {
+            outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
+        }
         return;
     }
 

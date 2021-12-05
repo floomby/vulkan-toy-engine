@@ -213,6 +213,7 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_NOTIFY) {
                 root->propegateEngineNotification(command.data->str);
+                delete command.data;
             } else if (command.action == GUI_TEXT) {
                 if (command.data->flags == GUIF_INDEX) {
                     auto comp = root->getComponent(command.data->childIndices);
@@ -231,6 +232,7 @@ void Gui::pollChanges() {
                         std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                     }
                 } else std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                delete command.data;
             }
             queueLock.lock();
         }
@@ -571,6 +573,7 @@ GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
     auto ret = fromLayout(tree, baseLayer);
     panels.insert({ name, ret });
     ret->visible = false;
+    delete tree;
     return ret;
 }
 

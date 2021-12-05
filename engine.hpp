@@ -88,15 +88,15 @@ private:
 };
 
 class Engine : public Base {
-    // Mmmm, tasty spahgetti
+    // There is probably a better design patter here
     friend class EntityTexture;
     friend class CubeMap;
     friend class GuiTexture;
     friend class Scene;
-    // friend class Api;
     friend class GlyphCache;
     friend class TextResource;
     friend class ComputeManager;
+    // friend class Api;
 
     friend class DynUBOSyncer<InstanceUBO>;
     friend class DynUBOSyncer<LineUBO>;
@@ -245,8 +245,6 @@ private:
         float x, y;
         glm::vec3 ray;
     };
-
-    std::vector<Instance *> instancesSelected; // not authstate instances
 
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -564,7 +562,7 @@ struct IndexWidthSSBO {
     glm::uint32_t width;
 };
 
-// We won't cache control charecters as this makes no sense
+// We won't cache control characters as this makes no sense
 class GlyphCache {
 public:
     GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWanted, bool rebuildFontCache);
@@ -581,7 +579,6 @@ public:
 
     void writeDescriptors(VkDescriptorSet& set, uint32_t binding);
     std::pair<uint, uint> writeUBO(GlyphInfoUBO *buffer, const std::string& str, bool cacheWidth = false);
-    // uint widthOf(const std::string& str, bool cacheWidth = false);
 
     // I don't know if I want to cache widths or not
     std::map<std::string, uint> cachedWidths;

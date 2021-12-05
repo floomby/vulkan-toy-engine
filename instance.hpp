@@ -61,6 +61,7 @@ struct InstanceUBO {
     glm::mat4 normal;
     glm::mat4 healthBarModel;
     float health;
+    float resources;
 };
 
 enum class IEngage {
@@ -98,6 +99,7 @@ public:
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
     float health = 0.3f;
+    double resources;
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);

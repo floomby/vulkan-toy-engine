@@ -12,7 +12,7 @@ Instance::Instance(Entity *entity, InstanceID id) noexcept
 : Instance(entity, nullptr, nullptr, id, true) { }
 
 Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept
-: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo) {
+: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo), resources(entity->resources) {
 
     weapons.reserve(entity->weapons.size());
     for (auto& weapon : entity->weapons) {
@@ -34,7 +34,8 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
     if (inPlay && !entity->isProjectile) _state.healthBarModel = view_1proj_1 * 
         translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w - 0.2, clipCoord.z / clipCoord.w - 0.1)) *
         scale(glm::vec3(0.1f / aspectRatio, 0.01f, 0.1f));
-    _state.health =  health / entity->maxHealth;
+    _state.health = health / entity->maxHealth;
+    _state.resources = resources / entity->resources;
 
     return &_state;
 }

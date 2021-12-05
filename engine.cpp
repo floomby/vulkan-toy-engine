@@ -172,6 +172,7 @@ void Engine::send(ApiProtocol&& data) {
 }
 
 void Engine::quit() {
+    drawTooltip = false;
     glfwSetWindowShouldClose(window, true);
 }
 
@@ -2368,7 +2369,8 @@ void Engine::handleInput() {
             }
 
             if (keyEvent.key == GLFW_KEY_ESCAPE) {
-                glfwSetWindowShouldClose(window, true);
+                quit();
+                return;
             }
 
             if (keyEvent.key == GLFW_KEY_T) {
@@ -2598,7 +2600,7 @@ void Engine::handleInput() {
         for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
         if (tooltipStatus) {
             std::ostringstream tooltipText;
-            tooltipText << mousedOver->position << "\ntesttesttestaoeunthaoesunth";
+            tooltipText << mousedOver->position << "\n RUs: " << mousedOver->entity->resources;
             if (!tooltipJob) setTooltip(tooltipText.str());
         }
         drawTooltip = true;
@@ -3471,20 +3473,20 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-    // This loop indexing will change once the instance allocator changes
+    // 0th instance is always the skybox (see Engine::loadDefaultScene)
     for (int j = 1; j < uniformSync->validCount[index]; j++) {
         if (!currentScene->state.instances[j].rendered) continue;
         if (!currentScene->state.instances[j].entity->isProjectile) {
             pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j].team];
         }
         dynamicOffset = j * uniformSync->uniformSkip;
+        // render the unit as an icon
         if (currentScene->state.instances[j].renderAsIcon) {
             const auto ent = currentScene->state.instances[j].entity;
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
             pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
             pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->missingIcon; // ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-            // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
@@ -3494,21 +3496,21 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        // 0th instance is always the skybox (see Engine::loadDefaultScene)
         pushConstants.textureIndex = currentScene->state.instances[j].entity->textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // We can bundle draw commands the entities are the same (this includes the textures), I doubt that the bottleneck is recording the command buffers
         vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
             (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
-        if (!currentScene->state.instances[j].entity->isProjectile) {
-            const auto ent = currentScene->state.instances[j].entity;
-            vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
+        // draw the health bar
+        if (currentScene->state.instances[j].entity->isUnit) {
             pushConstants.renderType = RINT_HEALTH;
-            pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->missingIcon; // ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-            // The last model is has the icon buffer stuff (it is setup like this is the Scene constructor)
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
-            continue;
+        // draw the resource bar
+        } else if (currentScene->state.instances[j].entity->isResource) {
+            pushConstants.renderType = RINT_RESOURCE;
+            vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+            vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
         }
     }
 
@@ -3731,6 +3733,9 @@ Engine::~Engine() {
     delete manager;
     tooltipResource.~GuiTexture();
     tooltipStillInUse.~GuiTexture();
+    // hmmmm..... (Without this we don't free all the gpu resources if we close while drawing a tooltip)
+    // double calling the destructor like this is silly, but it is safe, the object will mark itself as invalidated once
+    // the gpu resources are actually freed (technically it gets called a third time when the engine destructor finishes)
     cleanup();
 }
 
@@ -5443,29 +5448,6 @@ std::pair<uint, uint> GlyphCache::writeUBO(GlyphInfoUBO *glyphInfo, const std::s
     return { glyphInfo->totalWidth, height + lineHeight * (glyphInfo->lineCount - 1) };
 }
 
-// uint GlyphCache::widthOf(const std::string& str, bool cacheWidth) {
-//     if (cacheWidth && cachedWidths.contains(str)) {
-//         return cachedWidths[str];
-//     }
-
-//     uint width = 0;
-//     auto wstr = converter.from_bytes(str);
-//     int index = 0;
-//     for (const auto& chr : wstr) {
-//         if (!glyphDatum.contains(chr)) {
-//             std::cerr << "Unsuported character: " << std::hex << (uint32_t)chr << std::endl;
-//             // TODO continuing is not the correct behavior, priting an error character should be correct
-//             continue;
-//         }
-//         const auto& data = glyphDatum.at(chr);
-//         width += data.width;
-//         index++;
-//     }
-
-//     if (cacheWidth && !cachedWidths.contains(str)) cachedWidths.insert({ str, width + 2 * bufferWidth });
-//     return width + 2 * bufferWidth;
-// }
-
 GlyphCache::~GlyphCache() {
     delete defaultGlyph;
     delete syncer;
@@ -5616,6 +5598,7 @@ ComputeManager::~ComputeManager() {
     submitJob({ ComputeKind::TERMINATE });
     std::cout << "Waiting to join compute thread..." << std::endl;
     computeThread.join();
+    outList.clear();
     vkDestroyFence(context->device, fence, nullptr);
 }
 

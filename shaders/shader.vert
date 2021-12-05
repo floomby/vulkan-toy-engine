@@ -7,6 +7,7 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 normal;
     mat4 healthBarModel;
     float health;
+    float resources;
 } ubo;
 
 layout(binding = 3) uniform ViewProjPosNearFar {
@@ -28,6 +29,7 @@ layout(location = 3) out vec3 vertPos;
 layout(location = 4) out vec3 shadowCoord;
 layout(location = 5) out vec3 skyCoord;
 layout(location = 6) out float outHealth;
+layout(location = 7) out float outResources;
 
 layout( push_constant ) uniform constants {
     mat4 view;
@@ -40,8 +42,9 @@ layout( push_constant ) uniform constants {
 
 void main() {
     outHealth = ubo.health;
+    outResources = ubo.resources;
     vec4 worldPos;
-    if (getRINT(pushConstants.type) == RINT_HEALTH) {
+    if (getRINT(pushConstants.type) == RINT_HEALTH || getRINT(pushConstants.type) == RINT_RESOURCE) {
         worldPos = ubo.healthBarModel * vec4(inPosition, 1.0);
     } else {
         worldPos = ubo.model * vec4(inPosition, 1.0);

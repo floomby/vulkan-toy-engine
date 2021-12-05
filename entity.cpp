@@ -17,7 +17,7 @@ namespace Entities {
 }
 
 Entity::Entity(SpecialEntities entityType, const char *name, const char *model, const char *texture)
-: isUnit(false) {
+: isUnit(false), isResource(false) {
     switch (entityType) {
         case ENT_ICON:
             textureWidth = textureHeight = 1;
@@ -110,7 +110,7 @@ Entity::Entity(const char *name, const char *model, const char *texture, const c
 }
 
 Entity::Entity(const char *model, const char *texture, const char *icon)
-: isProjectile(false), isUnit(true) {
+: isProjectile(false), isUnit(true), isResource(false) {
     hasConstTexture = false;
     if (hasTexture = strlen(texture)) {
         texturePixels = stbi_load(texture, &textureWidth, &textureHeight, &textureChannels, STBI_rgb_alpha);

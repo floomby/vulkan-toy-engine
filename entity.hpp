@@ -39,14 +39,13 @@ public:
     float maxOmega = 0.1f;
     std::string name;
     float maxHealth = 1.0f;
-    bool minable = false;
     double resources = 0.0f;
 
     float dv;
     float v_m;
     float w_m;
 
-    bool isProjectile, isUnit;
+    bool isProjectile, isUnit, isResource;
     WeaponKind weaponKind;
 
     std::vector<std::string> weaponNames;

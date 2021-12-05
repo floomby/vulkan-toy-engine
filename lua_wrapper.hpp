@@ -17,6 +17,7 @@ enum class GuiLayoutKind {
 };
 
 struct GuiLayoutNode {
+    ~GuiLayoutNode();
     float x, y, height, width;
     GuiLayoutKind kind;
     std::vector<GuiLayoutNode *> children;

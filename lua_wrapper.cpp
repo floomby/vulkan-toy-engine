@@ -278,7 +278,9 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->acceleration = getNumberField("acceleration");
     ret->maxOmega = getNumberField("maxOmega");
     ret->maxHealth = getNumberField("maxHealth");
-    ret->minable = getBooleanField("minable");
+    auto minable = getBooleanField("minable");
+    ret->isResource = minable;
+    ret->isUnit = !minable;
     ret->resources = getNumberField("resources");
 
     ret->precompute();
@@ -338,4 +340,9 @@ void LuaWrapper::loadFile(const std::string& filename) {
 
 void LuaWrapper::doString(const char *str) {
     luaL_dostring(luaState, str);
+}
+
+GuiLayoutNode::~GuiLayoutNode() {
+    for (auto child : children)
+        delete child;
 }

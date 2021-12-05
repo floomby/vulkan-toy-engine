@@ -11,4 +11,5 @@ Asteroid = {
     unitAIs = {
     },
     resources = 500,
+    minable = true,
 }

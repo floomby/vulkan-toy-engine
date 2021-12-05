@@ -114,3 +114,6 @@ void run(EngineSettings& settings) {
     engine.init();
     engine.runCurrentScene();
 }
+
+// Note to myself cause I will forget how I did this
+// LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so.6.0.0 ./dlkeeper.so" ./result --server
