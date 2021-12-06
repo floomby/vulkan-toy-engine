@@ -19,6 +19,8 @@ enum class CommandKind {
     STOP,
     CREATE,
     DESTROY,
+    TARGET_LOCATION,
+    TARGET_UNIT
     //.....
 };
 

@@ -11,11 +11,11 @@ class Target {
 public:
     Target();
     Target(const glm::vec3& location);
-    Target(Instance *instance);
+    Target(InstanceID targetID);
     bool isLocation = false;
     bool isUnit = false;
     glm::vec3 location;
-    Instance *instance;
+    InstanceID targetID;
 };
 
 class Weapon {

@@ -8,21 +8,8 @@ void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const 
 }
 
 void Api::cmd_stop(const InstanceID unitID, const InsertionMode mode) {
-    std::scoped_lock l(context->authState.lock);
-    const auto& inst = context->currentScene->getInstance(unitID);
-    const auto cmd = Command { CommandKind::STOP, inst->id, { glm::vec3(0.0f), {}, inst->id } };
-    switch (mode) {
-        case InsertionMode::BACK:
-            inst->commandList.push_back(std::move(cmd));
-            break;
-        case InsertionMode::FRONT:
-            inst->commandList.push_front(std::move(cmd));
-            break;
-        case InsertionMode::OVERWRITE:
-            inst->commandList.clear();
-            inst->commandList.push_back(std::move(cmd));
-            break;
-    }
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::STOP, unitID, { {}, {}, unitID }, mode }};
+    context->send(data);
 }
 
 void Api::cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team) {
@@ -30,23 +17,20 @@ void Api::cmd_createInstance(const std::string& name, const glm::vec3& position,
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
     context->send(data);
-
-    // std::scoped_lock l(context->authState.lock);
-    // // Instance(entities.data() + entityIndex, textures.data() + entityIndex, models.data() + entityIndex, entityIndex)
-    // const auto ent = context->currentScene->entities.at(name);
-    // Instance inst(ent, context->currentScene->textures.data() + ent->textureIndex, context->currentScene->models.data() + ent->modelIndex,
-    //     context->authState.counter++, true);
-    // // lock it here
-    // // I probably just need a way to ensure order of api calls is consistent across every copy of the game like uuid sorting or something
-    // inst.heading = heading;
-    // inst.position = position;
-    // inst.team = team;
-    // context->authState.instances.push_back(std::move(inst));
-    // return inst.id;
 }
 
 void Api::cmd_destroyInstance(InstanceID unitID) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, 0, { {}, {}, 0 }, InsertionMode::NONE }};
+    context->send(data);
+}
+
+void Api::cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { location, {}, 0 }, mode }};
+    context->send(data);
+}
+
+void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { {}, {}, targetID }, mode }};
     context->send(data);
 }
 
@@ -65,11 +49,6 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
 }
 
 #include <iostream>
-
-void Api::cmd_setTargetLocation(Instance *instance, const glm::vec3& location) {
-    std::scoped_lock l(context->authState.lock);
-    instance->target = Target(location);
-}
 
 void Api::eng_echo(const char *message) {
     std::string msg("  > ");

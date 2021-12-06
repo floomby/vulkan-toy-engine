@@ -5,20 +5,18 @@
  * gui - I still need some more components, but this seems really low priority right now
  * Finish the path following/steering code
  * Finish unit ais
- * Fix the order line drawing bug (I may have fixed this when I was fixing other things)
- * Figure out engine to lua messaging - Options are piggyback off the gui to lua messaging or do something else entirly new. (Something new seems preferable.)
  * I guess I will go back to drawing in z sorted order for getting cloaking working
- * Sheilds?
- * I need a pipeline without alpha discard for drawing cloaked stuff (I only need to switch to it for drawing cloaked units)
+ * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
+ * Fix the tooltip bug and the missleading selection thing
 
 ## Considerations
  * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
  * I am linking to libpng now for freetype2, maybe I should stop using stbi
  * The string of glyphs to cache is pretty silly imo
- * cpu (host) allocation stuff for vulkan (vma)?? (This is probably not worth doing until I profile stuff)
+ * cpu (host) allocation stuff for vulkan (vma)?? (This is not worth doing until I profile stuff)
  * I think I read the glfw docs wrong and dont need to be using interthread queues for the input handling threads (afaict the linux tids are the same as the engine thread, this could be not guarenteed though)
  * The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass into the world pass because without it the code complexity of order line drawing was going to be really high doing it this way
- * One wierd thing is how the lighting works, the blin phong lighting model I was using was using a point light, but I am using orthographic lighting for the shadows. I should fix this
+ * I need to take a look and lighting and materials and stuff
  * I should move to using cmake or something for building
  * I need to look around at vram memory usage in general, it is very inefficient in many places
 
@@ -26,11 +24,7 @@
  * Collider abstraction so I can support aabb and importantly obb coliders
  * I would like bloom, idk if this means I need hdr color attachements or what
  * Better model library?
- * Cube mapping for lights and calculating shadows with them would be cool
- * Dynamic backface culling (Idk if this is a thing, the hardware supports it, but my prefunctory perusing through the vulkan docs did not show this was availible)
-   - It might be one of those things that on some hardware would require rebuilding the pipeline and trigger shader recompilation and therefore might not be in the standard.
-   - I should fix the normals on the skybox anyways
-   - For transparency I may not want backface culling at all though
+ * I want to implement dynamic lighting at some point, I will probablly just stay with forward rendering since I have transparency
  * Nlips is cool
  * Explosions - particles?
 
@@ -46,4 +40,4 @@
     (https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#VUID-VkSwapchainCreateInfoKHR-imageExtent-01274)`
     - also it can mess up the gui more frequently (I try and suspend drawing to the gui if I have resized, but not rebuilt the gui)
     - I actually think there are three seperate bugs... *exasperated walrus noises* (one with the framebuffer image extent, one where the gui buffer is used while it is still copying or 
- * Get the nvidia api inspector figured out (I am crashing on vkEnumeratePhysicalDevices)
+ * Get the nvidia api inspector figured out (I am crashing on vkEnumeratePhysicalDevices) (I migh just need to add the layer???)

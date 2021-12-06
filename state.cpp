@@ -128,6 +128,14 @@ void AuthoritativeState::doUpdateTick() {
                 case CommandKind::STOP:
                     it->commandList.clear();
                     break;
+                case CommandKind::TARGET_LOCATION:
+                    it->target = Target(cmd.data.dest);
+                    it->commandList.pop_front();
+                    break;
+                case CommandKind::TARGET_UNIT:
+                    it->target = Target(cmd.data.id);
+                    it->commandList.pop_front();
+                    break;
             }
             for (auto& other : instances) {
                 if (other == *it | other.entity->isProjectile) continue;
@@ -172,6 +180,36 @@ uint32_t AuthoritativeState::crc() {
 AuthoritativeState::AuthoritativeState(Base *context)
 : context(context) { }
 
+const static std::vector<CommandKind> fowardsable_ = {
+    CommandKind::MOVE,
+    CommandKind::STOP,
+    CommandKind::TARGET_UNIT,
+    CommandKind::TARGET_LOCATION
+};
+
+template<int N>
+struct Forwardable {
+    template<typename... TT>
+    constexpr Forwardable(TT... tt)
+    : data { tt... } {
+        std::sort(data, data + N);
+    }
+    bool operator()(CommandKind kind) const {
+        return std::binary_search(data, data + N, kind);
+    }
+private:
+    CommandKind data[N];
+};
+
+static const Forwardable<4> forwardable(
+    CommandKind::MOVE,
+    CommandKind::STOP,
+    CommandKind::TARGET_UNIT,
+    CommandKind::TARGET_LOCATION
+);
+
+// constexpr auto fowardsable = [](){ std::sort(fowardsable_.begin(), fowardsable_.end()); return fowardsable_; }();
+
 void AuthoritativeState::process(ApiProtocol *data) {
     
     // std::cout << *data << std::endl;
@@ -179,7 +217,7 @@ void AuthoritativeState::process(ApiProtocol *data) {
     std::vector<Instance>::iterator it;
 
     if (data->kind == ApiProtocolKind::COMMAND) {
-        if (data->command.kind == CommandKind::MOVE) {
+        if (forwardable(data->command.kind)) {
             lock.lock();
             it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
             if (it == instances.end() || *it != data->command.id) {

@@ -18,16 +18,16 @@ bool PlasmaCannon::hasEntity() {
     return true;
 }
 
-Target::Target() {}
+Target::Target() { }
 
 Target::Target(const glm::vec3& location)
-: isLocation(true), location(location) {}
+: isLocation(true), location(location) { }
 
-Target::Target(Instance *instance)
-: isUnit(true), instance(instance) {}
+Target::Target(InstanceID targetID)
+: isUnit(true), targetID(targetID) { }
 
 WeaponInstance::WeaponInstance(Weapon *instanceOf, InstanceID parentID)
-: instanceOf(instanceOf), timeSinceFired(0.0f), parentID(parentID) {}
+: instanceOf(instanceOf), timeSinceFired(0.0f), parentID(parentID) { }
 
 #include <iostream>
 

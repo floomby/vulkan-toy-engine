@@ -24,38 +24,17 @@ static void cmd_moveExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_move");
 }
 
-static int cmd_stopWrapper(lua_State *ls) {
+static int cmd_setTargetIDWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
-    auto a1 = (InsertionMode)luaL_checkinteger(ls, 2);
-    Api::cmd_stop(a0, a1);
+    auto a1 = (InstanceID)luaL_checkinteger(ls, 2);
+    auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
+    Api::cmd_setTargetID(a0, a1, a2);
     return 0;
 }
 
-static void cmd_stopExport(lua_State *ls) {
-    lua_pushcfunction(ls, cmd_stopWrapper);
-    lua_setglobal(ls, "cmd_stop");
-}
-
-static int cmd_setTargetLocationWrapper(lua_State *ls) {
-    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
-    auto a0 = (Instance*)lua_topointer(ls, 1);
-    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
-    std::array<float, 3> v1;
-    if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
-    for (int i = 1; i <= 3; i++) {
-        lua_rawgeti(ls, 2, i);
-        luaL_checknumber(ls, -1);
-        v1[i - 1] = lua_tonumber(ls, -1);
-        lua_pop(ls, 1);
-    }
-    glm::vec3 a1(v1[0], v1[1], v1[2]);
-    Api::cmd_setTargetLocation(a0, a1);
-    return 0;
-}
-
-static void cmd_setTargetLocationExport(lua_State *ls) {
-    lua_pushcfunction(ls, cmd_setTargetLocationWrapper);
-    lua_setglobal(ls, "cmd_setTargetLocation");
+static void cmd_setTargetIDExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_setTargetIDWrapper);
+    lua_setglobal(ls, "cmd_setTargetID");
 }
 
 static int cmd_createInstanceWrapper(lua_State *ls) {
@@ -89,6 +68,18 @@ static int cmd_createInstanceWrapper(lua_State *ls) {
 static void cmd_createInstanceExport(lua_State *ls) {
     lua_pushcfunction(ls, cmd_createInstanceWrapper);
     lua_setglobal(ls, "cmd_createInstance");
+}
+
+static int cmd_stopWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto a1 = (InsertionMode)luaL_checkinteger(ls, 2);
+    Api::cmd_stop(a0, a1);
+    return 0;
+}
+
+static void cmd_stopExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_stopWrapper);
+    lua_setglobal(ls, "cmd_stop");
 }
 
 static int cmd_destroyInstanceWrapper(lua_State *ls) {
@@ -315,9 +306,9 @@ static void net_pauseExport(lua_State *ls) {
 
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
-    cmd_stopExport(luaState);
-    cmd_setTargetLocationExport(luaState);
+    cmd_setTargetIDExport(luaState);
     cmd_createInstanceExport(luaState);
+    cmd_stopExport(luaState);
     cmd_destroyInstanceExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_echoExport(luaState);
