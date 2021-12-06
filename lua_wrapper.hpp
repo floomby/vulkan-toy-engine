@@ -26,6 +26,7 @@ struct GuiLayoutNode {
     uint32_t color;
     std::string name;
     std::vector<std::string> imageStates;
+    std::string tooltip;
 };
 
 #include <iostream>

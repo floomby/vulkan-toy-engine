@@ -32,7 +32,12 @@ public:
     static void eng_setInstanceStateEngage(InstanceID unitID, IEngage state);
     static void eng_setInstanceHealth(InstanceID uintID, float health);
     static float eng_getInstanceHealth(InstanceID unitID);
-    static std::string eng_getInstanceEntityName(InstanceID unitID);
+    static float engS_getInstanceHealth(Instance *unit);
+    static double eng_getInstanceResources(InstanceID unitID);
+    static double engS_getInstanceResources(Instance *unit);
+    static const std::string& eng_getInstanceEntityName(InstanceID unitID);
+    static const std::string& engS_getInstanceEntityName(Instance *unit);
+    static InstanceID engS_getInstanceID(Instance *unit);
     static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);

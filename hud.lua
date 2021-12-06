@@ -69,6 +69,7 @@ Hud = {
             color = 0x101080ff,
             -- children = {}
             name = "button",
+            tooltip = "This has a tooltip!"
         },
         -- {
         --     x = -0.9,
@@ -117,5 +118,5 @@ net_declareTeam(1, "josh")
 state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
-net_pause(0)
+net_pause(false)
 cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)

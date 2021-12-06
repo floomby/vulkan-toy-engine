@@ -2306,12 +2306,18 @@ namespace GuiTextures {
 
 void Engine::setTooltip(std::string&& str) {
     assert(!tooltipJob);
-    // float widenessRatio = (float)glyphCache->widthOf(str) / ((float)GuiTextures::maxGlyphHeight * 2.0f);
     ComputeOp op { ComputeKind::TEXT, new std::string(std::move(str)) };
     op.deleteData = true;
     tooltipJob = manager->submitJob(std::move(op));
-    // return widenessRatio;
 }
+
+void Engine::setTooltip(const std::string& str) {
+    assert(!tooltipJob);
+    ComputeOp op { ComputeKind::TEXT, new std::string(std::move(str)) };
+    op.deleteData = true;
+    tooltipJob = manager->submitJob(std::move(op));
+}
+
 
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
@@ -2321,9 +2327,12 @@ void Engine::handleInput() {
 
     Gui::GuiMessage message;
     while(gui->guiMessages.pop(message)) {
-        // if(message.signal == Gui::GUI_CLICKED) {
-        //     currentScene->state.instances.erase(currentScene->state.instances.begin() + 1, currentScene->state.instances.end());
-        // }
+        if(message.signal == Gui::ENG_SETTOOLTIP) {
+            if (!tooltipJob) setTooltip(message.data->str);
+            delete message.data;
+            drawTooltip = true;
+
+        }
         // if (message.signal == Gui::GUI_TOGGLE_TEXTURE) {
         //     std::cout << "here: " << message.data->id << " : " << message.data->texture << std::endl;
         //     gui->setTextureIndexInBuffer((GuiVertex *)hudAllocation->GetMappedData(), guiIdToBufferIndex[message.data->id], message.data->texture);
@@ -2335,6 +2344,24 @@ void Engine::handleInput() {
     glfwGetCursorPos(window, &x, &y);
     float deltaX = (lastMousePosition.x - x) / framebufferSize.width;
     float deltaY = (lastMousePosition.y - y) / framebufferSize.height;
+
+    static std::chrono::steady_clock::time_point lastMouseMovementTime;
+    static bool emittedHover;
+
+    if (lastMousePosition.x - x == 0 && lastMousePosition.y - y == 0) {
+        if (!emittedHover && std::chrono::steady_clock::now() - lastMouseMovementTime > std::chrono::seconds(1)) {
+            auto what = new GuiCommandData();
+            what->id = gui->pushConstant.guiID;
+            what->position.x.asFloat = lastMousePosition.normedX;
+            what->position.y.asFloat = lastMousePosition.normedY;
+            what->flags = 0;
+            gui->submitCommand({ Gui::GUI_HOVER, what });
+            emittedHover = true;
+        }
+    } else {
+        lastMouseMovementTime = std::chrono::steady_clock::now();
+        emittedHover = false;
+    }
 
     auto inverseProjection = glm::inverse(pushConstants.projection);
     auto inverseView = glm::inverse(pushConstants.view);
@@ -2361,53 +2388,15 @@ void Engine::handleInput() {
         if (keyEvent.action == GLFW_PRESS) {
             keysPressed[keyEvent.key] = true;
 
-            if (keyEvent.key == GLFW_KEY_I) {
-                // shadow.makeSnapshot = true;
-                // setTooltip("Hi There!");
-                // drawTooltip = true;
-                // std::cout << "Width is " << glyphCache->widthOf("Fire") << std::endl;
-            }
-
             if (keyEvent.key == GLFW_KEY_ESCAPE) {
                 quit();
                 return;
-            }
-
-            if (keyEvent.key == GLFW_KEY_T) {
-
-                // shadow.makeSnapshot = true;
-                // std::cout << "Gui id: " << gui->pushConstant()->guiID << std::endl;
-                // std::vector<uint32_t> v = {0, 1};
-                // int count = currentScene->state.commandCount(v);
-
-                // std::cout << "Count: " << count << std::endl;
-
-                // auto cmdGen = currentScene->state.getCommandGenerator(&v);
-
-                // for (int i = 0; i < count; i++) {
-                //     cmdGen.next();
-                //     auto a = cmdGen.value();
-                //     std::cout << "-Move to: " << cmdGen.value().command->data.dest << std::endl;
-                // }
-            }
-            if (keyEvent.key == GLFW_KEY_Y) {
-                GuiCommandData *what3 = new GuiCommandData();
-                what3->childIndices.push(1);
-                // what3->childIndices.push(1);
-                gui->submitCommand({ Gui::GUI_REMOVE, what3 });
-            }
-            if (keyEvent.key == GLFW_KEY_B) {
+            } else if (keyEvent.key == GLFW_KEY_B) {
                 std::raise(SIGTRAP);
-            }
-            if (keyEvent.key == GLFW_KEY_O) {
-                // GuiCommandData *what = new GuiCommandData();
-                // // what->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                // what->component = new GuiComponent(gui, false, 0x0000ff40, { -1.0, 0.7 }, { 1.0, 1.0 }, 1);
-                // gui->submitCommand({ Gui::GUI_ADD, what });
-                // GuiCommandData *what2 = new GuiCommandData();
-                // // what2->childIndices.push(0); // Don't actually push anything rn since we have no root node by default
-                // what2->component = new GuiLabel(gui, "clear", 0x000000ff, 0x60609940, { -0.4, 0.8 }, 0.05, 2);
-                // gui->submitCommand({ Gui::GUI_ADD, what2 });
+            } else if (keyEvent.key == GLFW_KEY_S) {
+                InsertionMode mode = InsertionMode::OVERWRITE;
+                if (keyEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
+                for ( const auto id : idsSelected) Api::cmd_stop(id, mode);
             }
         } else if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
@@ -2420,14 +2409,6 @@ void Engine::handleInput() {
     cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
     cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
 
-    // auto orbit = glm::angleAxis(glm::radians(0.1f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
-    // auto reverseOrbit = glm::angleAxis(glm::radians(359.9f), glm::vec3({ 0.0f, 0.0f, 1.0f }));
-    // auto orbitMatrix = glm::toMat3(orbit);
-    // auto reverseOrbitMatrix = glm::toMat3(reverseOrbit);
-    // auto tilt = glm::angleAxis(glm::radians(0.1f), strafing);
-    // auto reverseTilt = glm::angleAxis(glm::radians(359.9f), strafing);
-    // auto tiltMatrix = glm::toMat3(tilt);
-    // auto reverseTiltMatrix = glm::toMat3(reverseTilt);
     float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
     float planeDist;
     glm::vec3 planeIntersection;
@@ -2587,7 +2568,6 @@ void Engine::handleInput() {
         if (!currentScene->state.instances[i].inPlay) continue;
         float distance;
         if(currentScene->state.instances[i].rayIntersects(cammera.position, mouseRayNormed, distance)) {
-            // !!!! potentially a pointer geting invalidated
             if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
         }
         // instance.highlight() = false;
@@ -2600,18 +2580,16 @@ void Engine::handleInput() {
         for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
         if (tooltipStatus) {
             std::ostringstream tooltipText;
-            tooltipText << mousedOver->position << "\n RUs: " << mousedOver->entity->resources;
+            tooltipText << mousedOver->position << "\n RUs: " << mousedOver->resources;
             if (!tooltipJob) setTooltip(tooltipText.str());
         }
         drawTooltip = true;
     } else {
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
-        drawTooltip = false;
+        if (!emittedHover) drawTooltip = false;
         if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
             cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
-        }// else {
-        //     lineObjects = {};
-        // }
+        }
     }
 
     if (mouseAction == MOUSE_MOVING_Z) {
@@ -3580,9 +3558,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     }
 
     // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
+    gui->pushConstant.renderMode = RMODE_NONE;
     vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), &gui->pushConstant);
-
     vkCmdDraw(buffer, guiVertexCountToDraw, 1, 0, 0);
+
+    // Draw the tooltip last
+    gui->pushConstant.renderMode = RMODE_TOOLTIP;
+    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), &gui->pushConstant);
+    vkCmdDraw(buffer, guiVertexCountToDraw, 1, 12, 0);
 
     vkCmdEndRenderPass(buffer);
 

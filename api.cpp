@@ -2,6 +2,8 @@
 
 Base *Api::context = nullptr;
 
+const std::string invalidStr = "<invalid id>";
+
 void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
     context->send(data);
@@ -90,11 +92,34 @@ float Api::eng_getInstanceHealth(InstanceID unitID) {
     return it->health;
 }
 
-std::string Api::eng_getInstanceEntityName(InstanceID unitID) {
+float Api::engS_getInstanceHealth(Instance *unit) {
+    return unit->health;
+}
+
+double Api::eng_getInstanceResources(InstanceID unitID) {
     std::scoped_lock l(context->authState.lock);
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return "<invalid id>";
+    if (it == context->authState.instances.end() || *it != unitID) return -1.0f;
+    return it->resources;
+}
+
+double Api::engS_getInstanceResources(Instance *unit) {
+    return unit->resources;
+}
+
+const std::string& Api::eng_getInstanceEntityName(InstanceID unitID) {
+    std::scoped_lock l(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it != unitID) return invalidStr;
     return it->entity->name;
+}
+
+const std::string& Api::engS_getInstanceEntityName(Instance *unit) {
+    return unit->entity->name;
+}
+
+InstanceID Api::engS_getInstanceID(Instance *unit) {
+    return unit->id;
 }
 
 void Api::eng_quit() {

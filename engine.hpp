@@ -228,6 +228,7 @@ private:
     uint64_t tooltipJob = 0;
     std::array<glm::vec2, 2> tooltipLocation;
     void setTooltip(std::string&& str);
+    void setTooltip(const std::string& str);
 
     glm::vec3 dragStartRay;
     std::pair<float, float> dragStartDevice;

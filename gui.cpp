@@ -163,6 +163,9 @@ void Gui::pollChanges() {
             } else if (command.action == GUI_CLICK) {
                 idLookup.at(command.data->id)->click(command.data->position.x.asFloat, command.data->position.y.asFloat, command.data->flags);
                 delete command.data;
+            } else if (command.action == GUI_HOVER) {
+                idLookup.at(command.data->id)->hover();
+                delete command.data;
             } else if (command.action == GUI_LOAD) {
                 try {
                     // fromFile(command.data->str);
@@ -490,6 +493,14 @@ void GuiComponent::click(float x, float y, int mods) {
         context->lua->callFunction(luaHandlers["onClick"], mods);
 }
 
+void GuiComponent::hover() {
+    if (!tooltip.empty()) {
+        auto what = new Gui::GuiMessageData();
+        what->str = tooltip;
+        context->guiMessages.push({ Gui::ENG_SETTOOLTIP, what });
+    }
+}
+
 void GuiComponent::toggle() {
     // should I even look to call the handler here?
     if (luaHandlers.contains("onToggle"))
@@ -600,6 +611,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
         }
         namedComponents.insert({ tree->name, ret });
     }
+    ret->tooltip = tree->tooltip;
     ret->children.reserve(tree->children.size());
     for (auto& child : tree->children) {
         ret->children.push_back(fromLayout(child, baseLayer + 1));

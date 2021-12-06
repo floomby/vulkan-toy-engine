@@ -188,6 +188,7 @@ public:
     bool visible = true;
 
     virtual void click(float x, float y, int mods);
+    virtual void hover();
     virtual void toggle();
     virtual void setText(const std::string& text);
     virtual void setText(std::string&& text);
@@ -197,6 +198,7 @@ public:
     void propegateEngineNotification(const std::string& notification);
 
     GuiComponent *getComponent(std::queue<uint> childIdices);
+    std::string tooltip = "";
 protected:
     bool dynamicNDC = false;
     virtual void resizeVertices();
@@ -248,6 +250,7 @@ struct GuiPushConstant {
     glm::vec2 dragBox[2];
     glm::vec2 tooltipBox[2];
     glm::uint32_t guiID;
+    glm::uint32_t renderMode;
 };
 
 class GuiCommandData {
@@ -321,7 +324,8 @@ public:
         GUI_NOTIFY,
         GUI_TEXT,
         GUI_REDRAW,
-        GUI_TERMINATE
+        GUI_TERMINATE,
+        GUI_HOVER
     };
 
     // messages passed to the gui
@@ -331,13 +335,11 @@ public:
     };
 
     enum GuiSignal {
-        GUI_CLICKED,
-        // GUI_TOGGLE_TEXTURE,
+        ENG_SETTOOLTIP,
     };
 
     struct GuiMessageData {
-        uint32_t id;
-        int texture;
+        std::string str;
     };
 
     // messages passed from the gui

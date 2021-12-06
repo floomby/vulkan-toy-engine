@@ -16,8 +16,9 @@ class BindingGenerator
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
-    @@integers = ["uint32_t", "int", "unsigned int", "bool", "InstanceID", "TeamID"]
+    @@integers = ["uint32_t", "int", "unsigned int", "InstanceID", "TeamID"]
     @@floats = ["float", "double"]
+    @@bool = ["bool"]
 
     def initialize(name, rettype, argtypes)
         @name = name
@@ -47,6 +48,10 @@ END
         when *@@enums
             return <<-END
     auto a#{i} = (#{argtype})luaL_checkinteger(ls, #{i + 1});
+END
+        when *@@bool
+            return <<-END
+    auto a#{i} = lua_toboolean(ls, #{i + 1});
 END
         when *["char*","std::string"]
             return <<-END
@@ -107,6 +112,7 @@ END
 
     # stuff that takes up one lua stack address (obviously this function is not complete yet)
     def basic_pusher(typestr)
+        remove_refs_and_const(typestr)
         typestr.gsub!(/^::/, "")
         if is_class_ptr(typestr)
             return -> (x) { "lua_pushlightuserdata(ls, #{x});" }
@@ -140,15 +146,17 @@ END
         return acm
     end
 
+    def remove_refs_and_const(x)
+        x.gsub!(/(^const )|( const$)/, "")
+        x.gsub!(/\&$/, "")
+    end
+
     def wrapper_gen
         acm = "static int #{@static_name}Wrapper(lua_State *ls) {\n"
 
         @argtypes.each_with_index do |at, i|
             at.gsub!(/ [a-zA-Z_][a-zA-Z_0-9]*$/, "")
-            # We don't care if it is const
-            at.gsub!(/(^const )|( const$)/, "")
-            # We also don't care if it takes a reference
-            at.gsub!(/\&$/, "")
+            remove_refs_and_const(at)
             acm += stack_reader(at, i)
         end
 

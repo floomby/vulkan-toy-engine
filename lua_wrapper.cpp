@@ -143,6 +143,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
         ret->text = getStringField("text");
     }
     getStringField("name", ret->name);
+    getStringField("tooltip", ret->tooltip);
     getStringsField("images", ret->imageStates);
     int pushedHandlerCount = 0;
     if (getFunctionField("onClick", pushedHandlerCount)) {

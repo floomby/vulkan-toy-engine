@@ -199,6 +199,41 @@ static void eng_getInstanceHealthExport(lua_State *ls) {
     lua_setglobal(ls, "eng_getInstanceHealth");
 }
 
+static int engS_getInstanceHealthWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceHealth(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void engS_getInstanceHealthExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceHealthWrapper);
+    lua_setglobal(ls, "engS_getInstanceHealth");
+}
+
+static int eng_getInstanceResourcesWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceResources(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void eng_getInstanceResourcesExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceResourcesWrapper);
+    lua_setglobal(ls, "eng_getInstanceResources");
+}
+
+static int engS_getInstanceResourcesWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceResources(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void engS_getInstanceResourcesExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceResourcesWrapper);
+    lua_setglobal(ls, "engS_getInstanceResources");
+}
+
 static int eng_getInstanceEntityNameWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     auto r = Api::eng_getInstanceEntityName(a0);
@@ -208,6 +243,30 @@ static int eng_getInstanceEntityNameWrapper(lua_State *ls) {
 static void eng_getInstanceEntityNameExport(lua_State *ls) {
     lua_pushcfunction(ls, eng_getInstanceEntityNameWrapper);
     lua_setglobal(ls, "eng_getInstanceEntityName");
+}
+
+static int engS_getInstanceEntityNameWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceEntityName(a0);
+    lua_pushstring(ls, r.c_str());    return 1;
+}
+
+static void engS_getInstanceEntityNameExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceEntityNameWrapper);
+    lua_setglobal(ls, "engS_getInstanceEntityName");
+}
+
+static int engS_getInstanceIDWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceID(a0);
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void engS_getInstanceIDExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceIDWrapper);
+    lua_setglobal(ls, "engS_getInstanceID");
 }
 
 static int eng_quitWrapper(lua_State *ls) {
@@ -223,7 +282,7 @@ static void eng_quitExport(lua_State *ls) {
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
-    auto a1 = (bool)luaL_checkinteger(ls, 2);
+    auto a1 = lua_toboolean(ls, 2);
     Api::gui_setVisibility(a0, a1);
     return 0;
 }
@@ -294,7 +353,7 @@ static void net_declareTeamExport(lua_State *ls) {
 }
 
 static int net_pauseWrapper(lua_State *ls) {
-    auto a0 = (bool)luaL_checkinteger(ls, 1);
+    auto a0 = lua_toboolean(ls, 1);
     Api::net_pause(a0);
     return 0;
 }
@@ -317,7 +376,12 @@ void LuaWrapper::apiExport() {
     eng_setInstanceStateEngageExport(luaState);
     eng_setInstanceHealthExport(luaState);
     eng_getInstanceHealthExport(luaState);
+    engS_getInstanceHealthExport(luaState);
+    eng_getInstanceResourcesExport(luaState);
+    engS_getInstanceResourcesExport(luaState);
     eng_getInstanceEntityNameExport(luaState);
+    engS_getInstanceEntityNameExport(luaState);
+    engS_getInstanceIDExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
