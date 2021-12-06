@@ -14,7 +14,7 @@ I am well aware I should just use cmake, but I haven't done this yet mostly due 
  * freetype 2.11.0 or newer - We need sdf rendering, but the version which ships with ubuntu was not this new. I built from their git repo and it worked fine. We don't need harfbuz so no need to worry that on ubuntu this is too old for using in the freetype build and just letting it be disabled is fine.
  * LuaJIT - I also built this from their git repo. I did not use the ubuntu version as I read on luajit's website that this was inadvisable.
  * shaderc - We don't need to link to anything in this, but we do need their glsl compiler. Another one may work, but I am not sure as I use some features I know are not in vanilla glsl. I built this from their github repo and it was super easy.
- * The vulkan sdk - I acquired this by adding the lunarg repo and installing with apt. (Technically all you need are the headers, which you can get without the whole sdk, and libvulkan, again which you can get without the whole sdk. Having vkconfig though is very useful and this is in the sdk.)-
+ * The vulkan sdk - I acquired this by adding the lunarg repo and installing with apt. (Technically all you need are the headers, which you can get without the whole sdk, and libvulkan, again which you can get without the whole sdk. Having vkconfig though is very useful and this is in the sdk.)
  * Boost - asio, stacktrace, crc, program options, process at the time of writing. (Boost has been my answer to cross platform stuff)
  * Glm
  * Glfw
