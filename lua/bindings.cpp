@@ -269,6 +269,54 @@ static void engS_getInstanceIDExport(lua_State *ls) {
     lua_setglobal(ls, "engS_getInstanceID");
 }
 
+static int eng_getCollidabilityWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getCollidability(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void eng_getCollidabilityExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getCollidabilityWrapper);
+    lua_setglobal(ls, "eng_getCollidability");
+}
+
+static int engS_getCollidabilityWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getCollidability(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void engS_getCollidabilityExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getCollidabilityWrapper);
+    lua_setglobal(ls, "engS_getCollidability");
+}
+
+static int eng_setCollidabilityWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto a1 = lua_toboolean(ls, 2);
+    Api::eng_setCollidability(a0, a1);
+    return 0;
+}
+
+static void eng_setCollidabilityExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setCollidabilityWrapper);
+    lua_setglobal(ls, "eng_setCollidability");
+}
+
+static int engS_setCollidabilityWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto a1 = lua_toboolean(ls, 2);
+    Api::engS_setCollidability(a0, a1);
+    return 0;
+}
+
+static void engS_setCollidabilityExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_setCollidabilityWrapper);
+    lua_setglobal(ls, "engS_setCollidability");
+}
+
 static int eng_quitWrapper(lua_State *ls) {
     Api::eng_quit();
     return 0;
@@ -382,6 +430,10 @@ void LuaWrapper::apiExport() {
     eng_getInstanceEntityNameExport(luaState);
     engS_getInstanceEntityNameExport(luaState);
     engS_getInstanceIDExport(luaState);
+    eng_getCollidabilityExport(luaState);
+    engS_getCollidabilityExport(luaState);
+    eng_setCollidabilityExport(luaState);
+    engS_setCollidabilityExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);

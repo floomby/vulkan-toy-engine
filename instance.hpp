@@ -97,11 +97,16 @@ public:
 
     bool inPlay;
     bool orphaned = false;
+
+    InstanceID parentID = 0;
+
+    // Game logic properties
     InstanceID id;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
     float health = 0.3f;
     double resources;
+    bool hasCollision = true;
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -113,7 +118,6 @@ public:
 
     InstanceState state { IEngage::ENGAGE };
 
-    InstanceID parentID = 0;
 
     bool operator==(const Instance& other);
     bool operator==(uint32_t id);

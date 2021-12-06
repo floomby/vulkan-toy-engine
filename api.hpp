@@ -38,6 +38,11 @@ public:
     static const std::string& eng_getInstanceEntityName(InstanceID unitID);
     static const std::string& engS_getInstanceEntityName(Instance *unit);
     static InstanceID engS_getInstanceID(Instance *unit);
+    static bool eng_getCollidability(InstanceID unitID);
+    static bool engS_getCollidability(Instance *unit);
+    static void eng_setCollidability(InstanceID unitID, bool collidability);
+    static void engS_setCollidability(Instance *unit, bool collidability);
+
     static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);

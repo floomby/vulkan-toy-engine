@@ -120,6 +120,8 @@ END
             return -> (x) { "lua_pushinteger(ls, #{x});" }
         elsif @@floats.include?(typestr)
             return -> (x) { "lua_pushnumber(ls, #{x});" }
+        elsif @@bool.include?(typestr)
+            return -> (x) { "lua_pushboolean(ls, #{x});"}
         elsif typestr == "std::string"
             return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else

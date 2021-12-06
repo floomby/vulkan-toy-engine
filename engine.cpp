@@ -5581,8 +5581,14 @@ ComputeManager::~ComputeManager() {
     submitJob({ ComputeKind::TERMINATE });
     std::cout << "Waiting to join compute thread..." << std::endl;
     computeThread.join();
-    outList.clear();
     vkDestroyFence(context->device, fence, nullptr);
+    while (!outList.empty()) {
+        auto op = outList.back();
+        if (op.kind == ComputeKind::TEXT) {
+            delete reinterpret_cast<GuiTexture *>(op.data);
+        }
+        outList.pop_back();
+    }
 }
 
 uint64_t ComputeManager::submitJob(ComputeOp&& op) {

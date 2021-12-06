@@ -126,6 +126,28 @@ void Api::eng_quit() {
     context->quit();
 }
 
+bool Api::eng_getCollidability(InstanceID unitID) {
+    std::scoped_lock l(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it != unitID) return false;
+    return it->hasCollision;
+}
+
+bool Api::engS_getCollidability(Instance *unit) {
+    return unit->hasCollision;
+}
+
+void Api::eng_setCollidability(InstanceID unitID, bool collidability) {
+    std::scoped_lock l(context->authState.lock);
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
+    if (it == context->authState.instances.end() || *it != unitID) return;
+    it->hasCollision = collidability;
+}
+
+void Api::engS_setCollidability(Instance *unit, bool collidability) {
+    unit->hasCollision = collidability;
+}
+
 void Api::gui_setVisibility(const char *name, bool visibility) {
     GuiCommandData *what = new GuiCommandData();
     what->str = name;
