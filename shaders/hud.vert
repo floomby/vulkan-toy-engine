@@ -27,7 +27,6 @@ layout(push_constant) uniform constants {
     vec2 dragBox[2];
     vec2 tooltipBox[2];
     uint cursorID;
-    uint renderMode;
 } pushConstants;
 
 vec2 positions[6] = vec2[](
@@ -61,26 +60,6 @@ vec2 textureCoordForBox[6] = vec2[](
 );
 
 void main() {
-    if (pushConstants.renderMode == RMODE_TOOLTIP) {
-        vec2 tooltipBox[6] = vec2[](
-            pushConstants.tooltipBox[0],
-            pushConstants.tooltipBox[1],
-            vec2(pushConstants.tooltipBox[0].x, pushConstants.tooltipBox[1].y),
-            pushConstants.tooltipBox[0],
-            pushConstants.tooltipBox[1],
-            vec2(pushConstants.tooltipBox[1].x, pushConstants.tooltipBox[0].y)
-        );
-
-        gl_Position = vec4(tooltipBox[gl_VertexIndex - 12], 0.0, 1.0);
-        outColor = vec4(0.0, 0.0, 0.0, 1.0);
-        outTexCoord = textureCoordForBox[gl_VertexIndex - 12];
-        outTexIndex = -1;
-        outGuiID = 0xffffffff;
-        outCursorID = pushConstants.cursorID;
-        outRenderMode = RMODE_TOOLTIP;
-        outSecondaryColor = tooltipColor;
-        return;
-    }
     if (gl_VertexIndex < 6) {
         // draw the viewport
         gl_Position = vec4(positions[gl_VertexIndex], 1.0, 1.0);
@@ -106,7 +85,23 @@ void main() {
         outTexIndex = -1;
         outGuiID = 0xffffffff;
     } else if (gl_VertexIndex < 18) {
-        // I fixed this with bad code, but the whole things probably needs an overhaul anyways
+        vec2 tooltipBox[6] = vec2[](
+            pushConstants.tooltipBox[0],
+            pushConstants.tooltipBox[1],
+            vec2(pushConstants.tooltipBox[0].x, pushConstants.tooltipBox[1].y),
+            pushConstants.tooltipBox[0],
+            pushConstants.tooltipBox[1],
+            vec2(pushConstants.tooltipBox[1].x, pushConstants.tooltipBox[0].y)
+        );
+
+        gl_Position = vec4(tooltipBox[gl_VertexIndex - 12], 0.0, 1.0);
+        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        outTexCoord = textureCoordForBox[gl_VertexIndex - 12];
+        outTexIndex = -1;
+        outGuiID = 0xffffffff;
+        outCursorID = pushConstants.cursorID;
+        outRenderMode = RMODE_TOOLTIP;
+        outSecondaryColor = tooltipColor;
         return;
     } else {
         // move this to the program

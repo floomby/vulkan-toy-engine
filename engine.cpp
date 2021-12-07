@@ -2322,6 +2322,7 @@ void Engine::setTooltip(const std::string& str) {
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
 void Engine::handleInput() {
+    static bool notFirstTime;
     cursorLines->lines.clear();
     std::vector<uint32_t> idsSelected = this->idsSelected;
 
@@ -2347,6 +2348,8 @@ void Engine::handleInput() {
 
     static std::chrono::steady_clock::time_point lastMouseMovementTime;
     static bool emittedHover;
+    static uint hoveredId;
+    if (!notFirstTime) hoveredId = UINT32_MAX;
 
     if (lastMousePosition.x - x == 0 && lastMousePosition.y - y == 0) {
         if (!emittedHover && std::chrono::steady_clock::now() - lastMouseMovementTime > std::chrono::seconds(1)) {
@@ -2357,10 +2360,11 @@ void Engine::handleInput() {
             what->flags = 0;
             gui->submitCommand({ Gui::GUI_HOVER, what });
             emittedHover = true;
+            hoveredId = what->id;
         }
     } else {
         lastMouseMovementTime = std::chrono::steady_clock::now();
-        emittedHover = false;
+        if (gui->pushConstant.guiID != hoveredId) emittedHover = false;
     }
 
     auto inverseProjection = glm::inverse(pushConstants.projection);
@@ -2373,9 +2377,9 @@ void Engine::handleInput() {
     lastMousePosition.normedX = mouseNormed.first;
     lastMousePosition.normedY = mouseNormed.second;
 
-    tooltipLocation[0] = { mouseNormed.first + 0.05, mouseNormed.second + 0.04 };
+    gui->pushConstant.tooltipBox[0] = { mouseNormed.first + 0.05, mouseNormed.second + 0.04 };
     // whatever, just pick one
-    tooltipLocation[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipResource.widenessRatio, mouseNormed.second + 0.14 };
+    gui->pushConstant.tooltipBox[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipResource.widenessRatio, mouseNormed.second + 0.14 };
 
     // Do I want this?
     for (int i = 0; i < 8; i++) {
@@ -2421,6 +2425,37 @@ void Engine::handleInput() {
 
     if (mouseAction == MOUSE_DRAGGING) {
         gui->setDragBox(dragStartDevice, mouseNormed);
+    }
+
+    Instance *mousedOver = nullptr;
+    float minDistance = std::numeric_limits<float>::max();
+
+    for(int i = 1; i < currentScene->state.instances.size(); i++) {
+        if (!currentScene->state.instances[i].inPlay) continue;
+        float distance;
+        if(currentScene->state.instances[i].rayIntersects(cammera.position, mouseRayNormed, distance)) {
+            if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
+        }
+        // instance.highlight() = false;
+    }
+
+    if(mousedOver) {
+        // mousedOver->highlight() = true;
+        glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
+        bool tooltipStatus = true;
+        for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
+        if (tooltipStatus) {
+            std::ostringstream tooltipText;
+            tooltipText << std::fixed << std::setprecision(2) << mousedOver->position << "\n RUs: " << mousedOver->resources;
+            if (!tooltipJob) setTooltip(tooltipText.str());
+        }
+        drawTooltip = true;
+    } else {
+        glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
+        if (!emittedHover) drawTooltip = false;
+    }
+    if (planeIntersectionDenominator != 0 && planeDist > 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
+        cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
     }
 
     static glm::vec3 zPlaneNormal;
@@ -2470,12 +2505,12 @@ void Engine::handleInput() {
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
                 if (!currentScene->state.instances[i].entity->isUnit || !currentScene->state.instances[i].inPlay) continue;
                 assert(currentScene->state.instances[i].inPlay);
-                if (whichSideOfPlane(planes[4].first, planes[4].second - cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
+                if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
                     whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
                     whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->state.instances.data() + i)->position) < 0 !=
                     whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->state.instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[4].first, planes[4].second + cammera.maxClip, (currentScene->state.instances.data() + i)->position) > 0
+                    whichSideOfPlane(planes[4].first, planes[4].second + Config::Cammera.maxClip, (currentScene->state.instances.data() + i)->position) > 0
                     // To only select things as far as the cammera drawing distance
                 ) {
                     currentScene->state.instances[i].highlight = true;
@@ -2484,6 +2519,7 @@ void Engine::handleInput() {
                     currentScene->state.instances[i].highlight = false;
                 }
             }
+            if (mousedOver) idsSelected.push_back(mousedOver->id);
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
             if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && planeDist > 0 && !idsSelected.empty()) {
@@ -2494,7 +2530,10 @@ void Engine::handleInput() {
             }
         } else if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT && mouseAction == MOUSE_MOVING_Z) {
             for (const auto id : idsSelected) {
-                Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, InsertionMode::OVERWRITE);
+                auto mode = InsertionMode::OVERWRITE;
+                if (mouseEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
+                if (mouseEvent.mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
+                Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
             }
             mouseAction = MOUSE_NONE;
         }
@@ -2512,7 +2551,7 @@ void Engine::handleInput() {
         auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
         auto newPos = cammera.position + deltaPos;
         auto newDelta = length2(newTar - newPos);
-        if (newDelta > cammera.minZoom2 && newDelta < cammera.maxZoom2) {
+        if (newDelta > Config::Cammera.minZoom2 && newDelta < Config::Cammera.maxZoom2) {
             cammera.target = newTar;
             cammera.position = newPos;
         }
@@ -2550,7 +2589,7 @@ void Engine::handleInput() {
             auto mouseTiltMatrix = glm::toMat3(mouseTilt);
             auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
             if (/*(newPosition.z - cammera.target.z) > cammera.gimbleStop && */(newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
-                (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > cammera.gimbleStop) {
+                (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > Config::Cammera.gimbleStop) {
                     cammera.position = newPosition;
             }
         }
@@ -2558,37 +2597,6 @@ void Engine::handleInput() {
             auto mouseOrbit = glm::angleAxis(glm::radians(deltaX * 400.0f) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
             auto mouseOrbitMatrix = glm::toMat3(mouseOrbit);
             cammera.position = mouseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
-        }
-    }
-
-    Instance *mousedOver = nullptr;
-    float minDistance = std::numeric_limits<float>::max();
-
-    for(int i = 1; i < currentScene->state.instances.size(); i++) {
-        if (!currentScene->state.instances[i].inPlay) continue;
-        float distance;
-        if(currentScene->state.instances[i].rayIntersects(cammera.position, mouseRayNormed, distance)) {
-            if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
-        }
-        // instance.highlight() = false;
-    }
-
-    if(mousedOver) {
-        // mousedOver->highlight() = true;
-        glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
-        bool tooltipStatus = true;
-        for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
-        if (tooltipStatus) {
-            std::ostringstream tooltipText;
-            tooltipText << mousedOver->position << "\n RUs: " << mousedOver->resources;
-            if (!tooltipJob) setTooltip(tooltipText.str());
-        }
-        drawTooltip = true;
-    } else {
-        glfwSetCursor(window, cursors[CursorIndex::CURSOR_DEFAULT]);
-        if (!emittedHover) drawTooltip = false;
-        if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
-            cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
         }
     }
 
@@ -2618,6 +2626,8 @@ void Engine::handleInput() {
 
     lastMousePosition.x = x;
     lastMousePosition.y = y;
+
+    notFirstTime = false;
 }
 
 InstanceZSorter::InstanceZSorter(Scene *context)
@@ -2669,7 +2679,7 @@ float Engine::updateScene(int index) {
     lastTime = nowTime;
 
     pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
-    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, cammera.minClip, cammera.maxClip);
+    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, Config::Cammera.minClip, Config::Cammera.maxClip);
     pushConstants.projection[1][1] *= -1;
     // TODO I should just store this in the camera struct since I need it here and in the input handling
     pushConstants.normedPointing = normalize(cammera.position - cammera.target);
@@ -2705,7 +2715,8 @@ float Engine::updateScene(int index) {
         }
         const Entity& entity = *currentScene->state.instances[i].entity;
         currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
-        currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > cammera.renderAsIcon2;
+        // currentScene->state.instances[i].cammeraDistance = sqrtf(currentScene->state.instances[i].cammeraDistance2);
+        currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > Config::Cammera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
         currentScene->state.instances[i].rendered =
             // frustumContainsPoint(cammeraFrustumNormed, currentScene->state.instances[i].position);
@@ -3537,35 +3548,14 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     vkCmdBindVertexBuffers(buffer, 0, 1, &hudBuffer, offsets);
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, hudPipelineLayout, 0, 1, &hudDescriptorSet, 0, 0);
 
-    uint guiVertexCountToDraw;
-    if (!guiOutOfDate) {
-        guiVertexCountToDraw = hudVertexCount;
-        if (!drawTooltip) {
-            gui->pushConstant.tooltipBox[0] = { 0.0f, 0.0f };
-            gui->pushConstant.tooltipBox[1] = { 0.0f, 0.0f };
-        } else {
-            gui->pushConstant.tooltipBox[0] = tooltipLocation[0];
-            gui->pushConstant.tooltipBox[1] = tooltipLocation[1];
-        }
-    } else {
-        if (!drawTooltip) {
-            guiVertexCountToDraw = Gui::dummyVertexCount - 6;
-        } else {
-            gui->pushConstant.tooltipBox[0] = tooltipLocation[0];
-            gui->pushConstant.tooltipBox[1] = tooltipLocation[1];
-            guiVertexCountToDraw = Gui::dummyVertexCount;
-        }
-    }
-
     // Why need fragment stage access here???? (Obviously cause I declared the layout to need it, but if I don't the validation layer complains)?????
-    gui->pushConstant.renderMode = RMODE_NONE;
     vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), &gui->pushConstant);
-    vkCmdDraw(buffer, guiVertexCountToDraw, 1, 0, 0);
+    vkCmdDraw(buffer, Gui::dummyVertexCount - 6, 1, 0, 0);
+
+    if(!guiOutOfDate) vkCmdDraw(buffer, hudVertexCount - Gui::dummyVertexCount, 1, Gui::dummyVertexCount, 0);
 
     // Draw the tooltip last
-    gui->pushConstant.renderMode = RMODE_TOOLTIP;
-    vkCmdPushConstants(buffer, hudPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(GuiPushConstant), &gui->pushConstant);
-    vkCmdDraw(buffer, guiVertexCountToDraw, 1, 12, 0);
+    if(drawTooltip) vkCmdDraw(buffer, 6, 1, 12, 0);
 
     vkCmdEndRenderPass(buffer);
 
@@ -4634,8 +4624,7 @@ void Scene::updateUniforms(int idx) {
     float aspectRatio = static_cast<Engine *>(context)->swapChainExtent.width / (float) static_cast<Engine *>(context)->swapChainExtent.height;
     static_cast<Engine *>(context)->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
         return this->state.instances[n].getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->cammera.cached.projView,
-            static_cast<Engine *>(context)->cammera.cached.view_1Proj_1, aspectRatio, static_cast<Engine *>(context)->cammera.minClip,
-            static_cast<Engine *>(context)->cammera.maxClip);
+            static_cast<Engine *>(context)->cammera.cached.view_1Proj_1, aspectRatio, Config::Cammera.minClip, Config::Cammera.maxClip);
     });
 
     std::vector<uint> inPlayIndices;

@@ -317,6 +317,29 @@ static void engS_setCollidabilityExport(lua_State *ls) {
     lua_setglobal(ls, "engS_setCollidability");
 }
 
+static int eng_getInstanceEntityWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceEntity(a0);
+    lua_pushlightuserdata(ls, r);    return 1;
+}
+
+static void eng_getInstanceEntityExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceEntityWrapper);
+    lua_setglobal(ls, "eng_getInstanceEntity");
+}
+
+static int engS_getInstanceEntityWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceEntity(a0);
+    lua_pushlightuserdata(ls, r);    return 1;
+}
+
+static void engS_getInstanceEntityExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceEntityWrapper);
+    lua_setglobal(ls, "engS_getInstanceEntity");
+}
+
 static int eng_quitWrapper(lua_State *ls) {
     Api::eng_quit();
     return 0;
@@ -434,6 +457,8 @@ void LuaWrapper::apiExport() {
     engS_getCollidabilityExport(luaState);
     eng_setCollidabilityExport(luaState);
     engS_setCollidabilityExport(luaState);
+    eng_getInstanceEntityExport(luaState);
+    engS_getInstanceEntityExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);

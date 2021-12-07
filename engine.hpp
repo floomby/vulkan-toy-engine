@@ -161,10 +161,6 @@ private:
     TeamID teamIAm = 1;
 
     struct Cammera {
-        const float minZoom2 = 1.0, maxZoom2 = 400.0;
-        const float gimbleStop = 0.1;
-        const float minClip = 0.1, maxClip = 150.0;
-        const float renderAsIcon2 = 400.0;
         glm::vec3 position;
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
@@ -226,7 +222,6 @@ private:
     std::vector<bool> tooltipDirty;
     GuiTexture tooltipResource, tooltipStillInUse;
     uint64_t tooltipJob = 0;
-    std::array<glm::vec2, 2> tooltipLocation;
     void setTooltip(std::string&& str);
     void setTooltip(const std::string& str);
 

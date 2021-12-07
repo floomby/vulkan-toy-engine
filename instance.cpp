@@ -31,8 +31,10 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
         _state.model = translate(position) * glm::toMat4(heading);
     }
     _state.normal = transpose(inverse(view * _state.model));
+    // This math is wrong
     if (inPlay && !entity->isProjectile) _state.healthBarModel = view_1proj_1 * 
-        translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w - 0.2, clipCoord.z / clipCoord.w - 0.1)) *
+        translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w - 0.2,
+        clipCoord.z / clipCoord.w - entity->boundingRadius / (sqrtf(cammeraDistance2 - 10.0f) * zMax) * 3)) *
         scale(glm::vec3(0.1f / aspectRatio, 0.01f, 0.1f));
     _state.health = health / entity->maxHealth;
     _state.resources = resources / entity->resources;

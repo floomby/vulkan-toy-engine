@@ -7,9 +7,7 @@
  * Finish unit ais
  * I guess I will go back to drawing in z sorted order for getting cloaking working
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
- * Fix the selection thing
  * Order queuing input (the logic is there for it)
- * For the Api I think I should be throwing for invalid ids to make the error handling consistent
 
 ## Considerations
  * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.

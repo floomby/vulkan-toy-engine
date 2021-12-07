@@ -42,6 +42,8 @@ public:
     static bool engS_getCollidability(Instance *unit);
     static void eng_setCollidability(InstanceID unitID, bool collidability);
     static void engS_setCollidability(Instance *unit, bool collidability);
+    static Entity *eng_getInstanceEntity(InstanceID unitID);
+    static Entity *engS_getInstanceEntity(Instance *unit);
 
     static void eng_quit();
 

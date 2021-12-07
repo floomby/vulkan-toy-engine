@@ -2,7 +2,9 @@
 
 Base *Api::context = nullptr;
 
-const std::string invalidStr = "<invalid id>";
+#define lock_and_get_iterator std::scoped_lock l(context->authState.lock); \
+    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID); \
+    if (it == context->authState.instances.end() || *it != unitID) throw std::runtime_error("Invalid instance id"); \
 
 void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
@@ -65,30 +67,22 @@ std::vector<InstanceID> Api::eng_getSelectedInstances() {
 }
 
 int Api::eng_getTeamID(InstanceID unitID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return -1;
+    lock_and_get_iterator
     return it->id;
 }
 
 void Api::eng_setInstanceStateEngage(InstanceID unitID, IEngage state) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return;
+    lock_and_get_iterator
     it->state.engageKind = state;
 }
 
 void Api::eng_setInstanceHealth(InstanceID unitID, float health) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return;
+    lock_and_get_iterator
     it->health = health;
 }
 
 float Api::eng_getInstanceHealth(InstanceID unitID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return -1.0f;
+    lock_and_get_iterator
     return it->health;
 }
 
@@ -97,9 +91,7 @@ float Api::engS_getInstanceHealth(Instance *unit) {
 }
 
 double Api::eng_getInstanceResources(InstanceID unitID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return -1.0f;
+    lock_and_get_iterator
     return it->resources;
 }
 
@@ -108,9 +100,7 @@ double Api::engS_getInstanceResources(Instance *unit) {
 }
 
 const std::string& Api::eng_getInstanceEntityName(InstanceID unitID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return invalidStr;
+    lock_and_get_iterator
     return it->entity->name;
 }
 
@@ -127,9 +117,7 @@ void Api::eng_quit() {
 }
 
 bool Api::eng_getCollidability(InstanceID unitID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return false;
+    lock_and_get_iterator
     return it->hasCollision;
 }
 
@@ -138,14 +126,21 @@ bool Api::engS_getCollidability(Instance *unit) {
 }
 
 void Api::eng_setCollidability(InstanceID unitID, bool collidability) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID);
-    if (it == context->authState.instances.end() || *it != unitID) return;
+    lock_and_get_iterator
     it->hasCollision = collidability;
 }
 
 void Api::engS_setCollidability(Instance *unit, bool collidability) {
     unit->hasCollision = collidability;
+}
+
+Entity *Api::eng_getInstanceEntity(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->entity;
+}
+
+Entity *Api::engS_getInstanceEntity(Instance *unit) {
+    return unit->entity;
 }
 
 void Api::gui_setVisibility(const char *name, bool visibility) {

@@ -250,7 +250,6 @@ struct GuiPushConstant {
     glm::vec2 dragBox[2];
     glm::vec2 tooltipBox[2];
     glm::uint32_t guiID;
-    glm::uint32_t renderMode;
 };
 
 class GuiCommandData {

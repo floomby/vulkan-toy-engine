@@ -92,7 +92,7 @@ public:
     EntityTexture* texture;
 
     bool renderAsIcon = false;
-    float cammeraDistance2;
+    float cammeraDistance2; // , cammeraDistance;
     bool highlight = false, rendered;
 
     bool inPlay;
