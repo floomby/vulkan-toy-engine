@@ -6,7 +6,9 @@
 
 #include <boost/lockfree/queue.hpp>
 #include <boost/lockfree/spsc_queue.hpp>
+#include <codecvt>
 #include <chrono>
+#include <locale>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -190,6 +192,9 @@ public:
     virtual void click(float x, float y, int mods);
     virtual void hover();
     virtual void toggle();
+    virtual void typing(uint codepoint);
+    virtual void keyInput(uint key);
+    // virtual void seek();
     virtual void setText(const std::string& text);
     virtual void setText(std::string&& text);
     virtual const std::string& getText();
@@ -219,15 +224,30 @@ public:
         int layer, std::map<std::string, int> luaHandlers);
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height,
         int layer, std::map<std::string, int> luaHandlers);
-    std::string message;
     virtual ~GuiLabel() = default;
+
+    std::string message;
 
     virtual void setText(const std::string& text);
     virtual void setText(std::string&& text);
     virtual const std::string& getText();
+    // virtual void click(float x, float y, int mods);
     // virtual void click(float x, float y);
 private:
     virtual void resizeVertices();
+};
+
+class GuiEditable : public GuiLabel {
+public:
+    GuiEditable(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
+        std::map<std::string, int> luaHandlers);
+    virtual ~GuiEditable() = default;
+
+    virtual void click(float x, float y, int mods);
+    virtual void typing(uint codepoint);
+    virtual void keyInput(uint key);
+private:
+    std::basic_string<char32_t> editText;
 };
 
 class GuiImage : public GuiComponent {
@@ -324,7 +344,11 @@ public:
         GUI_TEXT,
         GUI_REDRAW,
         GUI_TERMINATE,
-        GUI_HOVER
+        GUI_HOVER,
+        GUI_CODEPOINT_INPUT,
+        // We are just going to pass enter, backspace, end, home... seperately since
+        // glfw doesn't put them into the codepoint stream and we don't really want them there anyways
+        GUI_KEY_INPUT
     };
 
     // messages passed to the gui
@@ -335,10 +359,12 @@ public:
 
     enum GuiSignal {
         ENG_SETTOOLTIP,
+        ENG_CAPTURE,
     };
 
     struct GuiMessageData {
         std::string str;
+        bool bl;
     };
 
     // messages passed from the gui
@@ -371,6 +397,11 @@ public:
     bool alreadyHaveTexture(const GuiTexture& texture);
     bool guiThreadNeedTextureSync = false;
     bool changed = false;
+
+    std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
+    GuiComponent *withCapture = nullptr;
+
+    void uncaptureKeyboard();
 private:
     bool needTextureSync = false;
     std::thread guiThread;
@@ -385,8 +416,6 @@ private:
     std::vector<GuiVertex> dragBox;
 
     void pollChanges();
-
-    static constexpr auto pollInterval = std::chrono::milliseconds(5);
 
     GuiComponent *root;
 

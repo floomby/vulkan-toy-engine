@@ -13,7 +13,8 @@
 enum class GuiLayoutKind {
     PANEL,
     TEXT_BUTTON,
-    IMAGE_BUTTON
+    IMAGE_BUTTON,
+    TEXT_EDITABLE
 };
 
 struct GuiLayoutNode {
@@ -101,8 +102,8 @@ private:
         stackPusher(arg);
         callFunction<argc + 1>(n, arg);
     }
-public:
 
+public:
     template<typename N, typename T>
     void callFunction(const N& n, const T& arg) {
         callFunction<0>(n, arg);

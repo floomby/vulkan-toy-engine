@@ -12,6 +12,10 @@ local function click()
     end
 end
 
+local function text_updated()
+    print("Going to edit")
+end
+
 local function engret_visibility()
     gui_setVisibility("engret", #eng_getSelectedInstances())
 end
@@ -71,6 +75,19 @@ Hud = {
             name = "button",
             tooltip = "This has a tooltip!"
         },
+        {
+            x = -0.2,
+            y = 0.75,
+            width = 0.5,
+            height = 0.1,
+            -- onClick = editing,
+            kind = GuiLayoutKind__TEXT_EDITABLE,
+            text = "Edit me",
+            color = 0x101080ff,
+            -- children = {}
+            tooltip = "This has a tooltip!\nIsn't that nice",
+            onTextUpdated = text_updated
+        },
         -- {
         --     x = -0.9,
         --     y = 0.875,
@@ -106,7 +123,7 @@ Hud = {
 engret_visibility()
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
-gui_setLabelText("button", "Hello")
+-- gui_setLabelText("button", "Hello")
 -- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
 -- eng_setInstanceHealth(id, 40)
 -- print(eng_getInstanceHealth(id))
@@ -118,5 +135,5 @@ net_declareTeam(1, "josh")
 state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
-net_pause(false)
+-- net_pause(false)
 cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)

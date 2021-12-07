@@ -218,6 +218,7 @@ void Engine::initWidow()
     glfwSetScrollCallback(window, scrollCallback);
     memset(&keysPressed, 0, sizeof(keysPressed));
     glfwSetKeyCallback(window, keyCallback);
+    glfwSetCharCallback(window, charCallback);
 }
 
 void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -236,7 +237,7 @@ void Engine::framebufferResizeCallback(GLFWwindow* window, int width, int height
     }
 }
 
-void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int mods) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->mouseButtonsPressed[button] = action == GLFW_PRESS;
     double x, y;
@@ -255,18 +256,34 @@ void Engine::mouseButtonCallback(GLFWwindow* window, int button, int action, int
     }
 }
 
-void Engine::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+void Engine::scrollCallback(GLFWwindow *window, double xoffset, double yoffset) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     engine->scrollAmount -= yoffset;
 }
 
-void Engine::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void Engine::keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
     if (key == GLFW_KEY_UNKNOWN) {
         std::cerr << "Unknown key (ignoring)" << std::endl;
         return;
     }
     engine->keyboardInput.push({ action, key, mods });
+    if (engine->keyboardCaptured &&
+        (key == GLFW_KEY_ENTER || key == GLFW_KEY_BACKSPACE) &&
+        (action == GLFW_REPEAT || action == GLFW_PRESS)) {
+        auto what = new GuiCommandData();
+        what->action = key;
+        engine->gui->submitCommand({ Gui::GUI_KEY_INPUT, what });
+    }
+}
+
+void Engine::charCallback(GLFWwindow *window, unsigned int codepoint) {
+    auto engine = reinterpret_cast<Engine *>(glfwGetWindowUserPointer(window));
+    if (engine->keyboardCaptured) {
+        auto what = new GuiCommandData();
+        what->action = codepoint;
+        engine->gui->submitCommand({ Gui::GUI_CODEPOINT_INPUT, what });
+    }
 }
 
 std::vector<const char *> Engine::getUnsupportedLayers() {
@@ -2327,18 +2344,15 @@ void Engine::handleInput() {
     std::vector<uint32_t> idsSelected = this->idsSelected;
 
     Gui::GuiMessage message;
-    while(gui->guiMessages.pop(message)) {
-        if(message.signal == Gui::ENG_SETTOOLTIP) {
+    while (gui->guiMessages.pop(message)) {
+        if (message.signal == Gui::ENG_SETTOOLTIP) {
             if (!tooltipJob) setTooltip(message.data->str);
             delete message.data;
             drawTooltip = true;
-
+        } else if (message.signal == Gui::ENG_CAPTURE) {
+            keyboardCaptured = message.data->bl;
+            delete message.data;
         }
-        // if (message.signal == Gui::GUI_TOGGLE_TEXTURE) {
-        //     std::cout << "here: " << message.data->id << " : " << message.data->texture << std::endl;
-        //     gui->setTextureIndexInBuffer((GuiVertex *)hudAllocation->GetMappedData(), guiIdToBufferIndex[message.data->id], message.data->texture);
-        //     delete message.data;
-        // }
     }
 
     double x, y;
@@ -2389,9 +2403,8 @@ void Engine::handleInput() {
     }
     KeyEvent keyEvent;
     while(keyboardInput.pop(keyEvent)) {
-        if (keyEvent.action == GLFW_PRESS) {
+        if (!keyboardCaptured && keyEvent.action == GLFW_PRESS) {
             keysPressed[keyEvent.key] = true;
-
             if (keyEvent.key == GLFW_KEY_ESCAPE) {
                 quit();
                 return;
@@ -2402,7 +2415,8 @@ void Engine::handleInput() {
                 if (keyEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
                 for ( const auto id : idsSelected) Api::cmd_stop(id, mode);
             }
-        } else if (keyEvent.action == GLFW_RELEASE) {
+        }
+        if (keyEvent.action == GLFW_RELEASE) {
             keysPressed[keyEvent.key] = false;
         }
     }
@@ -2559,21 +2573,23 @@ void Engine::handleInput() {
         scrollAmount = 0.0f;
     }
 
-    if (keysPressed[GLFW_KEY_RIGHT]) {
-        cammera.position -= cammera.strafing / 600.0f;
-        cammera.target -= cammera.strafing / 600.0f;
-    }
-    if (keysPressed[GLFW_KEY_LEFT]) {
-        cammera.position += cammera.strafing / 600.0f;
-        cammera.target += cammera.strafing / 600.0f;
-    }
-    if (keysPressed[GLFW_KEY_DOWN]) {
-        cammera.position -= cammera.fowarding / 600.0f;
-        cammera.target -= cammera.fowarding / 600.0f;
-    }
-    if (keysPressed[GLFW_KEY_UP]) {
-        cammera.position += cammera.fowarding / 600.0f;
-        cammera.target += cammera.fowarding / 600.0f;
+    if (!keyboardCaptured) {
+        if (keysPressed[GLFW_KEY_RIGHT]) {
+            cammera.position -= cammera.strafing / 600.0f;
+            cammera.target -= cammera.strafing / 600.0f;
+        }
+        if (keysPressed[GLFW_KEY_LEFT]) {
+            cammera.position += cammera.strafing / 600.0f;
+            cammera.target += cammera.strafing / 600.0f;
+        }
+        if (keysPressed[GLFW_KEY_DOWN]) {
+            cammera.position -= cammera.fowarding / 600.0f;
+            cammera.target -= cammera.fowarding / 600.0f;
+        }
+        if (keysPressed[GLFW_KEY_UP]) {
+            cammera.position += cammera.fowarding / 600.0f;
+            cammera.target += cammera.fowarding / 600.0f;
+        }
     }
 
     if (mouseAction == MOUSE_PANNING) {

@@ -161,6 +161,9 @@ void Gui::pollChanges() {
                 width = command.data->size.width.asInt;
                 delete command.data;
             } else if (command.action == GUI_CLICK) {
+                if (withCapture && command.data->id != withCapture->id) {
+                    uncaptureKeyboard();
+                }
                 idLookup.at(command.data->id)->click(command.data->position.x.asFloat, command.data->position.y.asFloat, command.data->flags);
                 delete command.data;
             } else if (command.action == GUI_HOVER) {
@@ -235,6 +238,16 @@ void Gui::pollChanges() {
                         std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                     }
                 } else std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                delete command.data;
+            } else if (command.action == GUI_CODEPOINT_INPUT) {
+                if (withCapture) {
+                    withCapture->typing(command.data->action);
+                }
+                delete command.data;
+            } else if (command.action == GUI_KEY_INPUT) {
+                if (withCapture) {
+                    withCapture->keyInput(command.data->action);
+                }
                 delete command.data;
             }
             queueLock.lock();
@@ -365,6 +378,8 @@ GuiComponent::~GuiComponent() {
 
     for(auto& child : children)
         delete child;
+
+    if (context->withCapture == this) context->withCapture = nullptr;
 }
 
 GuiComponent *GuiComponent::getComponent(std::queue<uint> childIndices) {
@@ -509,6 +524,14 @@ void GuiComponent::toggle() {
     context->changed = true;
 }
 
+void GuiComponent::typing(uint codepoint) {
+    throw std::runtime_error("This component does not support editing");
+}
+
+void GuiComponent::keyInput(uint key) {
+    throw std::runtime_error("This component does not support editing");
+}
+
 void GuiComponent::propegateEngineNotification(const std::string& notification) {
     if (luaHandlers.contains(notification))
         context->lua->callFunction(luaHandlers[notification], activeTexture);
@@ -598,6 +621,10 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
             ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
+        case GuiLayoutKind::TEXT_EDITABLE:
+            ret = new GuiEditable(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
+                { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            break;
         case GuiLayoutKind::IMAGE_BUTTON:
             ret = new GuiImage(this, tree->text.c_str(), tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
                 tree->imageStates, baseLayer, tree->handlers);
@@ -647,7 +674,7 @@ void GuiImage::click(float x, float y, int mods) {
 // }
 
 Textured::Textured()
-: imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE) {}
+: imageView(VK_NULL_HANDLE), sampler(VK_NULL_HANDLE) { }
 
 void GuiComponent::setText(const std::string& text) {
     throw std::runtime_error("This component does not support text setting");
@@ -675,4 +702,43 @@ const std::string& GuiComponent::getText() {
 
 const std::string& GuiLabel::getText() {
     return message;
+}
+
+GuiEditable::GuiEditable(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1,
+int layer, std::map<std::string, int> luaHandlers)
+: GuiLabel(context, str, textColor, backgroundColor, c0, c1, layer, luaHandlers) { }
+
+void GuiEditable::click(float x, float y, int mods) {
+    GuiComponent::click(x, y, mods);
+    context->withCapture = this;
+    auto what = new Gui::GuiMessageData();
+    what->bl = true;
+    context->guiMessages.push({ Gui::ENG_CAPTURE, what });
+}
+
+void GuiEditable::typing(uint codepoint) {
+    std::cout << "got codepoint 0x" << std::hex << codepoint << std::endl;
+    editText.push_back(codepoint);
+    this->setText(context->converter.to_bytes(editText));
+    // bleck, I shouldn't need to do this in the way I am
+    context->changed = true;
+}
+
+void GuiEditable::keyInput(uint key) {
+    if (key == GLFW_KEY_ENTER) {
+        context->uncaptureKeyboard();
+        if (luaHandlers.contains("onTextUpdated"))
+            context->lua->callFunction(luaHandlers["onTextUpdated"]);
+    } else if (key == GLFW_KEY_BACKSPACE) {
+        editText.pop_back();
+        this->setText(context->converter.to_bytes(editText));
+        context->changed = true;
+    }
+}
+
+void Gui::uncaptureKeyboard() {
+    auto what = new Gui::GuiMessageData();
+    what->bl = false;
+    guiMessages.push({ Gui::ENG_CAPTURE, what });
+    withCapture = nullptr;
 }

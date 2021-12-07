@@ -130,6 +130,10 @@ GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     return ret;
 }
 
+#define add_handler(name) if (getFunctionField(name, pushedHandlerCount)) { \
+    ret->handlers.insert({ name, lua_gettop(luaState) - 1 - handlerOffset}); \
+    pushedHandlerCount++; }
+
 GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     auto ret = new GuiLayoutNode;
     int tableIndex = lua_gettop(luaState);
@@ -139,25 +143,18 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     ret->width = getNumberField("width");
     ret->kind = (GuiLayoutKind)(int)getNumberField("kind");
     ret->color = (uint32_t)getNumberField("color");
-    if (ret->kind == GuiLayoutKind::TEXT_BUTTON) {
-        ret->text = getStringField("text");
-    }
+
+    getStringField("text", ret->text);
     getStringField("name", ret->name);
     getStringField("tooltip", ret->tooltip);
     getStringsField("images", ret->imageStates);
+    
     int pushedHandlerCount = 0;
-    if (getFunctionField("onClick", pushedHandlerCount)) {
-        ret->handlers.insert({ "onClick", lua_gettop(luaState) - 1 - handlerOffset});
-        pushedHandlerCount++;
-    }
-    if (getFunctionField("onToggle", pushedHandlerCount)) {
-        ret->handlers.insert({ "onToggle", lua_gettop(luaState) - 1 - handlerOffset});
-        pushedHandlerCount++;
-    }
-    if (getFunctionField("onSelectionChanged", pushedHandlerCount)) {
-        ret->handlers.insert({ "onSelectionChanged", lua_gettop(luaState) - 1 - handlerOffset});
-        pushedHandlerCount++;
-    }
+    add_handler("onClick")
+    add_handler("onToggle")
+    add_handler("onSelectionChanged")
+    add_handler("onTextUpdated")
+    
     lua_pushstring(luaState, "children");
     int toRemove = lua_gettop(luaState);
     lua_gettable(luaState, -2 - pushedHandlerCount);

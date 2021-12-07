@@ -263,13 +263,15 @@ private:
     glm::vec3 raycastDevice(float normedDeviceX, float normedDeviceY, glm::mat4 inverseProjection, glm::mat4 inverseView);
     glm::vec3 raycastDevice(std::pair<float, float> normedDevice, glm::mat4 inverseProjection, glm::mat4 inverseView);
 
-    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    static void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
     bool keysPressed[349];
     struct KeyEvent {
         int action, key, mods;
     };
     boost::lockfree::spsc_queue<KeyEvent, boost::lockfree::capacity<1024>> keyboardInput;
-    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
+    bool keyboardCaptured = false;
+    static void charCallback(GLFWwindow *window, unsigned int codepoint);
 
     std::vector<const char *> getUnsupportedLayers();
     void enableValidationLayers();
