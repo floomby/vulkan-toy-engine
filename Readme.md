@@ -10,7 +10,7 @@ This section is mostly notes to myself, but I will put it here for posterity or 
 
 I am well aware I should just use cmake, but I haven't done this yet mostly due to my proclivity to muddle around and both annoy and confuse myself with cmake every time I do anything with it.
 
-I know a windows build will not work without fcntl. (I know how to fix this and will do it.) Other than that, and possibly boost stacktrace, which can be ifdefed out, I think getting it to build against msys2 should work if a brief googling about if the glfw package and vulkan compatibility is to be believed.
+I doubt a windows build will work due to some fcntl stuff. (I know how to fix this and will do it.) Other than that, and possibly boost stacktrace, which can be ifdefed out, I think getting it to build against msys2 should work if a brief googling about if the glfw package and vulkan compatibility is to be believed.
 
  * gcc 10 or newer
  * freetype 2.11.0 or newer - We need sdf rendering, but the version which ships with ubuntu was not this new. I built from their git repo and it worked fine. We don't need harfbuz so no need to worry that on ubuntu this is too old for using in the freetype build and just letting it be disabled is fine.
@@ -20,6 +20,8 @@ I know a windows build will not work without fcntl. (I know how to fix this and 
  * Boost - asio, stacktrace, crc, program options, process at the time of writing. (Boost has been my answer to cross platform stuff)
  * Glm
  * Glfw
+ * OpenAL
+ * libvorbis
 
 #### Lua binding generator
 

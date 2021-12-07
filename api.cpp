@@ -1,5 +1,6 @@
 #include "engine.hpp"
-
+#include "sound.hpp"
+    
 Base *Api::context = nullptr;
 
 #define lock_and_get_iterator std::scoped_lock l(context->authState.lock); \
@@ -141,6 +142,22 @@ Entity *Api::eng_getInstanceEntity(InstanceID unitID) {
 
 Entity *Api::engS_getInstanceEntity(Instance *unit) {
     return unit->entity;
+}
+
+// TODO The sound api stuff needs to be made threadsafe
+std::vector<std::string> Api::eng_listAudioDevices() {
+    if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
+    return context->sound->listDevices();
+}
+
+void Api::eng_pickAudioDevice(const char *name) {
+    if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
+    context->sound->setDevice(name);
+}
+
+void Api::eng_playSound(const char *name) {
+    if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
+    context->sound->playSound(name);
 }
 
 void Api::gui_setVisibility(const char *name, bool visibility) {

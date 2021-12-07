@@ -7,6 +7,7 @@ class Api;
 class Gui;
 class Scene;
 class LuaWrapper;
+class Sound;
 
 #include "state.hpp"
 
@@ -24,6 +25,7 @@ public:
     bool headless = false;
 protected:
     Gui *gui = nullptr;
+    Sound *sound = nullptr;
     AuthoritativeState authState;
     std::mutex apiLock;
     Scene *currentScene;

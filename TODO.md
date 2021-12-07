@@ -10,6 +10,7 @@
  * Order queuing input (the logic is there for it)
 
 ## Considerations
+ * I think many things will be broken on big endian systems
  * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
  * I am linking to libpng now for freetype2, maybe I should stop using stbi
  * The string of glyphs to cache is pretty silly imo

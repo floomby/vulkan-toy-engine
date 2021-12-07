@@ -16,6 +16,7 @@
 
 #include "engine.hpp"
 #include "entity.hpp"
+#include "sound.hpp"
 
 #include <codecvt>
 #include <chrono>
@@ -2236,6 +2237,7 @@ void Engine::initVulkan() {
 void Engine::init() {
     initWidow();
     initVulkan();
+    sound = new Sound();
 }
 
 // TODO Name this better (What is this calculated value called anyways?)
@@ -3720,11 +3722,9 @@ Engine::~Engine() {
     delete gui;
     delete glyphCache;
     delete manager;
+    delete sound;
     tooltipResource.~GuiTexture();
     tooltipStillInUse.~GuiTexture();
-    // hmmmm..... (Without this we don't free all the gpu resources if we close while drawing a tooltip)
-    // double calling the destructor like this is silly, but it is safe, the object will mark itself as invalidated once
-    // the gpu resources are actually freed (technically it gets called a third time when the engine destructor finishes)
     cleanup();
 }
 

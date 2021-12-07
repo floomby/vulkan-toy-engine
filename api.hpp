@@ -44,6 +44,9 @@ public:
     static void engS_setCollidability(Instance *unit, bool collidability);
     static Entity *eng_getInstanceEntity(InstanceID unitID);
     static Entity *engS_getInstanceEntity(Instance *unit);
+    static std::vector<std::string> eng_listAudioDevices();
+    static void eng_pickAudioDevice(const char *name);
+    static void eng_playSound(const char *name);
 
     static void eng_quit();
 

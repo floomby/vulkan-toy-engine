@@ -1,14 +1,20 @@
 local inspect = require('libs/inspect')
 
-InstanceStates = {}
+-- Idk where this belongs, but it isn't here
+local audioDeviceList = eng_listAudioDevices()
+eng_pickAudioDevice(audioDeviceList[1])
 
 local function click()
     -- print("You clicked me")
-    state_dumpAuthState()
-    local r = eng_getSelectedInstances()
+    -- local r = eng_getSelectedInstances()
+    -- -- -- local r = eng_getTeamID(100)
+    -- for _, v in ipairs(r) do
+    --     print(inspect(eng_getTeamID(v)))
+    -- end
+    local r = eng_listAudioDevices()
     -- -- local r = eng_getTeamID(100)
     for _, v in ipairs(r) do
-        print(inspect(eng_getTeamID(v)))
+        print(v)
     end
 end
 

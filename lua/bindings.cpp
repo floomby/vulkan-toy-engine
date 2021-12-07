@@ -340,6 +340,45 @@ static void engS_getInstanceEntityExport(lua_State *ls) {
     lua_setglobal(ls, "engS_getInstanceEntity");
 }
 
+static int eng_listAudioDevicesWrapper(lua_State *ls) {
+    auto r = Api::eng_listAudioDevices();
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        lua_pushstring(ls, r[i].c_str());
+        lua_rawseti(ls, -2, i + 1);
+    }
+    return 1;
+}
+
+static void eng_listAudioDevicesExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_listAudioDevicesWrapper);
+    lua_setglobal(ls, "eng_listAudioDevices");
+}
+
+static int eng_pickAudioDeviceWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    Api::eng_pickAudioDevice(a0);
+    return 0;
+}
+
+static void eng_pickAudioDeviceExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_pickAudioDeviceWrapper);
+    lua_setglobal(ls, "eng_pickAudioDevice");
+}
+
+static int eng_playSoundWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    Api::eng_playSound(a0);
+    return 0;
+}
+
+static void eng_playSoundExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_playSoundWrapper);
+    lua_setglobal(ls, "eng_playSound");
+}
+
 static int eng_quitWrapper(lua_State *ls) {
     Api::eng_quit();
     return 0;
@@ -459,6 +498,9 @@ void LuaWrapper::apiExport() {
     engS_setCollidabilityExport(luaState);
     eng_getInstanceEntityExport(luaState);
     engS_getInstanceEntityExport(luaState);
+    eng_listAudioDevicesExport(luaState);
+    eng_pickAudioDeviceExport(luaState);
+    eng_playSoundExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);

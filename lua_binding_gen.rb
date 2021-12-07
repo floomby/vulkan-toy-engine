@@ -122,7 +122,7 @@ END
             return -> (x) { "lua_pushnumber(ls, #{x});" }
         elsif @@bool.include?(typestr)
             return -> (x) { "lua_pushboolean(ls, #{x});"}
-        elsif typestr == "std::string"
+        elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>"
             return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else
             raise "Unsuported basic type #{typestr}"
