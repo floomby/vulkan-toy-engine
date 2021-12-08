@@ -135,11 +135,14 @@ engret_visibility()
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
 
-cmd_createInstance("asteroid", { 0.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 0)
+-- cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 0)
+cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2)
+
+
 
 net_declareTeam(1, "josh")
 state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
--- net_pause(false)
+net_pause(false)
 cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
