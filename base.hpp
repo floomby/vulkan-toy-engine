@@ -21,7 +21,7 @@ public:
     virtual void send(ApiProtocol&& data) = 0;
     virtual void quit() = 0;
     LuaWrapper *lua;
-    friend void AuthoritativeState::process(ApiProtocol *data);
+    friend void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>>);
     bool headless = false;
 protected:
     Gui *gui = nullptr;

@@ -1,4 +1,6 @@
 local inspect = require('libs/inspect')
+-- require('lua/server_callbacks')
+Server_callbacks = {}
 
 -- Idk where this belongs, but it isn't here
 local audioDeviceList = eng_listAudioDevices()
@@ -136,13 +138,25 @@ engret_visibility()
 -- net_declareTeam(1, "josh")
 
 -- cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 0)
-cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2)
 
+local function dummyCallback(id)
+    print("callback with id of " .. id)
+end
 
+local function dummyCallback2(id)
+    print("callback with id of " .. id * 2)
+end
+
+cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback2)
 
 net_declareTeam(1, "josh")
 state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
 net_pause(false)
-cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
+cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+
+for i = 0,1,1 
+do 
+   print(inspect(Server_callbacks[i])) 
+end

@@ -1,6 +1,7 @@
 // This is an auto generated file changes can be overwritten durring build process
 #include "../lua_wrapper.hpp"
 #include "../api.hpp"
+#include "../api_util.hpp"
 
 static int cmd_moveWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
@@ -61,7 +62,16 @@ static int cmd_createInstanceWrapper(lua_State *ls) {
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
     auto a3 = (TeamID)luaL_checkinteger(ls, 4);
-    Api::cmd_createInstance(a0, a1, a2, a3);
+    auto id4 = ApiUtil::getCallbackID();
+    lua_getglobal(ls, "Server_callbacks");
+    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to include lua/server_callbacks.lua)");
+    lua_insert(ls, -2);
+    lua_pushinteger(ls, id4);
+    lua_insert(ls, -2);
+    lua_settable(ls, -3);
+    lua_pop(ls, 1);
+    auto a4 = ApiUtil::luaCallbackDispatcher<std::function<void (unsigned int)>>(id4);
+    Api::cmd_createInstance(a0, a1, a2, a3, a4);
     return 0;
 }
 

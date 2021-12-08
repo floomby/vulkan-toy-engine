@@ -16,7 +16,7 @@ class BindingGenerator
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
-    @@integers = ["uint32_t", "int", "unsigned int", "InstanceID", "TeamID"]
+    @@integers = ["uint32_t", "int", "unsigned int", "InstanceID", "TeamID", "unsigned char"]
     @@floats = ["float", "double"]
     @@bool = ["bool"]
 
@@ -89,8 +89,27 @@ END
     if (!lua_islightuserdata(ls, #{i + 1})) throw std::runtime_error("Invalid lua arguments (pointer)");
     auto a#{i} = (#{argtype})lua_topointer(ls, #{i + 1});
 END
+        when /^std::function</
+            cbtype = argtype.clone
+            argtype.gsub!(/^std::function</, "")
+            argtype.gsub!(/>/, "")
+            if argtype.gsub!(/^void /) == nil
+                puts "Non void callbacks are nonsence"
+            end
+            return <<-END
+    auto id#{i} = ApiUtil::getCallbackID();
+    lua_getglobal(ls, "Server_callbacks");
+    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to include lua/server_callbacks.lua)");
+    lua_insert(ls, -2);
+    lua_pushinteger(ls, id#{i});
+    lua_insert(ls, -2);
+    lua_settable(ls, -3);
+    lua_pop(ls, 1);
+    auto a#{i} = ApiUtil::luaCallbackDispatcher<#{cbtype}>(id#{i});
+END
         else
             puts "unsupported type: #{argtype} : #{i}"
+            raise
         end
         return acm
     end
@@ -195,6 +214,7 @@ puts <<-END
 // This is an auto generated file changes can be overwritten durring build process
 #include "../lua_wrapper.hpp"
 #include "../api.hpp"
+#include "../api_util.hpp"
 
 END
 

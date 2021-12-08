@@ -1,7 +1,13 @@
 #include "engine.hpp"
 #include "sound.hpp"
-    
+
 Base *Api::context = nullptr;
+
+#include "api_util.hpp"
+
+unsigned long ApiUtil::getCallbackID() {
+    return ApiUtil::callbackCounter++;
+}
 
 #define lock_and_get_iterator std::scoped_lock l(context->authState.lock); \
     auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID); \
@@ -17,10 +23,14 @@ void Api::cmd_stop(const InstanceID unitID, const InsertionMode mode) {
     context->send(data);
 }
 
-void Api::cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team) {
+void Api::cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void (InstanceID)> cb) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE }};
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
+
+    // std::cout << LuaWrapper::threadLuaInstance << std::endl;
+    cb(45);
+
     context->send(data);
 }
 
@@ -195,6 +205,7 @@ double Api::state_getResources(TeamID teamID) {
 }
 
 void Api::net_declareTeam(TeamID teamID, const std::string& name) {
+    ApiUtil::name = name;
     ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';

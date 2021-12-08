@@ -72,7 +72,7 @@ public:
 private:
     void doAccept(std::weak_ptr<Server> self);
     boost::asio::ip::tcp::acceptor acceptor;
-    std::queue<ApiProtocol> queue;
+    std::queue<std::pair<ApiProtocol, std::shared_ptr<Session>>> queue;
 };
 
 // TODO The client has a use after free bug when shutting down

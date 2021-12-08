@@ -210,7 +210,7 @@ static const Forwardable<4> forwardable(
 
 // constexpr auto fowardsable = [](){ std::sort(fowardsable_.begin(), fowardsable_.end()); return fowardsable_; }();
 
-void AuthoritativeState::process(ApiProtocol *data) {
+void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session) {
     
     // std::cout << *data << std::endl;
 
@@ -269,7 +269,7 @@ void AuthoritativeState::process(ApiProtocol *data) {
         paused = (bool)data->frame;
     } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {
         lock.lock();
-        teams.push_back(Team((TeamID)data->frame, data->buf));
+        teams.push_back(Team((TeamID)data->frame, data->buf, session));
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::RESOURCES) {
         lock.lock();
@@ -283,4 +283,8 @@ void AuthoritativeState::process(ApiProtocol *data) {
 
 void AuthoritativeState::emit(const ApiProtocol& data) {
     context->send(data);
+}
+
+void AuthoritativeState::doCallbacks() {
+    // std::cout << "pretend dispatching callbacks" << std::endl;
 }

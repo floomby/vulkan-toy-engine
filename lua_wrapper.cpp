@@ -1,4 +1,7 @@
 #include "lua_wrapper.hpp"
+#include "api_util.hpp"
+
+thread_local LuaWrapper *LuaWrapper::threadLuaInstance = nullptr;
 
 static int wrap_exceptions(lua_State *ls, lua_CFunction f)
 {
@@ -343,4 +346,9 @@ void LuaWrapper::doString(const char *str) {
 GuiLayoutNode::~GuiLayoutNode() {
     for (auto child : children)
         delete child;
+}
+
+void LuaWrapper::setAsThreadLua() {
+    threadLuaInstance = this;
+    std::cout << "!!!!" <<  threadLuaInstance << " "<< this << std::endl;
 }

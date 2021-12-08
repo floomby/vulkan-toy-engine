@@ -19,7 +19,7 @@ public:
     static void cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode);
     static void cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode);
     static void cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode);
-    static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team);
+    static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void(InstanceID)> cb);
     static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
     static void cmd_destroyInstance(InstanceID unitID);
     // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);

@@ -39,6 +39,9 @@ class UnitAI;
 class LuaWrapper {
     friend class UnitAI;
 public:
+    // bad solution, but works for now
+    static thread_local LuaWrapper *threadLuaInstance;
+
     LuaWrapper(bool rethrowExceptions = false);
     ~LuaWrapper();
 
@@ -62,6 +65,19 @@ public:
         callFunction<0>(index);
     }
 
+    // TODO This is incomplete
+    template<typename T>
+    void callCallback(unsigned long id, const T& val) {
+        lua_getglobal(luaState, "Server_callbacks");
+        if (!lua_istable(luaState, -1))
+            error("Server_callbacks should be a table (did you forget to include lua/server_callbacks.lua)");
+        lua_pushinteger(luaState, id);
+            lua_gettable(luaState, -2);
+        callFunction(-2, val);
+        lua_pop(luaState, 2);
+        std::cout << "made it here" << std::endl;
+    }
+
     template<int argc>
     void callFunction(int index) {
         lua_pushvalue(luaState, index);
@@ -78,6 +94,7 @@ public:
     void callFunction(const std::string& name) {
         throw std::runtime_error("not implemented");
     }
+
 
 private:
     template<typename T>
@@ -114,11 +131,13 @@ public:
         callFunction<0>(n, arg, args...);
     }
 
-
     void apiExport();
     void loadFile(const std::string& filename);
 
     void doString(const char *str);
+
+    // This allows callbacks to go to this lua (call this on the thread which will recieve the callbacks)
+    void setAsThreadLua();
 private:
     void error(const char *fmt, ...);
     double getNumberField(const char *key);

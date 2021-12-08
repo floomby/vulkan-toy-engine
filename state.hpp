@@ -151,10 +151,12 @@ public:
     void dump();
     uint32_t crc();
 
-    void process(ApiProtocol *data);
+    void process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session);
     void emit(const ApiProtocol& data);
+    void doCallbacks();
 
 private:
+    
     Base *context;
 };
 

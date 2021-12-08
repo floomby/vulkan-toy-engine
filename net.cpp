@@ -19,8 +19,10 @@ Net::~Net() {
 // Server state update
 void Net::stateUpdater() {
     while (!server->queue.empty()) {
-        state->process(&server->queue.front());
-        state->emit(server->queue.front());
+        auto msg = server->queue.front();
+        state->process(&msg.first, msg.second);
+        state->emit(msg.first);
+        state->doCallbacks();
         server->queue.pop();
     }
     if (!state->paused) {
@@ -65,7 +67,7 @@ void Session::doRead() {
             if (!err) {
                 // std::cout << "We are here" << std::endl;
                 // std::cout << reinterpret_cast<ApiProtocol *>(data)->buf << std::endl;
-                server.lock()->queue.push(*reinterpret_cast<ApiProtocol *>(data));
+                server.lock()->queue.push({ *reinterpret_cast<ApiProtocol *>(data), shared_from_this() });
                 doRead();
             }
         });
@@ -124,7 +126,7 @@ void Client::bindToState(AuthoritativeState *state) {
     boost::asio::async_read(socket, boost::asio::buffer(data),
     [state, self](boost::system::error_code err, size_t length) {
         if (!err) {
-            state->process(reinterpret_cast<ApiProtocol *>(self->data));
+            state->process(reinterpret_cast<ApiProtocol *>(self->data), {});
             self->bindToState(state);
         } else std::cerr << "Networking error: " << err << " thread id: " << std::this_thread::get_id() << std::endl;
     });

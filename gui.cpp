@@ -23,13 +23,13 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     // idLookup.insert({ root->id, root });
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
+    lua = new LuaWrapper(true);
     guiThread = std::thread(&Gui::pollChanges, this);
 
     createBuffers(50);
     whichBuffer = 0;
     usedSizes[0] = usedSizes[1] = Gui::dummyVertexCount;
 
-    lua = new LuaWrapper(true);
     lua->apiExport();
     lua->exportEnumToLua<GuiLayoutKind>();
     lua->exportEnumToLua<ToggleKind>();
@@ -112,6 +112,7 @@ void Gui::submitCommand(GuiCommand&& command) {
 
 void Gui::pollChanges() {
     bool terminate = false;
+    lua->setAsThreadLua();
     while(!terminate) {
         // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         changed = false;
