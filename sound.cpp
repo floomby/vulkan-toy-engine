@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cstring>
 #include <stdexcept>
 #include <sstream>
@@ -58,6 +59,9 @@ Sound::Sound() {
 }
 
 Sound::~Sound() {
+    for (const auto [name, buffer] : cached) {
+        alErrorGuard(alDeleteBuffers, 1, &buffer);
+    }
     if (context) {
         alcMakeContextCurrent(NULL);
         alcDestroyContext(context);
@@ -93,211 +97,136 @@ void Sound::setDevice(const char *name) {
 #include <fstream>
 #include <iostream>
 
-std::int32_t convert_to_int(char* buffer, std::size_t len)
-{
-    std::int32_t a = 0;
-    if(std::endian::native == std::endian::little)
-        std::memcpy(&a, buffer, len);
-    else
-        for(std::size_t i = 0; i < len; ++i)
-            reinterpret_cast<char*>(&a)[3 - i] = buffer[i];
-    return a;
+namespace StreamCallbacks {
+
+    static size_t read(void* buffer, size_t elementSize, size_t elementCount, void* dataSource) {
+        assert(elementSize == 1);
+        std::ifstream& stream = *static_cast<std::ifstream*>(dataSource);
+        stream.read(static_cast<char*>(buffer), elementCount);
+        const std::streamsize bytesRead = stream.gcount();
+        stream.clear(); // In case we read past EOF
+        return static_cast<size_t>(bytesRead);
+    }
+
+    static int seek(void* dataSource, ogg_int64_t offset, int origin) {
+        static const std::vector<std::ios_base::seekdir> seekDirections{
+            std::ios_base::beg, std::ios_base::cur, std::ios_base::end
+        };
+
+        std::ifstream& stream = *static_cast<std::ifstream*>(dataSource);
+        stream.seekg(offset, seekDirections.at(origin));
+        stream.clear(); // In case we seeked to EOF
+        return 0;
+    }
+
+    static long tell(void* dataSource) {
+        std::ifstream& stream = *static_cast<std::ifstream*>(dataSource);
+        const auto position = stream.tellg();
+        assert(position >= 0);
+        return static_cast<long>(position);
+    }
 }
 
-bool load_wav_file_header(std::ifstream& file,
-                          std::uint8_t& channels,
-                          std::int32_t& sampleRate,
-                          std::uint8_t& bitsPerSample,
-                          ALsizei& size)
-{
-    char buffer[4];
-    if(!file.is_open())
-        return false;
-
-    // the RIFF
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read RIFF" << std::endl;
-        return false;
-    }
-    if(std::strncmp(buffer, "RIFF", 4) != 0)
-    {
-        std::cerr << "ERROR: file is not a valid WAVE file (header doesn't begin with RIFF)" << std::endl;
-        return false;
-    }
-
-    // the size of the file
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read size of file" << std::endl;
-        return false;
-    }
-
-    // the WAVE
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read WAVE" << std::endl;
-        return false;
-    }
-    if(std::strncmp(buffer, "WAVE", 4) != 0)
-    {
-        std::cerr << "ERROR: file is not a valid WAVE file (header doesn't contain WAVE)" << std::endl;
-        return false;
-    }
-
-    // "fmt/0"
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read fmt/0" << std::endl;
-        return false;
-    }
-
-    // this is always 16, the size of the fmt data chunk
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read the 16" << std::endl;
-        return false;
-    }
-
-    // PCM should be 1?
-    if(!file.read(buffer, 2))
-    {
-        std::cerr << "ERROR: could not read PCM" << std::endl;
-        return false;
-    }
-
-    // the number of channels
-    if(!file.read(buffer, 2))
-    {
-        std::cerr << "ERROR: could not read number of channels" << std::endl;
-        return false;
-    }
-    channels = convert_to_int(buffer, 2);
-
-    // sample rate
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read sample rate" << std::endl;
-        return false;
-    }
-    sampleRate = convert_to_int(buffer, 4);
-
-    // (sampleRate * bitsPerSample * channels) / 8
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read (sampleRate * bitsPerSample * channels) / 8" << std::endl;
-        return false;
-    }
-
-    // ?? dafaq
-    if(!file.read(buffer, 2))
-    {
-        std::cerr << "ERROR: could not read dafaq" << std::endl;
-        return false;
-    }
-
-    // bitsPerSample
-    if(!file.read(buffer, 2))
-    {
-        std::cerr << "ERROR: could not read bits per sample" << std::endl;
-        return false;
-    }
-    bitsPerSample = convert_to_int(buffer, 2);
-
-    // data chunk header "data"
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read data chunk header" << std::endl;
-        return false;
-    }
-    if(std::strncmp(buffer, "data", 4) != 0)
-    {
-        std::cerr << "ERROR: file is not a valid WAVE file (doesn't have 'data' tag)" << std::endl;
-        return false;
-    }
-
-    // size of data
-    if(!file.read(buffer, 4))
-    {
-        std::cerr << "ERROR: could not read data size" << std::endl;
-        return false;
-    }
-    size = convert_to_int(buffer, 4);
-
-    /* cannot be at the end of file */
-    if(file.eof())
-    {
-        std::cerr << "ERROR: reached EOF on the file" << std::endl;
-        return false;
-    }
-    if(file.fail())
-    {
-        std::cerr << "ERROR: fail state set on the file" << std::endl;
-        return false;
-    }
-
-    return true;
+static void addChunk(std::vector<char>& buffer, size_t newSize) {
+    auto oldSize = buffer.size();
+    assert(newSize > oldSize);
+    buffer.resize(newSize);
+    memset(buffer.data() + oldSize, 0, newSize - oldSize);
 }
 
-char* load_wav(const std::string& filename,
-               std::uint8_t& channels,
-               std::int32_t& sampleRate,
-               std::uint8_t& bitsPerSample,
-               ALsizei& size)
-{
-    std::ifstream in(filename, std::ios::binary);
-    if(!in.is_open())
-    {
-        std::cerr << "ERROR: Could not open \"" << filename << "\"" << std::endl;
-        return nullptr;
+
+// This does not stream, it buffers everything into ram first, and it also caches
+// It has poor effeciency, use the (yet to be implemented) streaming version to play back big files
+void Sound::loadSound(const char *name) {
+    lock.lock();
+    if (cached.contains(name)) {
+        lock.unlock();
+        return;
     }
-    if(!load_wav_file_header(in, channels, sampleRate, bitsPerSample, size))
-    {
-        std::cerr << "ERROR: Could not load wav header of \"" << filename << "\"" << std::endl;
-        return nullptr;
+    lock.unlock();
+    OggVorbis_File vorbisFile;
+    bool decoding = true;
+
+    std::ifstream stream;
+    stream.open(name, std::ios::binary);
+
+    const ov_callbacks callbacks { StreamCallbacks::read, StreamCallbacks::seek, nullptr, StreamCallbacks::tell };
+    int err;
+    if((err = ov_open_callbacks(&stream, &vorbisFile, NULL, 0, callbacks)) < 0) {
+        std::ostringstream ss;
+        ss << "Invalid ogg vorbis file: 0x" << std::hex << err;
+        throw std::runtime_error(ss.str());
     }
 
-    char* data = new char[size];
+    vorbis_info* vorbisInfo = ov_info(&vorbisFile, -1);
+    std::cout << "File info: " << vorbisInfo->rate << "Hz, "
+        << vorbisInfo->channels << " channels" << std::endl;
 
-    in.read(data, size);
+    size_t bytesRead = 0;
+    std::vector<char> pcmBuffer;
+    addChunk(pcmBuffer, 4096 * 2);
 
-    return data;
+    int section = 0;
+
+    while (decoding) {
+        long ret = ov_read(&vorbisFile, pcmBuffer.data() + bytesRead, 4096, 0, 2, 1, &section);
+        if (ret == 0) {
+            decoding = false;
+            /* end of stream */
+        } else if (ret < 0) {
+            if (ret == OV_EBADLINK) {
+                throw std::runtime_error("Corrupt bitstream section!");
+            }
+            std::cerr << "Some sort of other vorbis error 0x" << std::hex << ret << std::endl;
+            /* some other error in the stream.  Not a problem, just reporting it in
+                case we (the app) cares.  In this case, we don't. */
+        } else {
+            bytesRead += ret;
+            if (bytesRead + 4096 > pcmBuffer.size()) addChunk(pcmBuffer, pcmBuffer.size() * 2);
+        }
+    }
+
+    ALenum format;
+    if(vorbisInfo->channels == 1)
+        format = AL_FORMAT_MONO16;
+    else if(vorbisInfo->channels == 2)
+        format = AL_FORMAT_STEREO16;
+    else {
+        std::ostringstream ss;
+        ss << "Unsupported sound file format: " << vorbisInfo->channels << " channels";
+        throw std::runtime_error(ss.str());
+    }
+
+    // auto pcmFile = std::fstream("check.pcm", std::ios::out | std::ios::binary);
+    // pcmFile.write(pcmBuffer.data(), bytesRead);
+    // pcmFile.close();
+
+    lock.lock();
+    if (!cached.contains(name)) {
+        ALuint buffer;
+        alErrorGuard(alGenBuffers, 1, &buffer);
+        alErrorGuard(alBufferData, buffer, format, pcmBuffer.data(), bytesRead, vorbisInfo->rate);
+        
+        cached.insert({ name, buffer });
+    }
+    lock.unlock();
+
+    ov_clear(&vorbisFile);
 }
 
 void Sound::playSound(const char *name) {
-    std::uint8_t channels;
-    std::int32_t sampleRate;
-    std::uint8_t bitsPerSample;
-    ALsizei size;
-    char *buf;
-    if(!(buf = load_wav(name, channels, sampleRate, bitsPerSample, size))) {
-        std::cerr << "ERROR: Could not load wav" << std::endl;
-        return;
-    }
-
     ALuint buffer;
-    alErrorGuard(alGenBuffers, 1, &buffer);
-
-    ALenum format;
-    if(channels == 1 && bitsPerSample == 8)
-        format = AL_FORMAT_MONO8;
-    else if(channels == 1 && bitsPerSample == 16)
-        format = AL_FORMAT_MONO16;
-    else if(channels == 2 && bitsPerSample == 8)
-        format = AL_FORMAT_STEREO8;
-    else if(channels == 2 && bitsPerSample == 16)
-        format = AL_FORMAT_STEREO16;
-    else
-    {
-        std::cerr
-            << "ERROR: unrecognised wave format: "
-            << channels << " channels, "
-            << bitsPerSample << " bps" << std::endl;
-        return;
+    lock.lock();
+    if (cached.contains(name)) {
+        buffer = cached.at(name);
+        lock.unlock();
+    } else {
+        lock.unlock();
+        loadSound(name);
+        lock.lock();
+        buffer = cached.at(name);
+        lock.unlock();
     }
-
-    alErrorGuard(alBufferData, buffer, format, buf, size, sampleRate);
-    delete buf;
 
     ALuint source;
     alErrorGuard(alGenSources, 1, &source);
@@ -311,11 +240,9 @@ void Sound::playSound(const char *name) {
 
     ALint state = AL_PLAYING;
 
-    while(state == AL_PLAYING)
-    {
+    while(state == AL_PLAYING) {
         alErrorGuard(alGetSourcei, source, AL_SOURCE_STATE, &state);
     }
 
     alErrorGuard(alDeleteSources, 1, &source);
-    alErrorGuard(alDeleteBuffers, 1, &buffer);
 }
