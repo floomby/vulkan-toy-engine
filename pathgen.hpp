@@ -28,9 +28,12 @@ namespace Pathgen {
         // inst.heading = normalize(glm::quat({1.0f, 0.f, 0.f, 0.0f }));
     }
 
-    void seek(Instance& inst, const glm::vec3& dest) {
-        auto desiredVelocity = normalize(dest - inst.position) * inst.entity->v_m;
+    float seek(Instance& inst, const glm::vec3& dest) {
+        auto offset = dest - inst.position;
+        auto dist = length(offset);
+        auto desiredVelocity = offset / dist * inst.entity->v_m;
         applySteering(inst, desiredVelocity - inst.dP);
+        return dist;
     }
 
     float arrive(Instance& inst, const glm::vec3& dest) {

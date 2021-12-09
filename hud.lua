@@ -153,9 +153,11 @@ state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
 net_pause(false)
-cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+-- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+
+cmd_createInstance("ship", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
 for i = 0,1,1 
 do 
-   print(inspect(Server_callbacks[i]))
+--    print(inspect(Server_callbacks[i]))
 end

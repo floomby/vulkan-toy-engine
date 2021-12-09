@@ -4665,15 +4665,21 @@ void Scene::updateUniforms(int idx) {
         lineTmp.insert(lineTmp.end(), lineHolder->lines.begin(), lineHolder->lines.end());
     }
 
+    uint32_t lastId = UINT32_MAX;
+    glm::vec3 lastDest;
     auto commandLines = [&] () -> LineUBO {
         cmdGen.next();
         auto a = cmdGen.value();
-        return {
-            this->state.instances[a.which->at(a.idx)].position,
+        auto id = a.which->at(a.idx);
+        LineUBO ret = {
+            id == lastId ? lastDest : this->state.instances[id].position,
             a.command->data.dest,
             { 0.3f, 1.0f, 0.3f, 1.0f },
             { 0.3f, 1.0f, 0.3f, 1.0f }
-        };};
+        };
+        lastDest = a.command->data.dest;
+        lastId = id;
+        return ret; };
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
 

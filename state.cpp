@@ -60,6 +60,7 @@ void ObservableState::doUpdate(float timeDelta) {
 void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     uint highestSynced = 0;
     uint syncIndex = 0;
+    // TODO!!! Waiting on this lock is bad (This is the biggest rendering performance thing to fix)
     state.lock.lock();
     for (int i = 0; i < instances.size(); i++) {
         if (instances[i].inPlay) {
@@ -82,9 +83,9 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 
 #include "pathgen.hpp"
 
-// TODO This function is really ineffecient and holds the auth state lock the whole time it runs
+// TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 void AuthoritativeState::doUpdateTick() {
-    if (frame % 30 == 1) std::cout << std::hex << crc() << std::endl;
+    if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
 
     const float timeDelta = Net::secondsPerTick;
     std::scoped_lock l(lock);
@@ -114,7 +115,7 @@ void AuthoritativeState::doUpdateTick() {
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    distance = Pathgen::arrive(*it, cmd.data.dest);
+                    distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seek(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
                     if (it->commandList.size() > 1) {
                         if (distance < Pathgen::arrivalDeltaContinuing) {
                             it->commandList.pop_front();

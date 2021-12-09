@@ -91,6 +91,8 @@ public:
     bool rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
     EntityTexture* texture;
 
+    bool secondQueuedCommandRequiresMovement() const;
+
     bool renderAsIcon = false;
     float cammeraDistance2; // , cammeraDistance;
     bool highlight = false, rendered;

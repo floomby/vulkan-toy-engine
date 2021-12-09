@@ -73,3 +73,18 @@ void Instance::doCrc(boost::crc_32_type& crc) const {
     crcString(crc, entity->name);
     // TODO Finish this
 }
+
+// This is not really right
+bool Instance::secondQueuedCommandRequiresMovement() const {
+    if (commandList.size() < 2) return false;
+    auto it = ++commandList.begin();
+    switch (it->kind) {
+        case CommandKind::MOVE:
+        case CommandKind::ATTACK:
+        case CommandKind::TARGET_UNIT:
+        case CommandKind::TARGET_LOCATION:
+            return true;
+        default:
+            return false;
+    }
+}
