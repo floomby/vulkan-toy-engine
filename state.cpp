@@ -156,7 +156,7 @@ void AuthoritativeState::doUpdateTick() {
         if (removed) size--;
         else i++;
     }
-    frame++;
+    frame = frame + 1;
 }
 
 void AuthoritativeState::dump() {
@@ -170,7 +170,7 @@ void AuthoritativeState::dump() {
 uint32_t AuthoritativeState::crc() {
     boost::crc_32_type crc;
     std::scoped_lock l(lock);
-    crc.process_bytes(&frame, sizeof(frame));
+    crc.process_bytes(const_cast<size_t *>(&frame), sizeof(frame));
     for (const auto& inst : instances) {
         inst.doCrc(crc);
     }
@@ -209,6 +209,8 @@ static const Forwardable<4> forwardable(
 );
 
 // constexpr auto fowardsable = [](){ std::sort(fowardsable_.begin(), fowardsable_.end()); return fowardsable_; }();
+
+#include "api_util.hpp"
 
 void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session) {
     
@@ -250,7 +252,14 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             inst.heading = data->command.data.heading;
             inst.position = data->command.data.dest;
             inst.team = data->command.data.id;
-            context->authState.instances.push_back(std::move(inst));
+            if (session) {
+                ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
+                data2.callbackID = data->callbackID;
+                data2.frame = frame;
+                data2.command.id = inst.id;
+                callbacks.push({ data2, session.value() });
+            }
+            instances.push_back(std::move(inst));
             lock.unlock();
         } else if (data->command.kind == CommandKind::DESTROY) {
             lock.lock();
@@ -278,6 +287,9 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::SERVER_MESSAGE) {
         Api::eng_echo(data->buf);
+    } else if (data->kind == ApiProtocolKind::CALLBACK) {
+        assert(!context->headless);
+        ApiUtil::doCallbackDispatch(data->callbackID, *data);
     }
 }
 
@@ -286,5 +298,12 @@ void AuthoritativeState::emit(const ApiProtocol& data) {
 }
 
 void AuthoritativeState::doCallbacks() {
-    // std::cout << "pretend dispatching callbacks" << std::endl;
+    while (!callbacks.empty()) {
+        callbacks.front().second->writeData(callbacks.front().first);
+        callbacks.pop();
+    }
+}
+
+void AuthoritativeState::enableCallbacks() {
+    Api::context->lua->enableCallbacksOnThisThread();
 }

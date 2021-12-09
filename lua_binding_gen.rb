@@ -94,17 +94,19 @@ END
             argtype.gsub!(/^std::function</, "")
             argtype.gsub!(/>/, "")
             if argtype.gsub!(/^void /) == nil
-                puts "Non void callbacks are nonsence"
+                puts "Non void returning callbacks are nonsense"
             end
+            # This supports multiple callbacks, the networking protocol does not, but can be made to easily
             return <<-END
     auto id#{i} = ApiUtil::getCallbackID();
     lua_getglobal(ls, "Server_callbacks");
-    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to include lua/server_callbacks.lua)");
+    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
     lua_insert(ls, -2);
     lua_pushinteger(ls, id#{i});
     lua_insert(ls, -2);
     lua_settable(ls, -3);
     lua_pop(ls, 1);
+    ApiUtil::callbackIds.push(id#{i});
     auto a#{i} = ApiUtil::luaCallbackDispatcher<#{cbtype}>(id#{i});
 END
         else

@@ -104,7 +104,8 @@ enum class ApiProtocolKind {
     PAUSE,
     TEAM_DECLARATION,
     COMMAND,
-    RESOURCES
+    RESOURCES,
+    CALLBACK
 };
 
 const uint ApiTextBufferSize = 128;
@@ -115,6 +116,7 @@ struct ApiProtocol {
     char buf[ApiTextBufferSize];
     Command command;
     double dbl;
+    CallbackID callbackID;
 };
 
 #include <iostream>
@@ -136,7 +138,7 @@ public:
     AuthoritativeState(Base *context);
 
     std::vector<Instance> instances;
-    size_t frame = 0;
+    volatile size_t frame = 0;
     InstanceID counter = 100;
     std::vector<Team> teams;
 
@@ -154,9 +156,9 @@ public:
     void process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session);
     void emit(const ApiProtocol& data);
     void doCallbacks();
-
+    void enableCallbacks();
 private:
-    
+    std::queue<std::pair<ApiProtocol, std::shared_ptr<Networking::Session>>> callbacks;
     Base *context;
 };
 

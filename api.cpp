@@ -6,7 +6,50 @@ Base *Api::context = nullptr;
 #include "api_util.hpp"
 
 unsigned long ApiUtil::getCallbackID() {
-    return ApiUtil::callbackCounter++;
+    return ++ApiUtil::callbackCounter;
+}
+
+thread_local std::queue<CallbackID> ApiUtil::callbackIds;
+
+static std::mutex dispatchLock;
+static std::mutex threadDispatchLock;
+
+void ApiUtil::doCallbackDispatch(CallbackID id, const ApiProtocol& data) {
+    std::cout << "looking for " << id << std::endl;
+    dispatchLock.lock();
+    auto it = ApiUtil::callbacks.find(id);
+    if (it == ApiUtil::callbacks.end()) {
+        std::cerr << "Missing callback (this probably indicates engine programmer error)" << std::endl;
+        dispatchLock.unlock();
+        return;
+    }
+    auto tmp = it->second;
+    ApiUtil::callbacks.erase(it);
+    dispatchLock.unlock();
+    if (tmp.second == LuaWrapper::threadLuaInstance) {
+        tmp.first(data);
+        return;
+    }
+    std::scoped_lock l(threadDispatchLock);
+    ApiUtil::otherThreadsData.insert({ tmp.second, { tmp.first, data }});
+}
+
+void LuaWrapper::dispatchCallbacks() {
+    std::vector<std::pair<std::function<void (const ApiProtocol&)>, const ApiProtocol>> todo;
+    assert(LuaWrapper::threadLuaInstance);
+    threadDispatchLock.lock();
+    // I think the stl has something to make this a one liner and more efficiently, but I am too dumb rn to figure it out
+    auto it = ApiUtil::otherThreadsData.find(LuaWrapper::threadLuaInstance);
+    while (it != ApiUtil::otherThreadsData.end()) {
+        if (Api::context->authState.frame > it->second.second.frame) {
+            todo.push_back(it->second);
+            ApiUtil::otherThreadsData.erase(it++);
+        } else it++;
+    }
+    threadDispatchLock.unlock();
+    for (const auto [func, data] : todo) {
+        func(data);
+    }
 }
 
 #define lock_and_get_iterator std::scoped_lock l(context->authState.lock); \
@@ -24,14 +67,20 @@ void Api::cmd_stop(const InstanceID unitID, const InsertionMode mode) {
 }
 
 void Api::cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void (InstanceID)> cb) {
+    // I will fix this to work with c++ callbacks, don't worry, but this is a check to make sure that we are just getting lua callbacks like we expect
+    assert(ApiUtil::callbackIds.size() == 1);
+    auto cbID = ApiUtil::callbackIds.front();
+    ApiUtil::callbackIds.pop();
+
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE }};
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
-
-    // std::cout << LuaWrapper::threadLuaInstance << std::endl;
-    cb(45);
-
+    data.callbackID = cbID;
     context->send(data);
+
+    assert(LuaWrapper::threadLuaInstance);
+    std::scoped_lock l(dispatchLock);
+    ApiUtil::callbacks.insert({ cbID, { [cb](const ApiProtocol& data) { cb(data.command.id); }, LuaWrapper::threadLuaInstance }});
 }
 
 void Api::cmd_destroyInstance(InstanceID unitID) {
@@ -50,7 +99,6 @@ void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode 
 }
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
-    // std::scoped_lock l(context->authState.lock);
     std::scoped_lock l(context->authState.lock);
     Instance inst(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
         context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
@@ -58,9 +106,7 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
     inst.position = position;
     inst.heading = { 1.0f, 0.0f, 0.0f, 0.0f };
     inst.parentID = parentID;
-    // std::cout << inst.entity << std::endl;
     context->authState.instances.push_back(std::move(inst));
-    // context->authState.dump();
 }
 
 #include <iostream>
@@ -205,7 +251,6 @@ double Api::state_getResources(TeamID teamID) {
 }
 
 void Api::net_declareTeam(TeamID teamID, const std::string& name) {
-    ApiUtil::name = name;
     ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';

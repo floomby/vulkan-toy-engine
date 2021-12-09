@@ -2,6 +2,7 @@
 
 #include "utilities.hpp"
 #include "net.hpp"
+#include "lua_wrapper.hpp"
 
 class Api;
 class Gui;
@@ -22,11 +23,12 @@ public:
     virtual void quit() = 0;
     LuaWrapper *lua;
     friend void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>>);
+    friend void LuaWrapper::dispatchCallbacks();
     bool headless = false;
 protected:
+    AuthoritativeState authState;
     Gui *gui = nullptr;
     Sound *sound = nullptr;
-    AuthoritativeState authState;
     std::mutex apiLock;
     Scene *currentScene;
     Net net;

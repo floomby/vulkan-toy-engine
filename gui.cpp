@@ -112,7 +112,7 @@ void Gui::submitCommand(GuiCommand&& command) {
 
 void Gui::pollChanges() {
     bool terminate = false;
-    lua->setAsThreadLua();
+    lua->enableCallbacksOnThisThread();
     while(!terminate) {
         // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         changed = false;
@@ -258,8 +258,7 @@ void Gui::pollChanges() {
             rebuildBuffer(guiThreadNeedTextureSync);
             guiThreadNeedTextureSync = false;
         }
-        // std::chrono::steady_clock::time_point done = std::chrono::steady_clock::now();
-        // std::this_thread::sleep_for(pollInterval - (done - started));
+        lua->dispatchCallbacks();
         std::this_thread::yield();
     }
 }

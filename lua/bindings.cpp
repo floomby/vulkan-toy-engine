@@ -64,12 +64,13 @@ static int cmd_createInstanceWrapper(lua_State *ls) {
     auto a3 = (TeamID)luaL_checkinteger(ls, 4);
     auto id4 = ApiUtil::getCallbackID();
     lua_getglobal(ls, "Server_callbacks");
-    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to include lua/server_callbacks.lua)");
+    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
     lua_insert(ls, -2);
     lua_pushinteger(ls, id4);
     lua_insert(ls, -2);
     lua_settable(ls, -3);
     lua_pop(ls, 1);
+    ApiUtil::callbackIds.push(id4);
     auto a4 = ApiUtil::luaCallbackDispatcher<std::function<void (unsigned int)>>(id4);
     Api::cmd_createInstance(a0, a1, a2, a3, a4);
     return 0;

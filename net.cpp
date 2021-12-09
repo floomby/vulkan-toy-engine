@@ -104,7 +104,8 @@ void Server::writeData(const ApiProtocol& data) {
 Client::Client(boost::asio::io_context& ioContext, const std::string& hostname, const std::string& port, AuthoritativeState *state)
 : socket(ioContext), ioContext(&ioContext) {
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-    ioContext.post([this, hostname, port, state](){ 
+    ioContext.post([this, hostname, port, state](){
+        state->enableCallbacks();
         ip::tcp::resolver resolver(*this->ioContext);
         boost::asio::connect(socket, resolver.resolve(hostname, port));
         bindToState(state);

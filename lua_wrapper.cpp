@@ -348,7 +348,7 @@ GuiLayoutNode::~GuiLayoutNode() {
         delete child;
 }
 
-void LuaWrapper::setAsThreadLua() {
+void LuaWrapper::enableCallbacksOnThisThread() {
     threadLuaInstance = this;
-    std::cout << "!!!!" <<  threadLuaInstance << " "<< this << std::endl;
+    luaL_dostring(luaState, "Server_callbacks = {}");
 }

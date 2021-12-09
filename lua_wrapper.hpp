@@ -137,7 +137,9 @@ public:
     void doString(const char *str);
 
     // This allows callbacks to go to this lua (call this on the thread which will recieve the callbacks)
-    void setAsThreadLua();
+    void enableCallbacksOnThisThread();
+    // The io thread has faster dispatch of callbacks directly, this is for all other threads
+    void dispatchCallbacks();
 private:
     void error(const char *fmt, ...);
     double getNumberField(const char *key);

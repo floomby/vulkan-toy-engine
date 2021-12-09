@@ -154,6 +154,7 @@ namespace std {
 typedef uint8_t TeamID;
 typedef uint32_t InstanceID;
 typedef void* ResourceID;
+typedef unsigned long CallbackID;
 
 enum class InsertionMode {
     FRONT,
