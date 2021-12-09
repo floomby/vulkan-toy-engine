@@ -33,20 +33,23 @@ public:
     float boundingRadius;
     int textureIndex, iconIndex, modelIndex;
 
+    // Idk why I set defaults here??
     float maxSpeed = 0.5f;
     float acceleration = 0.1f;
     // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
     float maxOmega = 0.1f;
-    std::string name;
     float maxHealth = 1.0f;
     double resources = 0.0f;
+    std::string name;
 
     float dv;
     float v_m;
     float w_m;
 
+    Weapon *weapon = nullptr;
     bool isProjectile, isUnit, isResource;
     WeaponKind weaponKind;
+    uint framesTillDead = 0;
 
     std::vector<std::string> weaponNames;
     std::vector<Weapon *> weapons;
@@ -55,13 +58,6 @@ public:
     std::vector<UnitAI *> ais;
 
     void precompute();
-    inline float indexToVelocity(uint idx) {
-        return float(idx * (idx + 1) >> 1) * dv;
-    }
-    inline float velocityToIndex(float velocity) {
-        return -1.f + sqrtf(velocity / dv * 2.f + 1.f);
-    }
-    std::vector<float> brakingCurve; // we can just precompute this
 protected:
     stbi_uc *texturePixels;
     stbi_uc *iconPixels;

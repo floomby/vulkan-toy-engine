@@ -184,17 +184,11 @@ Entity::~Entity() {
 }
 
 void Entity::precompute() {
-    dv = acceleration * Net::secondsPerTick;
-    v_m = maxSpeed  * Net::secondsPerTick;
-    w_m = maxOmega  * Net::secondsPerTick;
+    dv = acceleration * Config::Net::secondsPerTick;
+    v_m = maxSpeed * Config::Net::secondsPerTick;
+    w_m = maxOmega * Config::Net::secondsPerTick;
 
-    float v = 0;
-    float d = 0;
-    // The lazy way, the non lazy way involves computing a bunch of cube roots for every movement update which seems worse
-    // (You need to solve (n^3 + 2n^2 + 2n)/6 - D_n/dV_s = 0 which I don't see a trick to solve without a general form solution)
-    do {
-        brakingCurve.push_back(d);
-        v += dv;
-        d += v;
-    } while (v < maxSpeed);
+    if (weapon) {
+        framesTillDead = ceil(weapon->range / v_m);
+    }
 }

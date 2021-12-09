@@ -25,6 +25,12 @@ struct {
     const float renderAsIcon2 = 10000.0;
 } Cammera;
 
+namespace Net {
+    static constexpr uint msPerTick = 33;
+    static constexpr float ticksPerSecond = 1000.0f / (float)msPerTick;
+    static constexpr float secondsPerTick = 1.0f / ticksPerSecond;
+}
+
 }
 
 #endif

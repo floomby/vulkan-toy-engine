@@ -84,10 +84,11 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 #include "pathgen.hpp"
 
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
+// Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
     if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
 
-    const float timeDelta = Net::secondsPerTick;
+    const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
     auto size = instances.size();
     for (int i = 0; i < size;) {
@@ -108,7 +109,14 @@ void AuthoritativeState::doUpdateTick() {
                 }
                 if (removed) break;
             }
-            if (!removed) it->position += it->dP * timeDelta;
+            if (!removed) {
+                it->position += it->dP * timeDelta;
+                if (++it->framesAlive > it->entity->framesTillDead) {
+                    std::cout << "deleting projectile" << std::endl;
+                    instances.erase(it);
+                    removed = true;
+                }
+            }
         } else if (!it->commandList.empty()) {
             // TODO check if unit is alive
             const auto& cmd = it->commandList.front();

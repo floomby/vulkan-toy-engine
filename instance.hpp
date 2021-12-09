@@ -120,6 +120,7 @@ public:
 
     InstanceState state { IEngage::ENGAGE };
 
+    uint framesAlive = 0;
 
     bool operator==(const Instance& other);
     bool operator==(uint32_t id);

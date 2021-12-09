@@ -75,7 +75,6 @@ public:
             lua_gettable(luaState, -2);
         callFunction(-2, val);
         lua_pop(luaState, 2);
-        std::cout << "made it here" << std::endl;
     }
 
     template<int argc>

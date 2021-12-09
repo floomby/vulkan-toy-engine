@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 
 #include "state.hpp"
+#include "econf.h"
 
 namespace Networking { class Client; class Server; }
 
@@ -27,10 +28,6 @@ public:
 
     boost::asio::io_context io;
     std::atomic<bool> done = false;
-    
-    static constexpr uint msPerTick = 33;
-    static constexpr float ticksPerSecond = 1000.0f / (float)msPerTick;
-    static constexpr float secondsPerTick = 1.0f / ticksPerSecond;
 private:
     std::shared_ptr<Networking::Server> server;
     Mode mode;

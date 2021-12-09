@@ -321,17 +321,20 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             texture = getStringField("texture");
 
             ret = new PlasmaCannon(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
+            ret->range = getNumberField("range");
+            ret->entity->maxSpeed = getNumberField("speed");
 
             luaName[0] = tolower(luaName[0]);
 
-            ret->entity->maxSpeed = getNumberField("speed");
             luaName[0] = tolower(luaName[0]);
             ret->name = luaName;
-
-            return ret;
+            ret->entity->precompute();
+            break;
         default:
             throw std::runtime_error("Lua error: unsupported weapon kind.");
     }
+
+    return ret;
 }
 
 void LuaWrapper::loadFile(const std::string& filename) {

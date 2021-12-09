@@ -8,6 +8,7 @@ bool Weapon::hasEntity() {
 
 PlasmaCannon::PlasmaCannon(std::shared_ptr<Entity> projectileEntity) {
     entity = projectileEntity;
+    entity->weapon = this;
 }
 
 void PlasmaCannon::fire(const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID) {
@@ -36,5 +37,5 @@ void WeaponInstance::fire(const glm::vec3& position) {
         instanceOf->fire(position, { 0.0f, 0.0f, 1.0f }, parentID);
         timeSinceFired = 0.0f;
     }
-    timeSinceFired += Net::secondsPerTick;
+    timeSinceFired += Config::Net::secondsPerTick;
 }

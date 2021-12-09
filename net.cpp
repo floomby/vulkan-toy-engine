@@ -7,7 +7,7 @@
 namespace ip = boost::asio::ip;
 
 Net::Net()
-: timer(io, boost::asio::chrono::milliseconds(msPerTick)) { }
+: timer(io, boost::asio::chrono::milliseconds(Config::Net::msPerTick)) { }
 
 Net::~Net() {
     if (ioThread.joinable()) {
@@ -31,7 +31,7 @@ void Net::stateUpdater() {
         state->emit(advance);
     }
     if (done) { io.stop(); return; }
-    timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(msPerTick));
+    timer.expires_at(timer.expiry() + boost::asio::chrono::milliseconds(Config::Net::msPerTick));
     timer.async_wait(boost::bind(&Net::stateUpdater, this));
 }
 
