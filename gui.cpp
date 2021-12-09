@@ -52,7 +52,7 @@ Gui::~Gui() {
 std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     std::scoped_lock lock(dataMutex);
     if (needTextureSync) {
-        root->textures[0].syncTexturesToGPU(textures);
+        context->rewriteHudDescriptors(textures);
         needTextureSync = false;
     }
     rebuilt = false;

@@ -100,6 +100,8 @@ class Engine : public Base {
 
     friend class DynUBOSyncer<InstanceUBO>;
     friend class DynUBOSyncer<LineUBO>;
+
+    friend std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer();
 public:
     Engine(EngineSettings engineSettings);
     void init();

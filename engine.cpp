@@ -3308,11 +3308,13 @@ void Engine::writeHudDescriptors() {
 
 // This is to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
 // I think if concurrent frams was higher this would need more layers (I have concurrent frames = 2 right now)
-static std::vector<GuiTexture> textureRefs, textureRefsOld;
+// TODO Think what is the better way to do this?
+static std::vector<GuiTexture> textureRefs, textureRefsOld, textureRefsOldOld;
 static size_t oldSize = textureRefs.size();
 
 void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
     if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
+    textureRefsOldOld = textureRefsOld;
     textureRefsOld = textureRefs;
     textureRefs.clear();
 
@@ -3716,6 +3718,7 @@ Engine::~Engine() {
     delete consoleLua;
     textureRefs.clear();
     textureRefsOld.clear();
+    textureRefsOldOld.clear();
     delete currentScene;
     // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
     delete GuiTextures::defaultTexture;
@@ -5105,10 +5108,6 @@ GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     return *this;
 }
 
-void GuiTexture::syncTexturesToGPU(const std::vector<GuiTexture *>& textures) {
-    context->rewriteHudDescriptors(textures);
-}
-
 bool GuiTexture::operator==(const GuiTexture& other) const {
     return image == other.image;
 }
@@ -5518,7 +5517,7 @@ T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
     auto bufferAllocationOld = bufferAllocation;
 
     VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    bufferInfo.size = count + increment;
+    bufferInfo.size = (count + increment) * sizeof(T);
     bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VmaAllocationCreateInfo bufferAllocationInfo = {};
@@ -5531,7 +5530,7 @@ T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
 
     memcpy(bufferAllocation->GetMappedData(), buf, currentSize * sizeof(T));
 
-    currentSize = bufferInfo.size;
+    currentSize = count + increment;
 
     info.buffer = buffer;
 

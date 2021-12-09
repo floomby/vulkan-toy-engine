@@ -117,7 +117,6 @@ public:
     ResourceID resourceID() const;
     bool operator==(const GuiTexture& other) const;
 
-    void syncTexturesToGPU(const std::vector<GuiTexture *>& textures);
     static GuiTexture *defaultTexture();
     float widenessRatio;
 
