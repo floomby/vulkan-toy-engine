@@ -118,7 +118,7 @@ void Gui::pollChanges() {
         changed = false;
         queueLock.lock();
         while(!guiCommands.empty()) {
-            GuiCommand& command = guiCommands.front();
+            GuiCommand command = guiCommands.front();
             guiCommands.pop();
             queueLock.unlock();
             if(command.action == GUI_TERMINATE) {
@@ -730,9 +730,11 @@ void GuiEditable::keyInput(uint key) {
         if (luaHandlers.contains("onTextUpdated"))
             context->lua->callFunction(luaHandlers["onTextUpdated"]);
     } else if (key == GLFW_KEY_BACKSPACE) {
-        editText.pop_back();
-        this->setText(context->converter.to_bytes(editText));
-        context->changed = true;
+        if (!editText.empty()) {
+            editText.pop_back();
+            this->setText(context->converter.to_bytes(editText));
+            context->changed = true;
+        }
     }
 }
 
