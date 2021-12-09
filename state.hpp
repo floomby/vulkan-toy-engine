@@ -136,8 +136,9 @@ class Base;
 class AuthoritativeState {
 public:
     AuthoritativeState(Base *context);
+    ~AuthoritativeState();
 
-    std::vector<Instance> instances;
+    std::vector<Instance *> instances;
     volatile size_t frame = 0;
     InstanceID counter = 100;
     std::vector<Team> teams;
@@ -146,8 +147,8 @@ public:
 
     void doUpdateTick();
     std::recursive_mutex lock;
-    inline std::vector<Instance>::iterator getInstance(InstanceID id) {
-        return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x.id == id; });
+    inline std::vector<Instance *>::iterator getInstance(InstanceID id) {
+        return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x->id == id; });
     }
 
     void dump();

@@ -323,6 +323,7 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             ret = new PlasmaCannon(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
             ret->range = getNumberField("range");
             ret->entity->maxSpeed = getNumberField("speed");
+            ret->damage = getNumberField("damage");
 
             luaName[0] = tolower(luaName[0]);
 

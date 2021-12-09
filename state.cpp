@@ -64,10 +64,10 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     state.lock.lock();
     for (int i = 0; i < instances.size(); i++) {
         if (instances[i].inPlay) {
-            if (syncIndex >= state.instances.size() || state.instances[syncIndex].id > instances[i].id) {
+            if (syncIndex >= state.instances.size() || state.instances[syncIndex]->id > instances[i].id) {
                 instances[i].orphaned = true;
-            } else if (state.instances[syncIndex].id == instances[i].id) {
-                instances[i].syncToAuthInstance(state.instances[syncIndex]);
+            } else if (state.instances[syncIndex]->id == instances[i].id) {
+                instances[i].syncToAuthInstance(*state.instances[syncIndex]);
                 syncIndex++;
             } else {
                 std::cerr << "Instance syncronization problem" << std::endl;
@@ -75,7 +75,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
         }
     }
     for (; syncIndex < state.instances.size(); syncIndex++) {
-        instances.push_back(state.instances[syncIndex]);
+        instances.push_back(*state.instances[syncIndex]);
     }
     state.lock.unlock();
     instances.erase(std::remove_if(instances.begin(), instances.end(), [](const auto& x){ return x.orphaned; }), instances.end());
@@ -90,34 +90,36 @@ void AuthoritativeState::doUpdateTick() {
 
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
-    auto size = instances.size();
-    for (int i = 0; i < size;) {
-        bool removed = false;
-        auto it = instances.begin() + i;
+    std::vector<Instance *> toDelete;
+    for (auto& it : instances) {
+        // std::cout << std::dec << "main loop for " << it->id << " which is a " << it->entity->name << std::endl;
         assert(it->inPlay);
         if (it->entity->isProjectile) {
             for (auto& other : instances) {
-                if (it->parentID == other.id || other.entity->isProjectile) continue;
+                if (!other || it->parentID == other->id || other->entity->isProjectile) continue;
                 float d;
                 float l = length(it->dP);
-                if (other.rayIntersects(it->position, normalize(it->dP), d)) {
+                if (other->rayIntersects(it->position, normalize(it->dP), d)) {
                     if (d < l * timeDelta) {
-                        instances.erase(it);
-                        removed = true;
-                        // std::cout << it->id << " hit " << other.id << std::endl;
+                        other->health = other->health - it->entity->weapon->damage;
+                        if (other->health < 0) {
+                            toDelete.push_back(other);
+                            other = nullptr;
+                        }
+                        toDelete.push_back(it);
+                        it = nullptr;
+                        break;
                     }
                 }
-                if (removed) break;
             }
-            if (!removed) {
+            if (it) {
                 it->position += it->dP * timeDelta;
                 if (++it->framesAlive > it->entity->framesTillDead) {
-                    std::cout << "deleting projectile" << std::endl;
-                    instances.erase(it);
-                    removed = true;
+                    toDelete.push_back(it);
+                    it = nullptr;
                 }
             }
-        } else if (!it->commandList.empty()) {
+        } else if (it && !it->commandList.empty()) {
             // TODO check if unit is alive
             const auto& cmd = it->commandList.front();
             float distance;
@@ -146,14 +148,14 @@ void AuthoritativeState::doUpdateTick() {
                     it->commandList.pop_front();
                     break;
             }
-            for (auto& other : instances) {
-                if (other == *it | other.entity->isProjectile) continue;
-                Pathgen::collide(other, *it);
+            for (auto other : instances) {
+                if (!other || *other == *it || other->entity->isProjectile) continue;
+                Pathgen::collide(*other, *it);
             }
         } else if (it->entity->isUnit) {
             Pathgen::stop(*it);
         }
-        if (!removed) {
+        if (it) {
             for (const auto& ai : it->entity->ais) {
                 ai->run(*it);
             }
@@ -162,16 +164,22 @@ void AuthoritativeState::doUpdateTick() {
                 weapon.fire(it->position);
             }
         }
-        if (removed) size--;
-        else i++;
     }
     frame = frame + 1;
+    // avoid making this too complicated for rn (I am switching to a spacial partitioning system anyways if this is slow)
+    // instances.erase(std::remove_if(instances.begin(), instances.end(), [](auto& x){
+    //     std::cout << "processing " << x.id << std::endl;
+    //     auto ret = x.health < 0;
+    //     return false;
+    // }));
+    // instances.erase(std::remove(instances.begin(), instances.end(), 100));
+    for (auto inst : toDelete) delete inst;
 }
 
 void AuthoritativeState::dump() {
     std::cout << "Have instances: { ";
     for (const auto& inst : this->instances) {
-        std::cout << inst.id << " ";
+        std::cout << inst->id << " ";
     }
     std::cout << " }" << std::endl;
 }
@@ -181,7 +189,7 @@ uint32_t AuthoritativeState::crc() {
     std::scoped_lock l(lock);
     crc.process_bytes(const_cast<size_t *>(&frame), sizeof(frame));
     for (const auto& inst : instances) {
-        inst.doCrc(crc);
+        inst->doCrc(crc);
     }
     return crc.checksum();
 }
@@ -225,59 +233,60 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
     
     // std::cout << *data << std::endl;
 
-    std::vector<Instance>::iterator it;
+    // std::vector<Instance>::iterator it;
 
     if (data->kind == ApiProtocolKind::COMMAND) {
         if (forwardable(data->command.kind)) {
             lock.lock();
-            it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
-            if (it == instances.end() || *it != data->command.id) {
+            auto itx = getInstance(data->command.id);
+            if (itx == instances.end() || **itx != data->command.id) {
                 lock.unlock();
                 return;
             };
             switch (data->command.mode) {
                 case InsertionMode::BACK:
-                    it->commandList.push_back(data->command);
+                    (*itx)->commandList.push_back(data->command);
                     break;
                 case InsertionMode::FRONT:
-                    it->commandList.push_front(data->command);
+                    (*itx)->commandList.push_front(data->command);
                     break;
                 case InsertionMode::OVERWRITE:
-                    it->commandList.clear();
-                    it->commandList.push_back(data->command);
+                    (*itx)->commandList.clear();
+                    (*itx)->commandList.push_back(data->command);
                     break;
             }
             lock.unlock();
         } else if (data->command.kind == CommandKind::CREATE) {
             const auto ent = Api::context->currentScene->entities.at(data->buf);
             lock.lock();
-            Instance inst;
+            Instance *inst;
             if (Api::context->headless) {
-                inst = Instance(ent, counter++);
+                inst = new Instance(ent, counter++);
             } else {
-                inst = Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex, Api::context->currentScene->models.data() + ent->modelIndex,
+                inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex, Api::context->currentScene->models.data() + ent->modelIndex,
                     counter++, true);
             }
-            inst.heading = data->command.data.heading;
-            inst.position = data->command.data.dest;
-            inst.team = data->command.data.id;
+            inst->heading = data->command.data.heading;
+            inst->position = data->command.data.dest;
+            inst->team = data->command.data.id;
             if (session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;
                 data2.frame = frame;
-                data2.command.id = inst.id;
+                data2.command.id = inst->id;
                 callbacks.push({ data2, session.value() });
             }
-            instances.push_back(std::move(inst));
+            instances.push_back(inst);
             lock.unlock();
         } else if (data->command.kind == CommandKind::DESTROY) {
             lock.lock();
-            it = std::lower_bound(instances.begin(), instances.end(), data->command.id);
-            if (it == instances.end() || *it != data->command.id) {
+            auto itx = getInstance(data->command.id);
+            if (itx == instances.end() || **itx != data->command.id) {
                 lock.unlock();
                 return;
             };
-            instances.erase(it);
+            delete *itx;
+            instances.erase(itx);
             lock.unlock();
         }
     } else if (data->kind == ApiProtocolKind::FRAME_ADVANCE) {
@@ -315,4 +324,8 @@ void AuthoritativeState::doCallbacks() {
 
 void AuthoritativeState::enableCallbacks() {
     Api::context->lua->enableCallbacksOnThisThread();
+}
+
+AuthoritativeState::~AuthoritativeState() {
+    for (auto inst : instances) delete inst;
 }

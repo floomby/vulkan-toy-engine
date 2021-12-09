@@ -82,6 +82,7 @@ public:
     Instance();
     Instance(Entity* entity, InstanceID id) noexcept;
     Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept;
+    ~Instance();
     void syncToAuthInstance(const Instance& other);
 
     SceneModelInfo* sceneModelInfo;
@@ -106,8 +107,8 @@ public:
     InstanceID id;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
-    float health = 0.3f;
-    double resources;
+    volatile double health = 1.0f;
+    volatile double resources;
     bool hasCollision = true;
 
     // This is the stuff that needs to get synced

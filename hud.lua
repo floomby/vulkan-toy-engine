@@ -24,7 +24,8 @@ local function text_updated()
 end
 
 local function engret_visibility()
-    gui_setVisibility("engret", #eng_getSelectedInstances())
+    print("Setting visibility")
+    gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
 end
 
 local function other(index)
@@ -136,7 +137,6 @@ engret_visibility()
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
 
--- cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 0)
 
 local function dummyCallback(id)
     print("callback with id of " .. id)
@@ -146,9 +146,10 @@ local function dummyCallback2(id)
     print("callback with id of " .. id * 2)
 end
 
+-- cmd_createInstance("ship", { -95.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 cmd_createInstance("shipyard", { -100.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 cmd_createInstance("miner", { -100.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
-cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+-- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
 
 net_declareTeam(1, "josh")

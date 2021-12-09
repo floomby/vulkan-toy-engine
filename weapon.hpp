@@ -25,6 +25,7 @@ public:
     std::shared_ptr<Entity> entity;
     std::string name;
     float range;
+    float damage;
 private:
 };
 

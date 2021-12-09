@@ -53,8 +53,9 @@ void LuaWrapper::dispatchCallbacks() {
 }
 
 #define lock_and_get_iterator std::scoped_lock l(context->authState.lock); \
-    auto it = std::lower_bound(context->authState.instances.begin(), context->authState.instances.end(), unitID); \
-    if (it == context->authState.instances.end() || *it != unitID) throw std::runtime_error("Invalid instance id"); \
+    auto itx = context->authState.getInstance(unitID); \
+    if (itx == context->authState.instances.end() || (*itx)->id != unitID) throw std::runtime_error("Invalid instance id"); \
+    auto it = *itx;
 
 void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
@@ -100,13 +101,13 @@ void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode 
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
     std::scoped_lock l(context->authState.lock);
-    Instance inst(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
+    auto inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
         context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
-    inst.dP = normedDirection * projectileEntity->maxSpeed;
-    inst.position = position;
-    inst.heading = { 1.0f, 0.0f, 0.0f, 0.0f };
-    inst.parentID = parentID;
-    context->authState.instances.push_back(std::move(inst));
+    inst->dP = normedDirection * projectileEntity->maxSpeed;
+    inst->position = position;
+    inst->heading = { 1.0f, 0.0f, 0.0f, 0.0f };
+    inst->parentID = parentID;
+    context->authState.instances.push_back(inst);
 }
 
 #include <iostream>

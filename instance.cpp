@@ -7,7 +7,11 @@ void crcString(boost::crc_32_type& crc, const std::string& str) {
     crc.process_bytes(str.data(), str.length());
 }
 
-Instance::Instance() { }
+Instance::~Instance() {
+    std::cout << "destructing " << id << std::endl;
+}
+
+Instance::Instance() : id(42) { }
 
 Instance::Instance(Entity *entity, InstanceID id) noexcept
 : Instance(entity, nullptr, nullptr, id, true) { }
@@ -19,6 +23,8 @@ Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* scene
     for (auto& weapon : entity->weapons) {
         weapons.push_back(WeaponInstance(weapon, id));
     }
+
+    if (inPlay && entity->isUnit) health = entity->maxHealth;
 }
 
 InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {

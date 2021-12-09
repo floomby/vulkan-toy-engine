@@ -4,4 +4,5 @@ Basic_plasma = {
     texture = "weapons/white.png",
     kind = WeaponKind__PLASMA_CANNON,
     range = 50.0,
+    damage = 10.0,
 }
