@@ -146,7 +146,10 @@ local function dummyCallback2(id)
     print("callback with id of " .. id * 2)
 end
 
-cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+cmd_createInstance("shipyard", { -100.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+cmd_createInstance("miner", { -100.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+
 
 net_declareTeam(1, "josh")
 state_giveResources(1, 55.3)
@@ -155,7 +158,6 @@ state_giveResources(1, 55.3)
 net_pause(false)
 -- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 
-cmd_createInstance("ship", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
 for i = 0,1,1 
 do 

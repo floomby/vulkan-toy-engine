@@ -1,4 +1,5 @@
 #include "instance.hpp"
+#include "econf.h"
 
 #include <iostream>
 
@@ -25,7 +26,7 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
     if (renderAsIcon) {
 
         _state.model = view_1proj_1 * translate(glm::vec3(clipCoord.x / clipCoord.w, clipCoord.y / clipCoord.w, clipCoord.z / clipCoord.w))
-            * scale(glm::vec3(0.1f / aspectRatio, 0.1f, 0.1f));
+            * scale(glm::vec3(Config::iconNDCSize / aspectRatio, Config::iconNDCSize, Config::iconNDCSize));
 
     } else {
         _state.model = translate(position) * glm::toMat4(heading);

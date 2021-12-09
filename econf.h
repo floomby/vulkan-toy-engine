@@ -31,6 +31,8 @@ namespace Net {
     static constexpr float secondsPerTick = 1.0f / ticksPerSecond;
 }
 
+const float iconNDCSize = 0.05f;
+
 }
 
 #endif

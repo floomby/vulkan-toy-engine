@@ -51,6 +51,14 @@ vec3 vectorMap(vec3 value, float min1, float max1, float min2, float max2) {
     );
 }
 
+vec2 vectorMap(vec2 value, float min1, float max1, float min2, float max2) {
+    return vec2(
+        map(value.x, min1, max1, min2, max2),
+        map(value.y, min1, max1, min2, max2)
+    );
+}
+
+
 float getShadow(vec3 ndc, uint pcfSize) {
     // outside the device viewing region
     if (abs(ndc.x) > 1.0 ||
@@ -78,14 +86,6 @@ float getShadow(vec3 ndc, uint pcfSize) {
     }
  
    return litCount / numSamples;
-
-    // return texture(shadowMap, shadowMapCoord.xy).x;
-
-    // if (ndc.z > texture(shadowMap, shadowMapCoord.xy).x * 2)
-    //      return 0.0;
-
-    // // lit
-    // return 1.0;
 }
 
 layout( push_constant ) uniform constants {
@@ -107,7 +107,12 @@ void main() {
     uint rflags = getRFLAGS(pushConstants.type);
 
     if (rtype == RINT_ICON) {
-        outColor = texture(texSampler[pushConstants.index], fragTexCoord);
+        vec4 c0 = texture(texSampler[pushConstants.index], fragTexCoord);
+        vec4 c1 = vec4(pushConstants.teamColor, texture(texSampler[pushConstants.index], vectorMap(fragTexCoord, 0.0, 1.0, 0.03, 0.97)).a / 2);
+        vec4 c2 = vec4(pushConstants.teamColor, texture(texSampler[pushConstants.index], vectorMap(fragTexCoord, 0.0, 1.0, 0.06, 0.94)).a / 3);
+        c1 = mix(c2, c1, c1.a);
+        c0 = mix(c1, c0, c0.a);
+        outColor = c0;
         if (bool(rflags & RFLAG_HIGHLIGHT)) {
             outColor = vec4(vectorMap(outColor.rgb, 0.0, 1.0, 0.4, 1.0), outColor.a);
         }
