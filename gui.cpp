@@ -105,7 +105,6 @@ void Gui::pollChanges() {
             GuiCommand command = guiCommands.front();
             guiCommands.pop();
             queueLock.unlock();
-            std::cout << "Doing command " << command.action << std::endl;
             if(command.action == GUI_TERMINATE) {
                 terminate = true;
                 break;
@@ -518,8 +517,6 @@ void GuiComponent::resizeVertices() {
 
 void GuiComponent::click(float x, float y, int mods) {
     auto offset = context->lua->getPanelHandlerOffset(panelName);
-    // std::cout << "calculated base offset is " << offset << std::endl;
-    // std::cout << "handler offset is " << luaHandlers["onClick"] << std::endl;
     if (luaHandlers.contains("onClick"))
         context->lua->callFunction(luaHandlers["onClick"] + offset, mods);
 }
@@ -569,6 +566,8 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
         for(const auto child : children)
             child->buildVertexBuffer(acm, indexMap, index);
     }
+
+    oldTextures.clear();
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
@@ -720,6 +719,7 @@ void GuiComponent::setText(std::string&& text) {
 }
 
 void GuiLabel::setText(std::string&& text) {
+    oldTextures.insert(oldTextures.end(), textures.begin(), textures.end());
     message = std::move(text);
     textures = { context->context->glyphCache->makeGuiTexture(message) };
     context->guiThreadNeedTextureSync = true;

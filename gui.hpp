@@ -179,7 +179,7 @@ public:
     void removeComponent(std::queue<uint>& childIndices);
 
     std::vector<GuiTexture *>& mapTextures(std::vector<GuiTexture *>& acm, int& idx);
-    std::vector<GuiTexture> textures;
+    std::vector<GuiTexture> textures, oldTextures;
     std::vector<uint> textureIndexMap;
 
     void buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index);
