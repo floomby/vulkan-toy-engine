@@ -190,6 +190,7 @@ public:
     int layer;
     uint32_t renderMode;
     bool visible = true;
+    std::string panelName, name;
 
     virtual void click(float x, float y, int mods);
     virtual void hover();
@@ -206,6 +207,8 @@ public:
 
     GuiComponent *getComponent(std::queue<uint> childIdices);
     std::string tooltip = "";
+
+    GuiComponent *findPanelRoot(const std::string& panelName);
 protected:
     bool dynamicNDC = false;
     virtual void resizeVertices();
@@ -390,7 +393,6 @@ public:
 
     GuiComponent *fromFile(std::string name, int baseLayer);
     GuiComponent *fromTable(std::string name, int baseLayer);
-    std::map<std::string, GuiComponent *> panels;
     std::map<std::string, GuiComponent *> namedComponents;
     LuaWrapper *lua;
     Engine *context;
@@ -422,7 +424,7 @@ private:
 
     GuiComponent *root;
 
-    GuiComponent *fromLayout(GuiLayoutNode *tree, int baseLayer);
+    GuiComponent *fromLayout(GuiLayoutNode *tree, int baseLayer, const std::string& panelName);
 
     int whichBuffer;
     std::array<VmaAllocation, 2> gpuAllocations;

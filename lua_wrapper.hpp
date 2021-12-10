@@ -6,9 +6,13 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <list>
 
 #include "utilities.hpp"
 #include "enum_helper.hpp"
+
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+#include <boost/stacktrace.hpp>
 
 enum class GuiLayoutKind {
     PANEL,
@@ -59,6 +63,7 @@ public:
 
     GuiLayoutNode *loadGuiFile(const char *name);
     GuiLayoutNode *loadGuiTable(const char *name);
+    void removeGuiTable(const std::string& name);
     Entity *loadEntityFile(const std::string& filename);
     Weapon *loadWeaponFile(const std::string& filename);
 
@@ -80,6 +85,7 @@ public:
 
     template<int argc>
     void callFunction(int index) {
+        std::cout << "Calling lua function at " << index << std::endl << boost::stacktrace::stacktrace() << std::endl;
         lua_pushvalue(luaState, index);
         lua_insert(luaState, -1 - argc);
         if(lua_pcall(luaState, argc, 0, 0))
@@ -140,8 +146,25 @@ public:
     void enableCallbacksOnThisThread();
     // The io thread has faster dispatch of callbacks directly, this is for all other threads
     void dispatchCallbacks();
+
+    uint getPanelHandlerOffset(const std::string& name);
 private:
     void error(const char *fmt, ...);
+
+    template<typename T>
+    void getNumberField(const char *key, T& num) {
+        static_assert(std::is_arithmetic_v<T>, "Getting number field requires arithmetic type");
+        lua_pushstring(luaState, key);
+        lua_gettable(luaState, -2);
+        if (!lua_isnumber(luaState, -1)) {
+            num = 0;
+            lua_pop(luaState, 1);
+            return;
+        }
+        num = lua_tonumber(luaState, -1);
+        lua_pop(luaState, 1);
+    }
+
     double getNumberField(const char *key);
     bool getFunctionField(const char *key, int pos = 0);
     std::string getStringField(const char *key);
@@ -149,8 +172,9 @@ private:
     void getStringsField(const char *key, std::vector<std::string>& strs);
     bool getBooleanField(const char *key);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
-    uint totalHandlers = 0;
+    uint totalHandlers = 0, oldHandlers = 0;
     lua_State *luaState;
 
     void dumpStack();
+    std::list<std::pair<const std::string, uint>> luaPanels;
 };

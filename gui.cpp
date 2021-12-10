@@ -31,6 +31,7 @@ Gui::~Gui() {
     std::cout << "Waiting to join gui thread..." << std::endl;
     guiThread.join();
     assert(idLookup.empty());
+    assert(namedComponents.empty());
 }
 
 std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
@@ -104,6 +105,7 @@ void Gui::pollChanges() {
             GuiCommand command = guiCommands.front();
             guiCommands.pop();
             queueLock.unlock();
+            std::cout << "Doing command " << command.action << std::endl;
             if(command.action == GUI_TERMINATE) {
                 terminate = true;
                 break;
@@ -135,9 +137,17 @@ void Gui::pollChanges() {
                     } else {
                         std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                     }
+                } else if (command.data->flags == GUIF_PANEL_NAME) {
+                    try {
+                        auto comp = this->root->findPanelRoot(command.data->str);
+                        lua->removeGuiTable(command.data->str);
+                        comp->removeComponent(command.data->childIndices);
+                        changed = true;
+                    } catch (const std::exception& e) {
+                        std::cerr << e.what() << std::endl;
+                    }
                 }
                 changed = true;
-                root->removeComponent(command.data->childIndices);
                 delete command.data;
             } else if (command.action == GUI_RESIZE) {
                 changed = true; // really this is rarely false so just treat it like it is always true
@@ -156,15 +166,17 @@ void Gui::pollChanges() {
             } else if (command.action == GUI_LOAD) {
                 try {
                     if ((command.data->flags & GUIF_INSERT_MODE) == GUIF_INDEX) {
-                        root->addComponent(command.data->childIndices, command.data->flags & GUIF_LUA_TABLE ?
+                        auto tmp = command.data->flags & GUIF_LUA_TABLE ?
                             fromTable(command.data->str2, root->getComponent(command.data->childIndices)->layer + 1) :
-                            fromFile(command.data->str2, root->getComponent(command.data->childIndices)->layer + 1));
+                            fromFile(command.data->str2, root->getComponent(command.data->childIndices)->layer + 1);
+                        if (tmp) root->addComponent(command.data->childIndices, tmp);
                     } else if ((command.data->flags & GUIF_INSERT_MODE) == GUIF_NAMED) {
                         if (namedComponents.contains(command.data->str)) {
                             auto comp = namedComponents.at(command.data->str);
-                            comp->addComponent({}, command.data->flags & GUIF_LUA_TABLE ?
+                            auto tmp = command.data->flags & GUIF_LUA_TABLE ?
                                 fromTable(command.data->str2, comp->layer + 1) :
-                                fromFile(command.data->str2, comp->layer + 1));
+                                fromFile(command.data->str2, comp->layer + 1);
+                            if (tmp) comp->addComponent({}, tmp);
                         } else {
                             std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                         }
@@ -193,8 +205,8 @@ void Gui::pollChanges() {
                         std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                     }
                 } else if (command.data->flags == GUIF_PANEL_NAME) {
-                    if (panels.contains(command.data->str)) {
-                        auto comp = panels.at(command.data->str);
+                    auto comp = root->findPanelRoot(command.data->str);
+                    if (comp) {
                         if (comp->visible != (bool)command.data->action) {
                             comp->visible = (bool)command.data->action;
                             changed = true;
@@ -247,6 +259,17 @@ void Gui::pollChanges() {
         lua->dispatchCallbacks();
         std::this_thread::yield();
     }
+}
+
+GuiComponent *GuiComponent::findPanelRoot(const std::string& panelName) {
+    if (panelName == this->panelName) return this;
+    auto it = children.begin();
+    GuiComponent *ret = nullptr;
+    while (!ret && it != children.end()) {
+        ret = (*it)->findPanelRoot(panelName);
+        it++;
+    }
+    return ret;
 }
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
@@ -366,6 +389,9 @@ GuiComponent::~GuiComponent() {
         delete child;
 
     if (context->withCapture == this) context->withCapture = nullptr;
+    if (!name.empty()) {
+        context->namedComponents.erase(name);
+    }
 }
 
 GuiComponent *GuiComponent::getComponent(std::queue<uint> childIndices) {
@@ -406,6 +432,7 @@ void GuiComponent::removeComponent(std::queue<uint>& childIndices) {
         return;
     }
 
+    throw std::runtime_error("I think this code is broken");
     int index = childIndices.front();
     childIndices.pop();
 
@@ -490,8 +517,11 @@ void GuiComponent::resizeVertices() {
 }
 
 void GuiComponent::click(float x, float y, int mods) {
+    auto offset = context->lua->getPanelHandlerOffset(panelName);
+    // std::cout << "calculated base offset is " << offset << std::endl;
+    // std::cout << "handler offset is " << luaHandlers["onClick"] << std::endl;
     if (luaHandlers.contains("onClick"))
-        context->lua->callFunction(luaHandlers["onClick"], mods);
+        context->lua->callFunction(luaHandlers["onClick"] + offset, mods);
 }
 
 void GuiComponent::hover() {
@@ -503,9 +533,9 @@ void GuiComponent::hover() {
 }
 
 void GuiComponent::toggle() {
-    // should I even look to call the handler here?
+    auto offset = context->lua->getPanelHandlerOffset(panelName);
     if (luaHandlers.contains("onToggle"))
-        context->lua->callFunction(luaHandlers["onToggle"], activeTexture);
+        context->lua->callFunction(luaHandlers["onToggle"] + offset, activeTexture);
 
     context->changed = true;
 }
@@ -519,8 +549,9 @@ void GuiComponent::keyInput(uint key) {
 }
 
 void GuiComponent::propegateEngineNotification(const std::string& notification) {
+    auto offset = context->lua->getPanelHandlerOffset(panelName);
     if (luaHandlers.contains(notification))
-        context->lua->callFunction(luaHandlers[notification], activeTexture);
+        context->lua->callFunction(luaHandlers[notification] + offset, activeTexture);
     
     for(const auto child : children)
         child->propegateEngineNotification(notification);
@@ -590,8 +621,8 @@ void GuiImage::resizeVertices() {
 
 GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
     auto tree = lua->loadGuiFile(name.c_str());
-    auto ret = fromLayout(tree, baseLayer);
-    panels.insert({ name, ret });
+    if (!tree) return nullptr;
+    auto ret = fromLayout(tree, baseLayer, name);
     ret->visible = false;
     delete tree;
     return ret;
@@ -599,14 +630,14 @@ GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
 
 GuiComponent *Gui::fromTable(std::string name, int baseLayer) {
     auto tree = lua->loadGuiTable(name.c_str());
-    auto ret = fromLayout(tree, baseLayer);
-    panels.insert({ name, ret });
+    if (!tree) return nullptr;
+    auto ret = fromLayout(tree, baseLayer, name);
     ret->visible = false;
     delete tree;
     return ret;
 }
 
-GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
+GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::string& panelName) {
     GuiComponent *ret = nullptr;
     switch (tree->kind) {
         case GuiLayoutKind::PANEL:
@@ -627,16 +658,18 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer) {
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
     }
+    ret->panelName = panelName;
     if (!tree->name.empty()) {
         if (namedComponents.contains(tree->name)) {
             throw std::runtime_error("Component with this name already exists");
         }
         namedComponents.insert({ tree->name, ret });
+        ret->name = tree->name;
     }
     ret->tooltip = tree->tooltip;
     ret->children.reserve(tree->children.size());
     for (auto& child : tree->children) {
-        ret->children.push_back(fromLayout(child, baseLayer + 1));
+        ret->children.push_back(fromLayout(child, baseLayer + 1, panelName));
     }
     return ret;
 }
@@ -656,9 +689,10 @@ GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, const std::pa
 }
 
 void GuiImage::click(float x, float y, int mods) {
-    // if (luaHandlers.contains("onClick"))
-    //     context->lua->callFunction(luaHandlers["onClick"], mods);
-    std::cout << "With mods: 0x" << std::hex << mods << std::endl;
+    if (textures.size() == 1) {
+        GuiComponent::click(x, y, mods);
+        return;
+    }
     activeTexture = (activeTexture + 1) % textures.size();
     this->toggle();
 }
@@ -722,8 +756,9 @@ void GuiEditable::typing(uint codepoint) {
 void GuiEditable::keyInput(uint key) {
     if (key == GLFW_KEY_ENTER) {
         context->uncaptureKeyboard();
+        auto offset = context->lua->getPanelHandlerOffset(panelName);
         if (luaHandlers.contains("onTextUpdated"))
-            context->lua->callFunction(luaHandlers["onTextUpdated"]);
+            context->lua->callFunction(luaHandlers["onTextUpdated"] + offset);
     } else if (key == GLFW_KEY_BACKSPACE) {
         if (!editText.empty()) {
             editText.pop_back();

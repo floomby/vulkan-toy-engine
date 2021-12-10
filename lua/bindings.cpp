@@ -464,6 +464,18 @@ static void gui_addPanelExport(lua_State *ls) {
     lua_setglobal(ls, "gui_addPanel");
 }
 
+static int gui_removePanelWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    Api::gui_removePanel(a0);
+    return 0;
+}
+
+static void gui_removePanelExport(lua_State *ls) {
+    lua_pushcfunction(ls, gui_removePanelWrapper);
+    lua_setglobal(ls, "gui_removePanel");
+}
+
 static int state_dumpAuthStateIDsWrapper(lua_State *ls) {
     Api::state_dumpAuthStateIDs();
     return 0;
@@ -555,6 +567,7 @@ void LuaWrapper::apiExport() {
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);
+    gui_removePanelExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
     state_giveResourcesExport(luaState);
     state_getResourcesExport(luaState);

@@ -61,6 +61,15 @@ local function testFire()
     pcall(test_fire)
 end
 
+local function show_build_options()
+    gui_addPanel("build menu", "Build_menu")
+end
+
+local function remove_build_menu()
+    print("removing panel")
+    gui_removePanel("Build_menu")
+end
+
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
     x = -1.0,
@@ -143,7 +152,7 @@ Hud = {
             y = 0.875,
             width = 0.5,
             height = 0.1,
-            -- onClick = testFire,
+            onClick = show_build_options,
             -- onToggle = engret_visibility,
             onSelectionChanged = build_visibility,
             kind = GuiLayoutKind__IMAGE_BUTTON,
@@ -169,9 +178,56 @@ Hud = {
     }
 }
 
+local function new_handler()
+    print("I guess the gui can be dynamically loaded now")
+end
+
+local function new_handler2()
+    print("There is an off by 1 error")
+end
+
+
+Build_menu = {
+    x = 0.05,
+    y = 0.75,
+    width = 0.9,
+    height = 0.2,
+    -- onClick = click,
+    kind = GuiLayoutKind__PANEL,
+    color = 0x00000000,
+    onSelectionChanged = remove_build_menu,
+    children = {
+        {
+            x = 0.1,
+            y = 0.8,
+            height = 0.1,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/spaceship_icon.png"
+            },
+            onClick = new_handler,
+            color = 0x000000ff,
+            name = "ship build button"
+        },
+        {
+            x = 0.23,
+            y = 0.8,
+            height = 0.1,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/spaceship_icon.png"
+            },
+            onClick = new_handler2,
+            color = 0x000000ff,
+            name = "ship build button 2"
+        },
+    }
+}
+
 gui_setVisibility("build menu", true)
 build_visibility()
 engret_visibility()
+
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 -- gui_setLabelText("button", "Hello")

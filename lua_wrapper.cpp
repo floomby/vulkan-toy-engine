@@ -133,13 +133,47 @@ GuiLayoutNode *LuaWrapper::loadGuiTable(const char *name) {
     if (!lua_istable(luaState, -1))
         error("%s should be a table", name);
 
-    auto ret = readGuiLayoutNode(totalHandlers);
+    auto it = std::find_if(luaPanels.begin(), luaPanels.end(), [name](const auto& x){ return x.first == name; });
+    if (it != luaPanels.end()) {
+        std::cerr << "This panel is already loaded: this likely indicates a lua logic error" << std::endl;
+        return nullptr;
+    }
+
+    oldHandlers = totalHandlers;
+    std::cout << "base offset is " << totalHandlers << std::endl;
+    auto ret = readGuiLayoutNode(0);
+    luaPanels.push_back({ name, totalHandlers - oldHandlers });
 
     return ret;
 }
 
+void LuaWrapper::removeGuiTable(const std::string& name) {
+    auto offset = getPanelHandlerOffset(name);
+    auto it = std::find_if(luaPanels.begin(), luaPanels.end(), [name](const auto& x){ return x.first == name; });
+    if (it == luaPanels.end()) {
+        std::cerr << "Unable to find panel: " << name << std::endl;
+        return;
+    }
+    totalHandlers -= it->second;
+    for (int i = 0; i < it->second; i++) {
+        lua_remove(luaState, offset + 1);
+    }
+    luaPanels.erase(it);
+}
+
+uint LuaWrapper::getPanelHandlerOffset(const std::string& name) {
+    if (name.empty()) return 0;
+    uint acm = 0;
+    for (auto it = luaPanels.begin();;it++) {
+        if (it == luaPanels.end()) throw std::runtime_error("Unable to find panel: " + name);
+        if (it->first == name) return acm;
+        acm += it->second;
+    }
+}
+
+// I am sorry this got so goofy with offset calculation (I could rewrite it to be simpler, but that takes thinking)
 #define add_handler(name) if (getFunctionField(name, pushedHandlerCount)) { \
-    ret->handlers.insert({ name, lua_gettop(luaState) - 1 - handlerOffset}); \
+    ret->handlers.insert({ name, lua_gettop(luaState) - oldHandlers - 1 - handlerOffset}); \
     pushedHandlerCount++; totalHandlers++; }
 
 GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
@@ -148,7 +182,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     ret->x = getNumberField("x");
     ret->y = getNumberField("y");
     ret->height = getNumberField("height");
-    ret->width = getNumberField("width");
+    getNumberField("width", ret->width);
     ret->kind = (GuiLayoutKind)(int)getNumberField("kind");
     ret->color = (uint32_t)getNumberField("color");
 

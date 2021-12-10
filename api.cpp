@@ -252,9 +252,25 @@ void Api::gui_setLabelText(const std::string& name, const std::string& text) {
 void Api::gui_addPanel(const char *root, const char *tableName) {
     assert(!context->headless);
     GuiCommandData *what = new GuiCommandData();
+    what->str = root;
     what->str2 = tableName;
     what->flags = GUIF_NAMED | GUIF_LUA_TABLE;
     context->gui->submitCommand({ Gui::GUI_LOAD, what });
+    GuiCommandData *what2 = new GuiCommandData();
+    what2->str = tableName;
+    what2->action = GUIA_VISIBLE;
+    what2->flags = GUIF_PANEL_NAME;
+    context->gui->submitCommand({ Gui::GUI_VISIBILITY, what2 });
+}
+
+void Api::gui_removePanel(const char *panelName) {
+    assert(!context->headless);
+    GuiCommandData *what = new GuiCommandData();
+    what->str = panelName;
+    what->flags = GUIF_PANEL_NAME;
+    // This is a reminder that I will probabl want to implement this in the future
+    what->childIndices = {};
+    context->gui->submitCommand({ Gui::GUI_REMOVE, what });
 }
 
 

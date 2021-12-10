@@ -56,6 +56,7 @@ public:
     static void gui_setLabelText(const std::string& name, const std::string& text);
     // Idk what I am doing, this seems weird and arbitrarly limiting
     static void gui_addPanel(const char *root, const char *tableName);
+    static void gui_removePanel(const char *panelName);
 
     static void state_dumpAuthStateIDs();
     static void state_giveResources(TeamID teamID, double resourceUnits);
