@@ -20,7 +20,8 @@ enum class CommandKind {
     CREATE,
     DESTROY,
     TARGET_LOCATION,
-    TARGET_UNIT
+    TARGET_UNIT,
+    BUILD
     //.....
 };
 
@@ -28,6 +29,7 @@ struct CommandData {
     glm::vec3 dest;
     glm::quat heading;
     uint32_t id;
+    char buf[256];
 };
 
 struct Command {
@@ -82,7 +84,6 @@ public:
     Instance();
     Instance(Entity* entity, InstanceID id) noexcept;
     Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept;
-    ~Instance();
     void syncToAuthInstance(const Instance& other);
 
     SceneModelInfo* sceneModelInfo;

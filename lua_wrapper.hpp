@@ -58,6 +58,7 @@ public:
     }
 
     GuiLayoutNode *loadGuiFile(const char *name);
+    GuiLayoutNode *loadGuiTable(const char *name);
     Entity *loadEntityFile(const std::string& filename);
     Weapon *loadWeaponFile(const std::string& filename);
 
@@ -148,6 +149,7 @@ private:
     void getStringsField(const char *key, std::vector<std::string>& strs);
     bool getBooleanField(const char *key);
     GuiLayoutNode *readGuiLayoutNode(int handlerOffset = 0);
+    uint totalHandlers = 0;
     lua_State *luaState;
 
     void dumpStack();

@@ -17,12 +17,15 @@
 // This is by no mean a high performance gui, when something is out of date it rebuilds all the vertex data from the tree
 // I just want to get it working though for right now (avoid that premature optimization)
 
-#define GUIF_INDEX      1U
-#define GUIF_NAMED      2U
-#define GUIF_PANEL_NAME 3U
+#define GUIF_INSERT_MODE    7U
+#define GUIF_INDEX          1U
+#define GUIF_NAMED          2U
+#define GUIF_PANEL_NAME     3U
+#define GUIF_LUA_TABLE      8U
 
-#define GUIA_INVISIBLE  0U
-#define GUIA_VISIBLE    1U
+#define GUIA_INVISIBLE      0U
+#define GUIA_VISIBLE        1U
+
 
 struct GuiVertex {
     glm::vec3 pos;
@@ -386,6 +389,7 @@ public:
     void rebuildBuffer(bool texturesDirty);
 
     GuiComponent *fromFile(std::string name, int baseLayer);
+    GuiComponent *fromTable(std::string name, int baseLayer);
     std::map<std::string, GuiComponent *> panels;
     std::map<std::string, GuiComponent *> namedComponents;
     LuaWrapper *lua;

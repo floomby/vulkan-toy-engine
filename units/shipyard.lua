@@ -10,5 +10,9 @@ Shipyard = {
     },
     unitAIs = {
     },
-    resources = 300
+    resources = 300,
+    buildOptions = {
+        "ship",
+        "miner"
+    }
 }

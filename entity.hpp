@@ -12,6 +12,7 @@ enum SpecialEntities {
 };
 
 class UnitAI;
+class GuiTexture;
 
 // TODO It would seem good to support empty entities (ie. no model)
 class Entity {
@@ -56,6 +57,9 @@ public:
 
     std::vector<std::string> unitAINames;
     std::vector<UnitAI *> ais;
+
+    std::vector<std::string> buildOptions;
+    std::string buildIcon;
 
     void precompute();
 protected:

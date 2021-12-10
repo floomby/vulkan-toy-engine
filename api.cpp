@@ -197,6 +197,15 @@ void Api::engS_setCollidability(Instance *unit, bool collidability) {
     unit->hasCollision = collidability;
 }
 
+bool Api::eng_instanceCanBuild(InstanceID unitID) {
+    lock_and_get_iterator
+    return !it->entity->buildOptions.empty();
+}
+
+bool Api::engS_instanceCanBuild(Instance *unit) {
+    return !unit->entity->buildOptions.empty();
+}
+
 Entity *Api::eng_getInstanceEntity(InstanceID unitID) {
     lock_and_get_iterator
     return it->entity;
@@ -223,6 +232,7 @@ void Api::eng_playSound(const char *name) {
 }
 
 void Api::gui_setVisibility(const char *name, bool visibility) {
+    assert(!context->headless);
     GuiCommandData *what = new GuiCommandData();
     what->str = name;
     what->action = visibility;
@@ -231,12 +241,22 @@ void Api::gui_setVisibility(const char *name, bool visibility) {
 }
 
 void Api::gui_setLabelText(const std::string& name, const std::string& text) {
+    assert(!context->headless);
     GuiCommandData *what = new GuiCommandData();
     what->str = name;
     what->str2 = text;
     what->flags = GUIF_NAMED;
     context->gui->submitCommand({ Gui::GUI_TEXT, what });
 }
+
+void Api::gui_addPanel(const char *root, const char *tableName) {
+    assert(!context->headless);
+    GuiCommandData *what = new GuiCommandData();
+    what->str2 = tableName;
+    what->flags = GUIF_NAMED | GUIF_LUA_TABLE;
+    context->gui->submitCommand({ Gui::GUI_LOAD, what });
+}
+
 
 void Api::state_dumpAuthStateIDs() {
     std::scoped_lock l(context->authState.lock);

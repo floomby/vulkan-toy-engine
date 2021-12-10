@@ -7,10 +7,6 @@ void crcString(boost::crc_32_type& crc, const std::string& str) {
     crc.process_bytes(str.data(), str.length());
 }
 
-Instance::~Instance() {
-    std::cout << "destructing " << id << std::endl;
-}
-
 Instance::Instance() : id(42) { }
 
 Instance::Instance(Entity *entity, InstanceID id) noexcept

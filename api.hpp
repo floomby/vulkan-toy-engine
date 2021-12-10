@@ -42,6 +42,8 @@ public:
     static bool engS_getCollidability(Instance *unit);
     static void eng_setCollidability(InstanceID unitID, bool collidability);
     static void engS_setCollidability(Instance *unit, bool collidability);
+    static bool eng_instanceCanBuild(InstanceID unitID);
+    static bool engS_instanceCanBuild(Instance *unit);
     static Entity *eng_getInstanceEntity(InstanceID unitID);
     static Entity *engS_getInstanceEntity(Instance *unit);
     static std::vector<std::string> eng_listAudioDevices();
@@ -52,6 +54,8 @@ public:
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);
+    // Idk what I am doing, this seems weird and arbitrarly limiting
+    static void gui_addPanel(const char *root, const char *tableName);
 
     static void state_dumpAuthStateIDs();
     static void state_giveResources(TeamID teamID, double resourceUnits);

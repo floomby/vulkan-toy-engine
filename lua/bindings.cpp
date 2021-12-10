@@ -328,6 +328,29 @@ static void engS_setCollidabilityExport(lua_State *ls) {
     lua_setglobal(ls, "engS_setCollidability");
 }
 
+static int eng_instanceCanBuildWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_instanceCanBuild(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void eng_instanceCanBuildExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_instanceCanBuildWrapper);
+    lua_setglobal(ls, "eng_instanceCanBuild");
+}
+
+static int engS_instanceCanBuildWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_instanceCanBuild(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void engS_instanceCanBuildExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_instanceCanBuildWrapper);
+    lua_setglobal(ls, "engS_instanceCanBuild");
+}
+
 static int eng_getInstanceEntityWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     auto r = Api::eng_getInstanceEntity(a0);
@@ -427,6 +450,20 @@ static void gui_setLabelTextExport(lua_State *ls) {
     lua_setglobal(ls, "gui_setLabelText");
 }
 
+static int gui_addPanelWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::gui_addPanel(a0, a1);
+    return 0;
+}
+
+static void gui_addPanelExport(lua_State *ls) {
+    lua_pushcfunction(ls, gui_addPanelWrapper);
+    lua_setglobal(ls, "gui_addPanel");
+}
+
 static int state_dumpAuthStateIDsWrapper(lua_State *ls) {
     Api::state_dumpAuthStateIDs();
     return 0;
@@ -507,6 +544,8 @@ void LuaWrapper::apiExport() {
     engS_getCollidabilityExport(luaState);
     eng_setCollidabilityExport(luaState);
     engS_setCollidabilityExport(luaState);
+    eng_instanceCanBuildExport(luaState);
+    engS_instanceCanBuildExport(luaState);
     eng_getInstanceEntityExport(luaState);
     engS_getInstanceEntityExport(luaState);
     eng_listAudioDevicesExport(luaState);
@@ -515,6 +554,7 @@ void LuaWrapper::apiExport() {
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
+    gui_addPanelExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
     state_giveResourcesExport(luaState);
     state_getResourcesExport(luaState);

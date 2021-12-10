@@ -20,12 +20,25 @@ local function click()
 end
 
 local function text_updated()
-    print("Going to edit")
+    print("Text updated")
 end
 
 local function engret_visibility()
     print("Setting visibility")
     gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
+end
+
+local function build_visibility()
+    print("Selection changed")
+    local r = eng_getSelectedInstances()
+    local canBuild = false
+    for _, v in ipairs(r) do
+        if eng_instanceCanBuild(v) then
+            canBuild = true
+            break
+        end
+    end
+    gui_setVisibility("build", canBuild)
 end
 
 local function other(index)
@@ -114,8 +127,8 @@ Hud = {
             width = 0.5,
             height = 0.1,
             -- onClick = testFire,
-            onToggle = engret_visibility,
-            onSelectionChanged = click,
+            -- onToggle = ,
+            onSelectionChanged = engret_visibility,
             kind = GuiLayoutKind__IMAGE_BUTTON,
             images = {
                 "engage.png",
@@ -124,10 +137,40 @@ Hud = {
             color = 0x000000ff,
             -- children = {}
             name = "engret",
+        },
+        {
+            x = -0.7,
+            y = 0.875,
+            width = 0.5,
+            height = 0.1,
+            -- onClick = testFire,
+            -- onToggle = engret_visibility,
+            onSelectionChanged = build_visibility,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/build.png",
+            },
+            color = 0x000000ff,
+            -- children = {}
+            name = "build",
+        },
+        {
+            x = 0.05,
+            y = 0.75,
+            width = 0.9,
+            height = 0.2,
+            -- onClick = click,
+            kind = GuiLayoutKind__PANEL,
+            color = 0x303030bb,
+            children = {
+            },
+            name = "build menu"
         }
     }
 }
 
+gui_setVisibility("build menu", true)
+build_visibility()
 engret_visibility()
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
@@ -146,10 +189,9 @@ local function dummyCallback2(id)
     print("callback with id of " .. id * 2)
 end
 
-cmd_createInstance("asteroid", { -95.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
-cmd_createInstance("shipyard", { -100.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
-cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
-cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+-- cmd_createInstance("asteroid", { -95.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
+cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+-- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
@@ -159,7 +201,8 @@ cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummy
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+-- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
 
 -- net_declareTeam(1, "josh")

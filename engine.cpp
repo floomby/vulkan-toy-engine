@@ -2637,8 +2637,7 @@ void Engine::handleInput() {
         this->idsSelected = idsSelected;
         apiLock.unlock();
         GuiCommandData *what = new GuiCommandData();
-        // what->str = "onSelectionChanged";
-        what->str = "onToggle";
+        what->str = "onSelectionChanged";
         gui->submitCommand({ Gui::GUI_NOTIFY, what });
     }
 
@@ -3067,7 +3066,7 @@ void Engine::runCurrentScene() {
 
     assert(std::filesystem::exists("hud.lua"));
     GuiCommandData *what = new GuiCommandData();
-    what->str = "Hud";
+    what->str2 = "Hud";
     what->flags = GUIF_INDEX;
     gui->submitCommand({ Gui::GUI_LOAD, what });
     GuiCommandData *what2 = new GuiCommandData();
@@ -5191,6 +5190,8 @@ namespace GuiTextures {
     }
 
     GuiTexture makeGuiTexture(const char *file) {
+        assert(std::filesystem::exists(file));
+
         int texWidth, texHeight, texChannels;
         auto buf = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 

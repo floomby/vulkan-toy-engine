@@ -1,20 +1,6 @@
-// bleck
 #include "engine.hpp"
 
 #include <iostream>
-
-// Tbh the layers should probably just be created when the vertex buffer is built and be just the parent layer plus one
-
-// we use ndc
-// This is just in the vertex shader now
-// static std::vector<GuiVertex> background = {
-//     {{ -1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-//     {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-//     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-//     {{ 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-//     {{ -1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }},
-//     {{ 1.0f, -1.0f, 0.0f }, { 0.0f, 0.0f, 0.0f, 0.0f }}
-// };
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
 : context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
@@ -47,8 +33,6 @@ Gui::~Gui() {
     assert(idLookup.empty());
 }
 
-// Doing it this way wastes sizeof(GuiVertex) * Gui::dummyVertexCount bytes of vram where the imaginary drag box and background are (...idk what I doing...)
-// maxCount is for the size of the buffer (maybe I should just feed in the alloction so I can know the size, but this breaks encapsulation)
 std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     std::scoped_lock lock(dataMutex);
     if (needTextureSync) {
@@ -59,7 +43,7 @@ std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer() {
     return { usedSizes[whichBuffer], idToBuffer, gpuBuffers[whichBuffer] };
 }
 
-// There is a problem with this, for the sake of keeping complexity low I am abondinging to be reevaluaded if the gui rebuilding
+// There is a problem with this, for the sake of keeping complexity low I am abandoning to be reevaluaded if the gui rebuilding
 // turns out to be too slow
 // void Gui::setTextureIndexInBuffer(GuiVertex *buffer, uint index, int textureIndex) {
 //     std::cout << "here --- " << index << std::endl;
@@ -114,7 +98,6 @@ void Gui::pollChanges() {
     bool terminate = false;
     lua->enableCallbacksOnThisThread();
     while(!terminate) {
-        // std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         changed = false;
         queueLock.lock();
         while(!guiCommands.empty()) {
@@ -172,13 +155,16 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_LOAD) {
                 try {
-                    // fromFile(command.data->str);
-                    if (command.data->flags == GUIF_INDEX) {
-                        root->addComponent(command.data->childIndices, fromFile(command.data->str, root->getComponent(command.data->childIndices)->layer + 1));
-                    } else if (command.data->flags == GUIF_NAMED) {
+                    if ((command.data->flags & GUIF_INSERT_MODE) == GUIF_INDEX) {
+                        root->addComponent(command.data->childIndices, command.data->flags & GUIF_LUA_TABLE ?
+                            fromTable(command.data->str2, root->getComponent(command.data->childIndices)->layer + 1) :
+                            fromFile(command.data->str2, root->getComponent(command.data->childIndices)->layer + 1));
+                    } else if ((command.data->flags & GUIF_INSERT_MODE) == GUIF_NAMED) {
                         if (namedComponents.contains(command.data->str)) {
                             auto comp = namedComponents.at(command.data->str);
-                            comp->addComponent({}, fromFile(command.data->str, comp->layer + 1));
+                            comp->addComponent({}, command.data->flags & GUIF_LUA_TABLE ?
+                                fromTable(command.data->str2, comp->layer + 1) :
+                                fromFile(command.data->str2, comp->layer + 1));
                         } else {
                             std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                         }
@@ -604,6 +590,15 @@ void GuiImage::resizeVertices() {
 
 GuiComponent *Gui::fromFile(std::string name, int baseLayer) {
     auto tree = lua->loadGuiFile(name.c_str());
+    auto ret = fromLayout(tree, baseLayer);
+    panels.insert({ name, ret });
+    ret->visible = false;
+    delete tree;
+    return ret;
+}
+
+GuiComponent *Gui::fromTable(std::string name, int baseLayer) {
+    auto tree = lua->loadGuiTable(name.c_str());
     auto ret = fromLayout(tree, baseLayer);
     panels.insert({ name, ret });
     ret->visible = false;

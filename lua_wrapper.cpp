@@ -1,5 +1,6 @@
 #include "lua_wrapper.hpp"
 #include "api_util.hpp"
+#include "gui.hpp"
 
 thread_local LuaWrapper *LuaWrapper::threadLuaInstance = nullptr;
 
@@ -68,7 +69,7 @@ std::string LuaWrapper::getStringField(const char *key) {
     lua_pushstring(luaState, key);
     lua_gettable(luaState, -2);
     if (!lua_isstring(luaState, -1))
-        error("Invalid number for field %s", key);
+        error("Invalid string for field %s", key);
     const char *s = lua_tostring(luaState, -1);
     size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
     lua_pop(luaState, 1);
@@ -124,18 +125,22 @@ GuiLayoutNode *LuaWrapper::loadGuiFile(const char *name) {
     if (luaL_loadfile(luaState, filename.c_str()) || lua_pcall(luaState, 0, 0, 0))
         error("Could not load gui file: %s", lua_tostring(luaState, -1));
 
+    return loadGuiTable(name);
+}
+
+GuiLayoutNode *LuaWrapper::loadGuiTable(const char *name) {
     lua_getglobal(luaState, name);
     if (!lua_istable(luaState, -1))
         error("%s should be a table", name);
 
-    auto ret = readGuiLayoutNode();
+    auto ret = readGuiLayoutNode(totalHandlers);
 
     return ret;
 }
 
 #define add_handler(name) if (getFunctionField(name, pushedHandlerCount)) { \
     ret->handlers.insert({ name, lua_gettop(luaState) - 1 - handlerOffset}); \
-    pushedHandlerCount++; }
+    pushedHandlerCount++; totalHandlers++; }
 
 GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     auto ret = new GuiLayoutNode;
@@ -283,6 +288,8 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->isResource = minable;
     ret->isUnit = !minable;
     ret->resources = getNumberField("resources");
+    getStringsField("buildOptions", ret->buildOptions);
+    getStringField("buildIcon", ret->buildIcon);
 
     ret->precompute();
 
