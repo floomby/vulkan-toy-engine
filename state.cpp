@@ -83,29 +83,35 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 
 #include "pathgen.hpp"
 
+
+#define BOOST_STACKTRACE_USE_ADDR2LINE
+#include <boost/stacktrace.hpp>
+
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
     if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
-
+    
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
+    auto copy = instances;
+    instances.clear();
     std::vector<Instance *> toDelete;
-    for (auto& it : instances) {
+    for (auto& it : copy) {
         // std::cout << std::dec << "main loop for " << it->id << " which is a " << it->entity->name << std::endl;
         assert(it->inPlay);
         if (it->entity->isProjectile) {
-            for (auto& other : instances) {
+            for (auto& other : copy) {
                 if (!other || it->parentID == other->id || other->entity->isProjectile) continue;
                 float d;
                 float l = length(it->dP);
                 if (other->rayIntersects(it->position, normalize(it->dP), d)) {
                     if (d < l * timeDelta) {
                         other->health = other->health - it->entity->weapon->damage;
-                        if (other->health < 0) {
-                            toDelete.push_back(other);
-                            other = nullptr;
-                        }
+                        // if (other->health < 0) {
+                        //     toDelete.push_back(other);
+                        //     other = nullptr;
+                        // }
                         toDelete.push_back(it);
                         it = nullptr;
                         break;
@@ -115,8 +121,8 @@ void AuthoritativeState::doUpdateTick() {
             if (it) {
                 it->position += it->dP * timeDelta;
                 if (++it->framesAlive > it->entity->framesTillDead) {
-                    toDelete.push_back(it);
-                    it = nullptr;
+                    // toDelete.push_back(it);
+                    // it = nullptr;
                 }
             }
         } else if (it && !it->commandList.empty()) {
@@ -148,7 +154,7 @@ void AuthoritativeState::doUpdateTick() {
                     it->commandList.pop_front();
                     break;
             }
-            for (auto other : instances) {
+            for (auto other : copy) {
                 if (!other || *other == *it || other->entity->isProjectile) continue;
                 Pathgen::collide(*other, *it);
             }
@@ -166,14 +172,10 @@ void AuthoritativeState::doUpdateTick() {
         }
     }
     frame = frame + 1;
-    // avoid making this too complicated for rn (I am switching to a spacial partitioning system anyways if this is slow)
-    // instances.erase(std::remove_if(instances.begin(), instances.end(), [](auto& x){
-    //     std::cout << "processing " << x.id << std::endl;
-    //     auto ret = x.health < 0;
-    //     return false;
-    // }));
-    // instances.erase(std::remove(instances.begin(), instances.end(), 100));
+    copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
     for (auto inst : toDelete) delete inst;
+    instances.reserve(copy.size() + instances.size());
+    instances.insert(instances.end(), copy.begin(), copy.end());
 }
 
 void AuthoritativeState::dump() {
@@ -231,10 +233,6 @@ static const Forwardable<4> forwardable(
 
 void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session) {
     
-    // std::cout << *data << std::endl;
-
-    // std::vector<Instance>::iterator it;
-
     if (data->kind == ApiProtocolKind::COMMAND) {
         if (forwardable(data->command.kind)) {
             lock.lock();
@@ -290,6 +288,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             lock.unlock();
         }
     } else if (data->kind == ApiProtocolKind::FRAME_ADVANCE) {
+        assert(!context->headless);
         doUpdateTick();
         frame = data->frame;
     } else if (data->kind == ApiProtocolKind::PAUSE) {
@@ -304,7 +303,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
         if (it != teams.end()) it->resourceUnits = it->resourceUnits + data->dbl;
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::SERVER_MESSAGE) {
-        Api::eng_echo(data->buf);
+        if (!context->headless) Api::eng_echo(data->buf);
     } else if (data->kind == ApiProtocolKind::CALLBACK) {
         assert(!context->headless);
         ApiUtil::doCallbackDispatch(data->callbackID, *data);

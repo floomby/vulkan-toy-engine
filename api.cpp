@@ -101,8 +101,13 @@ void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode 
 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
     std::scoped_lock l(context->authState.lock);
-    auto inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
-        context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
+    Instance *inst;
+    if (Api::context->headless) {
+        inst = new Instance(projectileEntity, context->authState.counter++);
+    } else {
+        inst = new Instance(projectileEntity, Api::context->currentScene->textures.data() + projectileEntity->textureIndex,
+            Api::context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
+    }
     inst->dP = normedDirection * projectileEntity->maxSpeed;
     inst->position = position;
     inst->heading = { 1.0f, 0.0f, 0.0f, 0.0f };
