@@ -70,7 +70,8 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
                 instances[i].syncToAuthInstance(*state.instances[syncIndex]);
                 syncIndex++;
             } else {
-                std::cerr << "Instance syncronization problem" << std::endl;
+                instances[i].orphaned = true;
+                // std::cerr << "Instance syncronization problem" << std::endl;
             }
         }
     }
@@ -91,7 +92,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
     if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
-    
+
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
     auto copy = instances;
@@ -99,6 +100,7 @@ void AuthoritativeState::doUpdateTick() {
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
         // std::cout << std::dec << "main loop for " << it->id << " which is a " << it->entity->name << std::endl;
+        if (!it) continue;
         assert(it->inPlay);
         if (it->entity->isProjectile) {
             for (auto& other : copy) {
@@ -108,10 +110,10 @@ void AuthoritativeState::doUpdateTick() {
                 if (other->rayIntersects(it->position, normalize(it->dP), d)) {
                     if (d < l * timeDelta) {
                         other->health = other->health - it->entity->weapon->damage;
-                        // if (other->health < 0) {
-                        //     toDelete.push_back(other);
-                        //     other = nullptr;
-                        // }
+                        if (other->health < 0) {
+                            toDelete.push_back(other);
+                            other = nullptr;
+                        }
                         toDelete.push_back(it);
                         it = nullptr;
                         break;
@@ -121,8 +123,8 @@ void AuthoritativeState::doUpdateTick() {
             if (it) {
                 it->position += it->dP * timeDelta;
                 if (++it->framesAlive > it->entity->framesTillDead) {
-                    // toDelete.push_back(it);
-                    // it = nullptr;
+                    toDelete.push_back(it);
+                    it = nullptr;
                 }
             }
         } else if (it && !it->commandList.empty()) {
@@ -158,7 +160,7 @@ void AuthoritativeState::doUpdateTick() {
                 if (!other || *other == *it || other->entity->isProjectile) continue;
                 Pathgen::collide(*other, *it);
             }
-        } else if (it->entity->isUnit) {
+        } else if (it && it->entity->isUnit) {
             Pathgen::stop(*it);
         }
         if (it) {
