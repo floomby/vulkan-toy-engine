@@ -140,7 +140,6 @@ GuiLayoutNode *LuaWrapper::loadGuiTable(const char *name) {
     }
 
     oldHandlers = totalHandlers;
-    std::cout << "base offset is " << totalHandlers << std::endl;
     auto ret = readGuiLayoutNode(0);
     luaPanels.push_back({ name, totalHandlers - oldHandlers });
 

@@ -44,8 +44,12 @@ public:
     static void engS_setCollidability(Instance *unit, bool collidability);
     static bool eng_instanceCanBuild(InstanceID unitID);
     static bool engS_instanceCanBuild(Instance *unit);
+    static std::vector<std::string>& eng_getInstanceBuildOptions(InstanceID unitID);
+    static std::vector<std::string>& engS_getInstanceBuildOptions(Instance *unit);
+    static std::vector<std::string>& eng_getEntityBuildOptions(Entity *entity);
     static Entity *eng_getInstanceEntity(InstanceID unitID);
     static Entity *engS_getInstanceEntity(Instance *unit);
+    static Entity *eng_getEntityFromName(const char *name);
     static std::vector<std::string> eng_listAudioDevices();
     static void eng_pickAudioDevice(const char *name);
     static void eng_playSound(const char *name);

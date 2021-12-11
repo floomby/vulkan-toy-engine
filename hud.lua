@@ -1,26 +1,27 @@
 local inspect = require('libs/inspect')
 -- require('lua/server_callbacks')
 
--- Idk where this belongs, but it isn't here
+-- Idk where this belongs, but it isn't here (I should probably just lua_dostring it)
 local audioDeviceList = eng_listAudioDevices()
 eng_pickAudioDevice(audioDeviceList[1])
 
 local function click()
-    -- print("You clicked me")
-    -- local r = eng_getSelectedInstances()
-    -- -- -- local r = eng_getTeamID(100)
-    -- for _, v in ipairs(r) do
-    --     print(inspect(eng_getTeamID(v)))
-    -- end
     local r = eng_listAudioDevices()
-    -- -- local r = eng_getTeamID(100)
     for _, v in ipairs(r) do
         print(v)
     end
 end
 
 local function text_updated()
-    print("Text updated")
+    -- print("Text updated")
+end
+
+local function Split(s, delimiter)
+    local result = {};
+    for match in (s..delimiter):gmatch("(.-)"..delimiter) do
+        table.insert(result, match);
+    end
+    return result;
 end
 
 local function engret_visibility()
@@ -28,17 +29,19 @@ local function engret_visibility()
     gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
 end
 
+local build_options = {}
 local function build_visibility()
-    print("Selection changed")
-    local r = eng_getSelectedInstances()
-    local canBuild = false
-    for _, v in ipairs(r) do
-        if eng_instanceCanBuild(v) then
-            canBuild = true
-            break
+    local units = eng_getSelectedInstances()
+    local can_build = false
+    build_options = {}
+    for _, unit in ipairs(units) do
+        local options = eng_getInstanceBuildOptions(unit)
+        for _, option in ipairs(options) do
+            can_build = true
+            build_options[option] = true
         end
     end
-    gui_setVisibility("build", canBuild)
+    gui_setVisibility("build", can_build)
 end
 
 local function other(index)
@@ -61,7 +64,30 @@ local function testFire()
     pcall(test_fire)
 end
 
+function Build_handler(mods, name)
+    -- print("build handler: " .. mods .. " " .. name)
+    cmd_createInstance(Split(name, " ")[1], { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+end
+
 local function show_build_options()
+    Build_menu.children = {}
+    local i = 0
+    for option, _ in pairs(build_options) do
+        print("textures/" .. option .. "_icon.png")
+        table.insert(Build_menu.children, {
+            x = 0.1 + i * 0.1,
+            y = 0.8,
+            height = 0.1,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/" .. option .. "_icon.png"
+            },
+            onClick = Build_handler,
+            color = 0x000000ff,
+            name = option .. " build button"
+        })
+        i = i + 1
+    end
     gui_addPanel("build menu", "Build_menu")
 end
 
@@ -81,17 +107,6 @@ Hud = {
     text = "",
     color = 0x6050cc60,
     children = {
-        -- {
-        --     -- panel for unit details
-        --     x = -0.9,
-        --     y = 0.75,
-        --     width = 0.5,
-        --     height = 0.1,
-        --     onClick = centerSelected,
-        --     kind = GuiLayoutType__PANEL,
-        --     text = "",
-        --     color = 0x000000ff,
-        -- },
         {
             x = -0.9,
             y = 0.75,
@@ -118,18 +133,6 @@ Hud = {
             tooltip = "This has a tooltip!\nIsn't that nice",
             onTextUpdated = text_updated
         },
-        -- {
-        --     x = -0.9,
-        --     y = 0.875,
-        --     width = 0.5,
-        --     height = 0.1,
-        --     onClick = testFire,
-        --     kind = GuiLayoutKind__TEXT_BUTTON,
-        --     text = "Fire",
-        --     color = 0x000000ff,
-        --     -- children = {}
-        --     name = "broken",
-        -- }
         {
             x = -0.9,
             y = 0.875,
@@ -186,6 +189,8 @@ local function new_handler2()
     print("There is an off by 1 error")
 end
 
+local function build_menu_creator()
+end
 
 Build_menu = {
     x = 0.05,
@@ -197,30 +202,6 @@ Build_menu = {
     color = 0x00000000,
     onSelectionChanged = remove_build_menu,
     children = {
-        {
-            x = 0.1,
-            y = 0.8,
-            height = 0.1,
-            kind = GuiLayoutKind__IMAGE_BUTTON,
-            images = {
-                "textures/spaceship_icon.png"
-            },
-            onClick = new_handler,
-            color = 0x000000ff,
-            name = "ship build button"
-        },
-        {
-            x = 0.23,
-            y = 0.8,
-            height = 0.1,
-            kind = GuiLayoutKind__IMAGE_BUTTON,
-            images = {
-                "textures/spaceship_icon.png"
-            },
-            onClick = new_handler2,
-            color = 0x000000ff,
-            name = "ship build button 2"
-        },
     }
 }
 
@@ -237,7 +218,7 @@ engret_visibility()
 -- net_declareTeam(1, "josh")
 
 
-local function dummyCallback(id)
+function dummyCallback(id)
     print("callback with id of " .. id)
 end
 

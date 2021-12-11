@@ -518,7 +518,7 @@ void GuiComponent::resizeVertices() {
 void GuiComponent::click(float x, float y, int mods) {
     auto offset = context->lua->getPanelHandlerOffset(panelName);
     if (luaHandlers.contains("onClick"))
-        context->lua->callFunction(luaHandlers["onClick"] + offset, mods);
+        context->lua->callFunction(luaHandlers["onClick"] + offset, mods, name);
 }
 
 void GuiComponent::hover() {

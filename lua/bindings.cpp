@@ -351,6 +351,56 @@ static void engS_instanceCanBuildExport(lua_State *ls) {
     lua_setglobal(ls, "engS_instanceCanBuild");
 }
 
+static int eng_getInstanceBuildOptionsWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceBuildOptions(a0);
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        lua_pushstring(ls, r[i].c_str());
+        lua_rawseti(ls, -2, i + 1);
+    }
+    return 1;
+}
+
+static void eng_getInstanceBuildOptionsExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceBuildOptionsWrapper);
+    lua_setglobal(ls, "eng_getInstanceBuildOptions");
+}
+
+static int engS_getInstanceBuildOptionsWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceBuildOptions(a0);
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        lua_pushstring(ls, r[i].c_str());
+        lua_rawseti(ls, -2, i + 1);
+    }
+    return 1;
+}
+
+static void engS_getInstanceBuildOptionsExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceBuildOptionsWrapper);
+    lua_setglobal(ls, "engS_getInstanceBuildOptions");
+}
+
+static int eng_getEntityBuildOptionsWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Entity*)lua_topointer(ls, 1);
+    auto r = Api::eng_getEntityBuildOptions(a0);
+    lua_createtable(ls, r.size(), 0);
+    for (int i = 0; i < r.size(); i++) {
+        lua_pushstring(ls, r[i].c_str());
+        lua_rawseti(ls, -2, i + 1);
+    }
+    return 1;
+}
+
+static void eng_getEntityBuildOptionsExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getEntityBuildOptionsWrapper);
+    lua_setglobal(ls, "eng_getEntityBuildOptions");
+}
+
 static int eng_getInstanceEntityWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     auto r = Api::eng_getInstanceEntity(a0);
@@ -372,6 +422,18 @@ static int engS_getInstanceEntityWrapper(lua_State *ls) {
 static void engS_getInstanceEntityExport(lua_State *ls) {
     lua_pushcfunction(ls, engS_getInstanceEntityWrapper);
     lua_setglobal(ls, "engS_getInstanceEntity");
+}
+
+static int eng_getEntityFromNameWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    auto r = Api::eng_getEntityFromName(a0);
+    lua_pushlightuserdata(ls, r);    return 1;
+}
+
+static void eng_getEntityFromNameExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getEntityFromNameWrapper);
+    lua_setglobal(ls, "eng_getEntityFromName");
 }
 
 static int eng_listAudioDevicesWrapper(lua_State *ls) {
@@ -558,8 +620,12 @@ void LuaWrapper::apiExport() {
     engS_setCollidabilityExport(luaState);
     eng_instanceCanBuildExport(luaState);
     engS_instanceCanBuildExport(luaState);
+    eng_getInstanceBuildOptionsExport(luaState);
+    engS_getInstanceBuildOptionsExport(luaState);
+    eng_getEntityBuildOptionsExport(luaState);
     eng_getInstanceEntityExport(luaState);
     engS_getInstanceEntityExport(luaState);
+    eng_getEntityFromNameExport(luaState);
     eng_listAudioDevicesExport(luaState);
     eng_pickAudioDeviceExport(luaState);
     eng_playSoundExport(luaState);

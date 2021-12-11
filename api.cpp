@@ -206,6 +206,19 @@ bool Api::engS_instanceCanBuild(Instance *unit) {
     return !unit->entity->buildOptions.empty();
 }
 
+std::vector<std::string>& Api::eng_getInstanceBuildOptions(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->entity->buildOptions;
+}
+
+std::vector<std::string>& Api::engS_getInstanceBuildOptions(Instance *unit) {
+    return unit->entity->buildOptions;
+}
+
+std::vector<std::string>& Api::eng_getEntityBuildOptions(Entity *entity) {
+    return entity->buildOptions;
+}
+
 Entity *Api::eng_getInstanceEntity(InstanceID unitID) {
     lock_and_get_iterator
     return it->entity;
@@ -213,6 +226,16 @@ Entity *Api::eng_getInstanceEntity(InstanceID unitID) {
 
 Entity *Api::engS_getInstanceEntity(Instance *unit) {
     return unit->entity;
+}
+
+Entity *Api::eng_getEntityFromName(const char *name) {
+    const auto ent = context->currentScene->entities.find(name);
+    if (ent == context->currentScene->entities.end()) {
+        std::string msg = "Unable to find entity ";
+        msg += name;
+        throw std::runtime_error(msg);
+    }
+    return ent->second;
 }
 
 // TODO The sound api stuff needs to be made threadsafe

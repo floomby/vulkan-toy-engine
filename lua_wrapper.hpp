@@ -105,13 +105,14 @@ public:
 private:
     template<typename T>
     void stackPusher(const T& arg) {
-        if constexpr (std::is_arithmetic<T>::value) {
+        if constexpr (std::is_same_v<T, std::string>) {
+            lua_pushlstring(luaState, arg.c_str(), strlen(arg.c_str()));
+        } else if constexpr (std::is_arithmetic<T>::value) {
             lua_pushnumber(luaState, arg);
-        }
-        if constexpr (std::is_enum<T>::value) {
+        } else if constexpr (std::is_enum<T>::value) {
             lua_pushnumber(luaState, static_cast<int>(arg));
         }
-        static_assert(std::is_arithmetic<T>::value || std::is_enum<T>::value, "Unsupported type");
+        static_assert(std::is_arithmetic_v<T> || std::is_enum_v<T>|| std::is_same_v<T, std::string>, "Unsupported type");
     }
 
     template<int argc, typename N, typename T>
@@ -123,7 +124,7 @@ private:
     template<int argc, typename N, typename T, typename... Args>
     void callFunction(const N& n, const T& arg, Args... args) {
         stackPusher(arg);
-        callFunction<argc + 1>(n, arg);
+        callFunction<argc + 1>(n, args...);
     }
 
 public:
