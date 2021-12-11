@@ -165,7 +165,7 @@ private:
 
 class ObservableState {
 public:
-    std::vector<Instance> instances;
+    std::vector<Instance *> instances;
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
     // player economy state and metadata stuff and so forth....

@@ -318,8 +318,8 @@ double Api::state_getResources(TeamID teamID) {
 
 std::pair<TeamID, const std::string> Api::state_getTeamIAm() {
     assert(!context->headless);
-    return { reinterpret_cast<Engine *>(context)->engineSettings.teamIAm.id,
-        reinterpret_cast<Engine *>(context)->engineSettings.teamIAm.displayName };
+    return { static_cast<Engine *>(context)->engineSettings.teamIAm.id,
+        static_cast<Engine *>(context)->engineSettings.teamIAm.displayName };
 }
 
 

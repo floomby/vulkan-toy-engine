@@ -103,6 +103,8 @@ class Engine : public Base {
     friend class DynUBOSyncer<LineUBO>;
 
     friend std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer();
+    friend void ObservableState::syncToAuthoritativeState(AuthoritativeState& state);
+
 public:
     Engine(EngineSettings engineSettings);
     EngineSettings engineSettings;

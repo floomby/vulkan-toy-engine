@@ -2447,10 +2447,10 @@ void Engine::handleInput() {
     float minDistance = std::numeric_limits<float>::max();
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
-        if (!currentScene->state.instances[i].inPlay) continue;
+        if (!currentScene->state.instances[i]->inPlay) continue;
         float distance;
-        if(currentScene->state.instances[i].rayIntersects(cammera.position, mouseRayNormed, distance)) {
-            if (distance < minDistance) mousedOver = &currentScene->state.instances[i];
+        if(currentScene->state.instances[i]->rayIntersects(cammera.position, mouseRayNormed, distance)) {
+            if (distance < minDistance) mousedOver = currentScene->state.instances[i];
         }
         // instance.highlight() = false;
     }
@@ -2519,20 +2519,20 @@ void Engine::handleInput() {
             idsSelected.clear();
             idsSelectedChanged = true;
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
-                if (!currentScene->state.instances[i].entity->isUnit || !currentScene->state.instances[i].inPlay) continue;
-                assert(currentScene->state.instances[i].inPlay);
-                if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, (currentScene->state.instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[0].first, planes[0].second, (currentScene->state.instances.data() + i)->position) < 0 !=
-                    whichSideOfPlane(planes[2].first, planes[2].second, (currentScene->state.instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[1].first, planes[1].second, (currentScene->state.instances.data() + i)->position) < 0 !=
-                    whichSideOfPlane(planes[3].first, planes[3].second, (currentScene->state.instances.data() + i)->position) < 0 &&
-                    whichSideOfPlane(planes[4].first, planes[4].second + Config::Cammera.maxClip, (currentScene->state.instances.data() + i)->position) > 0
+                if (!currentScene->state.instances[i]->entity->isUnit || !currentScene->state.instances[i]->inPlay) continue;
+                assert(currentScene->state.instances[i]->inPlay);
+                if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, currentScene->state.instances[i]->position) < 0 &&
+                    whichSideOfPlane(planes[0].first, planes[0].second, currentScene->state.instances[i]->position) < 0 !=
+                    whichSideOfPlane(planes[2].first, planes[2].second, currentScene->state.instances[i]->position) < 0 &&
+                    whichSideOfPlane(planes[1].first, planes[1].second, currentScene->state.instances[i]->position) < 0 !=
+                    whichSideOfPlane(planes[3].first, planes[3].second, currentScene->state.instances[i]->position) < 0 &&
+                    whichSideOfPlane(planes[4].first, planes[4].second + Config::Cammera.maxClip, currentScene->state.instances[i]->position) > 0
                     // To only select things as far as the cammera drawing distance
                 ) {
-                    currentScene->state.instances[i].highlight = true;
-                    idsSelected.push_back(currentScene->state.instances[i].id);
+                    currentScene->state.instances[i]->highlight = true;
+                    idsSelected.push_back(currentScene->state.instances[i]->id);
                 } else {
-                    currentScene->state.instances[i].highlight = false;
+                    currentScene->state.instances[i]->highlight = false;
                 }
             }
             if (mousedOver) idsSelected.push_back(mousedOver->id);
@@ -2651,7 +2651,7 @@ InstanceZSorter::InstanceZSorter(Scene *context)
 : context(context) {}
 
 bool InstanceZSorter::operator() (int a, int b) {
-    return context->state.instances[a].cammeraDistance2 > context->state.instances[b].cammeraDistance2;
+    return context->state.instances[a]->cammeraDistance2 > context->state.instances[b]->cammeraDistance2;
 }
 
 static std::array<std::pair<glm::vec3, float>, 6> extractFrustum(const glm::mat4& m) {
@@ -2707,7 +2707,7 @@ float Engine::updateScene(int index) {
     cammera.cached.view_1Proj_1 = cammera.cached.view_1 * cammera.cached.proj_1;
 
     // The 0th instance is the skybox (probably shouldnt be like this though)
-    currentScene->state.instances[0].position = cammera.position;
+    currentScene->state.instances[0]->position = cammera.position;
 
     auto projView = pushConstants.projection * pushConstants.view;
     auto cammeraFrustumNormed = normalizePlanes(extractFrustum(projView));
@@ -2725,21 +2725,21 @@ float Engine::updateScene(int index) {
     uint fullyRenderCount = 0;
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
-        if (currentScene->state.instances[i].entity->isProjectile) {
+        if (currentScene->state.instances[i]->entity->isProjectile) {
             // I will just let the gpu do its thing and not mess about
-            currentScene->state.instances[i].rendered = true;
+            currentScene->state.instances[i]->rendered = true;
             continue;
         }
-        const Entity& entity = *currentScene->state.instances[i].entity;
-        currentScene->state.instances[i].cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i].position);
+        const Entity& entity = *currentScene->state.instances[i]->entity;
+        currentScene->state.instances[i]->cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i]->position);
         // currentScene->state.instances[i].cammeraDistance = sqrtf(currentScene->state.instances[i].cammeraDistance2);
-        currentScene->state.instances[i].renderAsIcon = currentScene->state.instances[i].cammeraDistance2 > Config::Cammera.renderAsIcon2;
+        currentScene->state.instances[i]->renderAsIcon = currentScene->state.instances[i]->cammeraDistance2 > Config::Cammera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
-        currentScene->state.instances[i].rendered =
+        currentScene->state.instances[i]->rendered =
             // frustumContainsPoint(cammeraFrustumNormed, currentScene->state.instances[i].position);
-            frustumContainsSphere(cammeraFrustumNormed, currentScene->state.instances[i].position, entity.boundingRadius);
-        if (currentScene->state.instances[i].rendered && !currentScene->state.instances[i].renderAsIcon) {
-            auto inLightingViewSpace = lightingData.view * glm::vec4{ currentScene->state.instances[i].position, 1.0f };
+            frustumContainsSphere(cammeraFrustumNormed, currentScene->state.instances[i]->position, entity.boundingRadius);
+        if (currentScene->state.instances[i]->rendered && !currentScene->state.instances[i]->renderAsIcon) {
+            auto inLightingViewSpace = lightingData.view * glm::vec4{ currentScene->state.instances[i]->position, 1.0f };
             xMax = std::max(xMax, inLightingViewSpace.x);
             yMax = std::max(yMax, inLightingViewSpace.y);
             zMax = std::max(zMax, inLightingViewSpace.z);
@@ -3483,39 +3483,39 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     // 0th instance is always the skybox (see Engine::loadDefaultScene)
     for (int j = 1; j < uniformSync->validCount[index]; j++) {
-        if (!currentScene->state.instances[j].rendered) continue;
-        if (!currentScene->state.instances[j].entity->isProjectile) {
-            pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j].team];
+        if (!currentScene->state.instances[j]->rendered) continue;
+        if (!currentScene->state.instances[j]->entity->isProjectile) {
+            pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j]->team];
         }
         dynamicOffset = j * uniformSync->uniformSkip;
         // render the unit as an icon
-        if (currentScene->state.instances[j].renderAsIcon) {
-            const auto ent = currentScene->state.instances[j].entity;
+        if (currentScene->state.instances[j]->renderAsIcon) {
+            const auto ent = currentScene->state.instances[j]->entity;
             vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-            pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
+            pushConstants.renderType = RINT_ICON | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT;
             pushConstants.textureIndex = ent->hasIcon ? ent->iconIndex : currentScene->missingIcon; // ent->hasIcon ? ent->iconIndex : currentScene->textures.size() - 1;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
-        if (currentScene->state.instances[j].entity->isProjectile) {
+        if (currentScene->state.instances[j]->entity->isProjectile) {
             pushConstants.renderType = RINT_PROJECTILE;
         } else {
-            pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j].highlight * RFLAG_HIGHLIGHT;
+            pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
-        pushConstants.textureIndex = currentScene->state.instances[j].entity->textureIndex;
+        pushConstants.textureIndex = currentScene->state.instances[j]->entity->textureIndex;
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
         // We can bundle draw commands the entities are the same (this includes the textures), I doubt that the bottleneck is recording the command buffers
-        vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, currentScene->state.instances[j]->sceneModelInfo->indexCount, 1,
+            currentScene->state.instances[j]->sceneModelInfo->indexOffset, 0, 0);
         // draw the health bar
-        if (currentScene->state.instances[j].entity->isUnit) {
+        if (currentScene->state.instances[j]->entity->isUnit) {
             pushConstants.renderType = RINT_HEALTH;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
         // draw the resource bar
-        } else if (currentScene->state.instances[j].entity->isResource) {
+        } else if (currentScene->state.instances[j]->entity->isResource) {
             pushConstants.renderType = RINT_RESOURCE;
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
@@ -3545,8 +3545,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     pushConstants.renderType = RINT_SKYBOX;
     vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
     vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-    vkCmdDrawIndexed(buffer, currentScene->state.instances.data()->sceneModelInfo->indexCount, 1,
-        currentScene->state.instances.data()->sceneModelInfo->indexOffset, 0, 0);
+    vkCmdDrawIndexed(buffer, currentScene->state.instances[0]->sceneModelInfo->indexCount, 1,
+        currentScene->state.instances[0]->sceneModelInfo->indexOffset, 0, 0);
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -4206,15 +4206,14 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-    // This loop indexing will change once the instance allocator changes
     for(int j = 1; j < uniformSync->validCount[index]; j++) {
-        if (currentScene->state.instances[j].renderAsIcon) continue;
+        if (currentScene->state.instances[j]->renderAsIcon) continue;
         uint32_t dynamicOffset = j * uniformSync->uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
         // TODO we can bundle draw commands the entities are the same (this includes the textures)
-        vkCmdDrawIndexed(buffer, (currentScene->state.instances.data() + j)->sceneModelInfo->indexCount, 1,
-            (currentScene->state.instances.data() + j)->sceneModelInfo->indexOffset, 0, 0);
+        vkCmdDrawIndexed(buffer, currentScene->state.instances[j]->sceneModelInfo->indexCount, 1,
+            currentScene->state.instances[j]->sceneModelInfo->indexOffset, 0, 0);
     }
 
     vkCmdEndRenderPass(buffer);
@@ -4619,9 +4618,9 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
 void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading) {
     assert(models.size());
     auto ent = entities[name];
-    state.instances.push_back(Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, false));
-    state.instances.back().position = std::move(position);
-    state.instances.back().heading = std::move(heading);
+    state.instances.push_back(new Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, false));
+    state.instances.back()->position = std::move(position);
+    state.instances.back()->heading = std::move(heading);
 }
 
 void Scene::makeBuffers() {
@@ -4641,13 +4640,13 @@ void Scene::makeBuffers() {
 void Scene::updateUniforms(int idx) {
     float aspectRatio = static_cast<Engine *>(context)->swapChainExtent.width / (float) static_cast<Engine *>(context)->swapChainExtent.height;
     static_cast<Engine *>(context)->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
-        return this->state.instances[n].getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->cammera.cached.projView,
+        return this->state.instances[n]->getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->cammera.cached.projView,
             static_cast<Engine *>(context)->cammera.cached.view_1Proj_1, aspectRatio, Config::Cammera.minClip, Config::Cammera.maxClip);
     });
 
     std::vector<uint> inPlayIndices;
     for (uint i = 0; i < state.instances.size(); i++) {
-        if (state.instances[i].inPlay) inPlayIndices.push_back(i);
+        if (state.instances[i]->inPlay) inPlayIndices.push_back(i);
     }
     uint commandCount = state.commandCount(inPlayIndices);
 
@@ -4671,7 +4670,7 @@ void Scene::updateUniforms(int idx) {
         auto a = cmdGen.value();
         auto id = a.which->at(a.idx);
         LineUBO ret = {
-            id == lastId ? lastDest : this->state.instances[id].position,
+            id == lastId ? lastDest : this->state.instances[id]->position,
             a.command->data.dest,
             { 0.3f, 1.0f, 0.3f, 1.0f },
             { 0.3f, 1.0f, 0.3f, 1.0f }
