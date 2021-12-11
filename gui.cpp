@@ -10,7 +10,6 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     lua = new LuaWrapper(true);
-    guiThread = std::thread(&Gui::pollChanges, this);
 
     createBuffers(50);
     whichBuffer = 0;
@@ -19,6 +18,7 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     lua->apiExport();
     lua->exportEnumToLua<GuiLayoutKind>();
     lua->exportEnumToLua<ToggleKind>();
+    guiThread = std::thread(&Gui::pollChanges, this);
     root->parent = nullptr;
 }
 
