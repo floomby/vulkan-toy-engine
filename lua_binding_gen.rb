@@ -11,6 +11,17 @@ require 'rbgccxml'
 
 source = RbGCCXML.parse("api.hpp", :cxxflags => ["-std=c++20"])
 
+class String
+    def valid_brackets?
+        valid = true
+        self.gsub(/[^<>]/, '').split('').inject(0) do |counter, bracket|
+            counter += (bracket == '<' ? 1 : -1)
+            valid = false if counter < 0
+            counter
+        end.zero? && valid
+    end
+end
+
 class BindingGenerator
     @@enums = ["InsertionMode", "IEngage"]
     @@classes = ["Entity", "Instance"]
@@ -98,13 +109,16 @@ END
             end
             # This supports multiple callbacks, the networking protocol does not, but can be made to easily
             return <<-END
-    auto id#{i} = ApiUtil::getCallbackID();
-    lua_getglobal(ls, "Server_callbacks");
-    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
-    lua_insert(ls, -2);
-    lua_pushinteger(ls, id#{i});
-    lua_insert(ls, -2);
-    lua_settable(ls, -3);
+    CallbackID id#{i} = 0;
+    if (!lua_isnil(ls, -1)) {
+        id#{i} = ApiUtil::getCallbackID();
+        lua_getglobal(ls, "Server_callbacks");
+        if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
+        lua_insert(ls, -2);
+        lua_pushinteger(ls, id#{i});
+        lua_insert(ls, -2);
+        lua_settable(ls, -3);
+    }
     lua_pop(ls, 1);
     ApiUtil::callbackIds.push(id#{i});
     auto a#{i} = ApiUtil::luaCallbackDispatcher<#{cbtype}>(id#{i});
@@ -120,8 +134,35 @@ END
         return typestr.match?(/^[^<]*?vector<(.*)>/)
     end
 
+    def is_pair(typestr)
+        return typestr.match?(/^[^<]*?pair<(.*)>/)
+    end
+
     def vector_of(typestr)
         return typestr.match(/^[^<]*?vector<(.*)>/).captures[0]
+    end
+
+    def get_type(ts)
+        tmp = ts.split(',')
+        i = 0   
+        while true
+            str = tmp[0..i].join(',')
+            i += 1
+            if str.valid_brackets? then
+                return str
+            end
+        end
+    end
+
+    def pair_of(typestr)
+        ts = typestr.clone
+        ts.gsub!(/^[^<]*?pair</, "")
+        ts.gsub!(/>$/, "")
+        t1 = get_type(ts)
+        ts = ts[t1.length..-1]
+        ts.gsub!(/^, */, "")
+        t2 = get_type(ts)
+        return [t1, t2]
     end
 
     def is_class_ptr(typestr)
@@ -143,7 +184,8 @@ END
             return -> (x) { "lua_pushnumber(ls, #{x});" }
         elsif @@bool.include?(typestr)
             return -> (x) { "lua_pushboolean(ls, #{x});"}
-        elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>"
+        # oops
+        elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>" || typestr == "std::basic_string<char, std::char_traits<char>>" 
             return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else
             raise "Unsuported basic type #{typestr}"
@@ -151,6 +193,7 @@ END
     end
 
     def lua_ret
+        @retcount = 1
         acm = ""
         remove_std_allocators(@rettype)
         if is_vector(@rettype)
@@ -163,6 +206,15 @@ END
         lua_rawseti(ls, -2, i + 1);
     }
 END
+        elsif is_pair(@rettype)
+            of_types = pair_of(@rettype)
+            p1 = basic_pusher(of_types[0]).call("r.first")
+            p2 = basic_pusher(of_types[1]).call("r.second")
+            acm += <<-END
+    #{p1}
+    #{p2}
+END
+            @retcount = 2
         else
             acm += "    #{basic_pusher(@rettype).call("r")}"
         end
@@ -192,7 +244,7 @@ END
         if @rettype != "void" then
             acm += lua_ret
         end
-        acm += "    return #{@rettype == "void" ? 0 : 1};\n}\n"
+        acm += "    return #{@rettype == "void" ? 0 : @retcount};\n}\n"
 
         return acm += "\n";
     end

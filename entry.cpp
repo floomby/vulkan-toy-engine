@@ -30,6 +30,7 @@ int main(int argc, char **argv) {
         ("rebuild-font-cache", "Forcefuly rebuild the font cache")
         ("server", "Spawn a server")
         ("is-server", "Run headless as a server instance")
+        ("team", po::value<std::string>(), "set team in the form <display name>,<number>")
     ;
 
     po::variables_map vm;
@@ -65,6 +66,22 @@ int main(int argc, char **argv) {
     }
 
     EngineSettings settings = {};
+    if (vm.count("team")) {
+        auto str = vm["team"].as<std::string>();
+        std::string displayName, teamNumber;
+        auto it = str.begin();
+        while (it != str.end() && *it != ',')
+            displayName.push_back(*it++);
+        if (*it == ',') it++;
+        while (it != str.end())
+            teamNumber.push_back(*it++);
+        if (teamNumber.empty() || displayName.empty()) {
+            std::cerr << "Invalid team specification" << std::endl;
+            return EXIT_FAILURE;
+        }
+        TeamID id = (TeamID)std::stoi(teamNumber);
+        settings.teamIAm = Team(id, displayName);
+    }
     if (vm.count("use-one-queue"))
         settings.useConcurrentTransferQueue = false;
     else

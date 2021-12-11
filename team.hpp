@@ -10,6 +10,7 @@ namespace Networking { class Session; }
 
 class Team {
 public:
+    Team();
     Team(TeamID id, const std::string& displayName, std::optional<std::shared_ptr<Networking::Session>> = {});
     TeamID id;
     std::string displayName;

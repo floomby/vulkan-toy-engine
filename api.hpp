@@ -65,6 +65,7 @@ public:
     static void state_dumpAuthStateIDs();
     static void state_giveResources(TeamID teamID, double resourceUnits);
     static double state_getResources(TeamID teamID);
+    static std::pair<TeamID, const std::string> state_getTeamIAm();
 
     static void net_declareTeam(TeamID teamID, const std::string& name);
     static void net_pause(bool pause);

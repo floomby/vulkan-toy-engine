@@ -15,7 +15,6 @@ static std::mutex dispatchLock;
 static std::mutex threadDispatchLock;
 
 void ApiUtil::doCallbackDispatch(CallbackID id, const ApiProtocol& data) {
-    std::cout << "looking for " << id << std::endl;
     dispatchLock.lock();
     auto it = ApiUtil::callbacks.find(id);
     if (it == ApiUtil::callbacks.end()) {
@@ -79,9 +78,11 @@ void Api::cmd_createInstance(const std::string& name, const glm::vec3& position,
     data.callbackID = cbID;
     context->send(data);
 
-    assert(LuaWrapper::threadLuaInstance);
-    std::scoped_lock l(dispatchLock);
-    ApiUtil::callbacks.insert({ cbID, { [cb](const ApiProtocol& data) { cb(data.command.id); }, LuaWrapper::threadLuaInstance }});
+    if (cbID) {
+        assert(LuaWrapper::threadLuaInstance);
+        std::scoped_lock l(dispatchLock);
+        ApiUtil::callbacks.insert({ cbID, { [cb](const ApiProtocol& data) { cb(data.command.id); }, LuaWrapper::threadLuaInstance }});
+    }
 }
 
 void Api::cmd_destroyInstance(InstanceID unitID) {
@@ -314,6 +315,13 @@ double Api::state_getResources(TeamID teamID) {
     if (it != context->authState.teams.end()) return it->resourceUnits;
     return 0.0;
 }
+
+std::pair<TeamID, const std::string> Api::state_getTeamIAm() {
+    assert(!context->headless);
+    return { reinterpret_cast<Engine *>(context)->engineSettings.teamIAm.id,
+        reinterpret_cast<Engine *>(context)->engineSettings.teamIAm.displayName };
+}
+
 
 void Api::net_declareTeam(TeamID teamID, const std::string& name) {
     ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };

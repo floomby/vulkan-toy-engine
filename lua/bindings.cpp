@@ -62,13 +62,16 @@ static int cmd_createInstanceWrapper(lua_State *ls) {
     }
     glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
     auto a3 = (TeamID)luaL_checkinteger(ls, 4);
-    auto id4 = ApiUtil::getCallbackID();
-    lua_getglobal(ls, "Server_callbacks");
-    if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
-    lua_insert(ls, -2);
-    lua_pushinteger(ls, id4);
-    lua_insert(ls, -2);
-    lua_settable(ls, -3);
+    CallbackID id4 = 0;
+    if (!lua_isnil(ls, -1)) {
+        id4 = ApiUtil::getCallbackID();
+        lua_getglobal(ls, "Server_callbacks");
+        if (!lua_istable(ls, -1)) throw std::runtime_error("Server_callbacks should be a table (did you forget to enable callbacks on this thread?)");
+        lua_insert(ls, -2);
+        lua_pushinteger(ls, id4);
+        lua_insert(ls, -2);
+        lua_settable(ls, -3);
+    }
     lua_pop(ls, 1);
     ApiUtil::callbackIds.push(id4);
     auto a4 = ApiUtil::luaCallbackDispatcher<std::function<void (unsigned int)>>(id4);
@@ -571,6 +574,18 @@ static void state_getResourcesExport(lua_State *ls) {
     lua_setglobal(ls, "state_getResources");
 }
 
+static int state_getTeamIAmWrapper(lua_State *ls) {
+    auto r = Api::state_getTeamIAm();
+    lua_pushinteger(ls, r.first);
+    lua_pushstring(ls, r.second.c_str());
+    return 2;
+}
+
+static void state_getTeamIAmExport(lua_State *ls) {
+    lua_pushcfunction(ls, state_getTeamIAmWrapper);
+    lua_setglobal(ls, "state_getTeamIAm");
+}
+
 static int net_declareTeamWrapper(lua_State *ls) {
     auto a0 = (TeamID)luaL_checkinteger(ls, 1);
     luaL_checkstring(ls, 2);
@@ -637,6 +652,7 @@ void LuaWrapper::apiExport() {
     state_dumpAuthStateIDsExport(luaState);
     state_giveResourcesExport(luaState);
     state_getResourcesExport(luaState);
+    state_getTeamIAmExport(luaState);
     net_declareTeamExport(luaState);
     net_pauseExport(luaState);
 }

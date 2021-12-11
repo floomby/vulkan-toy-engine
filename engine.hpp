@@ -39,6 +39,7 @@ struct EngineSettings {
     bool verbose;
     bool extremelyVerbose;
     bool rebuildFontCache;
+    Team teamIAm;
 };
 
 struct LineUBO {
@@ -104,6 +105,7 @@ class Engine : public Base {
     friend std::tuple<size_t, std::map<uint32_t, uint>, VkBuffer> Gui::updateBuffer();
 public:
     Engine(EngineSettings engineSettings);
+    EngineSettings engineSettings;
     void init();
     virtual void runCurrentScene();
 
@@ -160,8 +162,6 @@ private:
     bool guiOutOfDate = false;
     // Gui *gui = nullptr;
 
-    TeamID teamIAm = 1;
-
     struct Cammera {
         glm::vec3 position;
         glm::vec3 target;
@@ -177,8 +177,6 @@ private:
 
     std::chrono::time_point<std::chrono::steady_clock> lastTime;
     int serverTicksSinceLastSynchronization;
-
-    EngineSettings engineSettings;
 
     // Maybe shove these all in a struct to help organize them
     float maxSamplerAnisotropy;
@@ -251,13 +249,15 @@ private:
     std::vector<GLFWcursor *> cursors;
     void createCursors();
     void destroyCursors();
-    const std::array<std::tuple<const char *, int, int>, 2> cursorData = {
+    const std::array<std::tuple<const char *, int, int>, 3> cursorData = {
         std::make_tuple("cursors/default.png", 1, 1),
-        std::make_tuple("cursors/select.png", 1, 1)
+        std::make_tuple("cursors/select.png", 1, 1),
+        std::make_tuple("cursors/attack.png", 1, 1)
     };
     enum CursorIndex {
-        CURSOR_DEFAULT = 0,
+        CURSOR_DEFAULT ,
         CURSOR_SELECT,
+        CURSOR_ATTACK
     };
 
     inline std::pair<float, float> normedDevice(float x, float y);

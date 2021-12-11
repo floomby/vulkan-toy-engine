@@ -25,7 +25,6 @@ local function Split(s, delimiter)
 end
 
 local function engret_visibility()
-    print("Setting visibility")
     gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
 end
 
@@ -62,6 +61,10 @@ end
 
 local function testFire()
     pcall(test_fire)
+end
+
+local function dummyCallback(id)
+    print("callback with id of " .. id)
 end
 
 function Build_handler(mods, name)
@@ -218,16 +221,14 @@ engret_visibility()
 -- net_declareTeam(1, "josh")
 
 
-function dummyCallback(id)
-    print("callback with id of " .. id)
-end
+
 
 local function dummyCallback2(id)
     print("callback with id of " .. id * 2)
 end
 
 -- cmd_createInstance("asteroid", { -95.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
-cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
@@ -239,14 +240,16 @@ cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dum
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
-cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+-- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
 
--- net_declareTeam(1, "josh")
+local teamID, display_name = state_getTeamIAm()
+-- print(teamID .. " - " .. display_name)
+net_declareTeam(teamID, display_name)
 -- state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
-net_pause(false)
+-- net_pause(false)
 -- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 
 

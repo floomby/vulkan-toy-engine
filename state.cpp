@@ -181,11 +181,11 @@ void AuthoritativeState::doUpdateTick() {
 }
 
 void AuthoritativeState::dump() {
-    std::cout << "Have instances: { ";
+    std::cout << "Have instances: {" << std::endl;
     for (const auto& inst : this->instances) {
-        std::cout << inst->id << " ";
+        std::cout << inst->id << "(" << inst->entity->name << ") - " << inst->position << std::endl;
     }
-    std::cout << " }" << std::endl;
+    std::cout << "}" << std::endl;
 }
 
 uint32_t AuthoritativeState::crc() {
@@ -269,7 +269,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             inst->heading = data->command.data.heading;
             inst->position = data->command.data.dest;
             inst->team = data->command.data.id;
-            if (session) {
+            if (data->callbackID && session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;
                 data2.frame = frame;

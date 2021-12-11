@@ -394,5 +394,6 @@ GuiLayoutNode::~GuiLayoutNode() {
 
 void LuaWrapper::enableCallbacksOnThisThread() {
     threadLuaInstance = this;
-    luaL_dostring(luaState, "Server_callbacks = {}");
+    lua_createtable(luaState, 0, 0);
+    lua_setglobal(luaState, "Server_callbacks");
 }

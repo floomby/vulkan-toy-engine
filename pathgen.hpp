@@ -57,6 +57,8 @@ namespace Pathgen {
     void collide(Instance& a, Instance& b) {
         auto v = a.position - b.position;
         auto d2 = length2(v);
+        if (d2 < 0.01) // avoid division by 0
+            v = { 0.0, 0.0, 1.0 };
         auto db2 = sq(a.entity->boundingRadius + b.entity->boundingRadius);
         if (d2 < db2) {
             auto amount = db2 - d2;
@@ -65,4 +67,3 @@ namespace Pathgen {
         }
     }
 }
-
