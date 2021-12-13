@@ -310,8 +310,8 @@ void Api::state_giveResources(TeamID team, double resourceUnits) {
 
 double Api::state_getResources(TeamID teamID) {
     std::scoped_lock l(context->authState.lock);
-    auto it = find(context->authState.teams.begin(), context->authState.teams.end(), teamID);
-    if (it != context->authState.teams.end()) return it->resourceUnits;
+    auto it = find_if(context->authState.teams.begin(), context->authState.teams.end(), [&](const auto& x){ return *x.get() == teamID; });
+    if (it != context->authState.teams.end()) return (*it)->resourceUnits;
     return 0.0;
 }
 

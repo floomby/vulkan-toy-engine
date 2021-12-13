@@ -8,6 +8,7 @@
 
 namespace Networking { class Session; }
 
+// I am making the executive decision that ids are unique
 class Team {
 public:
     Team();

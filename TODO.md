@@ -7,7 +7,6 @@
  * Finish unit ais
  * I guess I will go back to drawing in z sorted order for getting cloaking working
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
- * Order queuing input (the logic is there for it)
 
 ## Considerations
  * I think many things will be broken on big endian systems

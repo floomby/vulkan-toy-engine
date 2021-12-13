@@ -1,4 +1,5 @@
 #include "net.hpp"
+#include "server.hpp"
 
 #include <boost/bind/bind.hpp>
 #include <chrono>
@@ -65,8 +66,6 @@ void Session::doRead() {
     boost::asio::async_read(socket, boost::asio::buffer(data, sizeof(ApiProtocol)),
         [this, self](boost::system::error_code err, size_t length) {
             if (!err) {
-                // std::cout << "We are here" << std::endl;
-                // std::cout << reinterpret_cast<ApiProtocol *>(data)->buf << std::endl;
                 server.lock()->queue.push({ *reinterpret_cast<ApiProtocol *>(data), shared_from_this() });
                 doRead();
             }
@@ -74,7 +73,22 @@ void Session::doRead() {
 }
 
 void Session::writeData(const ApiProtocol& data) {
-    boost::asio::write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)));
+    try {
+        boost::asio::write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)));
+    } catch (const std::exception& e) { 
+        std::cerr << "Unable to write to socket: " << e.what();
+        if (team) {
+            std::cerr << " (" << (uint)team->id << " " << team->displayName << ")"; 
+        }
+        std::cerr << std::endl;
+        server.lock()->removeSession(shared_from_this());
+    }
+}
+
+void Server::removeSession(std::shared_ptr<Session> session) {
+    auto it = find(sessions.begin(), sessions.end(), session);
+    assert(it != sessions.end());
+    sessions.erase(it);
 }
 
 Server::Server(boost::asio::io_context& ioContext, short port)
@@ -85,7 +99,14 @@ Server::Server(boost::asio::io_context& ioContext, short port)
 void Server::doAccept(std::weak_ptr<Server> self) {
     acceptor.async_accept(
         [this, self](boost::system::error_code err, ip::tcp::socket socket) {
-            if (!err) {
+            if (static_cast<::Server *>(Api::context)->authState.started()) {
+                try {
+                    ApiProtocol data = { ApiProtocolKind::SERVER_MESSAGE, 0, "Error: Unable to connect to alread started game." };
+                    boost::asio::write(socket, boost::asio::buffer(&data, sizeof(ApiProtocol)));
+                } catch (const std::exception& e) { 
+                    std::cerr << "Unable to write to socket: " << e.what() << std::endl;
+                }
+            } else if (!err) {
                 auto ses = std::make_shared<Session>(std::move(socket), self);
                 sessions.push_back(ses);
                 ses->start();

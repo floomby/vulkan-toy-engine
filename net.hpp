@@ -53,6 +53,7 @@ public:
     void start();
     void doRead();
     void writeData(const ApiProtocol& data);
+    std::shared_ptr<Team> team;
 private:
     boost::asio::ip::tcp::socket socket;
     char data[sizeof(ApiProtocol)];
@@ -64,6 +65,7 @@ public:
     Server(boost::asio::io_context& ioContext, short port);
     void writeData(const ApiProtocol& data);
     std::vector<std::shared_ptr<Session>> sessions;
+    void removeSession(std::shared_ptr<Session> session);
     friend void Session::doRead();
     friend void Net::stateUpdater();
 private:

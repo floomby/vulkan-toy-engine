@@ -141,7 +141,7 @@ public:
     std::vector<Instance *> instances;
     volatile size_t frame = 0;
     InstanceID counter = 100;
-    std::vector<Team> teams;
+    std::vector<std::shared_ptr<Team>> teams;
 
     std::atomic<bool> paused = true;
 
@@ -151,6 +151,7 @@ public:
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x->id == id; });
     }
 
+    bool inline started() { return frame > 0; }
     void dump();
     uint32_t crc();
 

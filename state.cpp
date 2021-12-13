@@ -322,12 +322,15 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
         paused = (bool)data->frame;
     } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {
         lock.lock();
-        teams.push_back(Team((TeamID)data->frame, data->buf, session));
+        teams.push_back(std::make_shared<Team>((TeamID)data->frame, data->buf, session));
+        if (session.has_value()) {
+            session.value()->team = teams.back();
+        }
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::RESOURCES) {
         lock.lock();
-        auto it = find(teams.begin(), teams.end(), (TeamID)data->frame);
-        if (it != teams.end()) it->resourceUnits = it->resourceUnits + data->dbl;
+        auto it = find_if(teams.begin(), teams.end(), [&](const auto& x){ return *x.get() == (TeamID)data->frame; });
+        if (it != teams.end()) (*it)->resourceUnits = (*it)->resourceUnits + data->dbl;
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::SERVER_MESSAGE) {
         if (!context->headless) Api::eng_echo(data->buf);

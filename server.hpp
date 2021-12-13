@@ -3,6 +3,7 @@
 #include "base.hpp"
 
 class Server : public Base {
+    friend class Networking::Server;
 public:
     Server();
     ~Server();
