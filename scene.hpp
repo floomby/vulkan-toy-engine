@@ -58,6 +58,7 @@ public:
 
     void addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading);
     // O(n) time complexity where n = # of instances
+    // I think I can do a binary search instead of a linear search
     inline std::vector<Instance *>::iterator getInstance(InstanceID id) {
         return find_if(state.instances.begin(), state.instances.end(), [id](auto x) -> bool { return x->id == id; });
     }

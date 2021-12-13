@@ -126,7 +126,6 @@ void AuthoritativeState::doUpdateTick() {
     instances.clear();
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
-        // std::cout << std::dec << "main loop for " << it->id << " which is a " << it->entity->name << std::endl;
         if (!it) continue;
         assert(it->inPlay);
         if (it->entity->isProjectile) {
@@ -203,8 +202,9 @@ void AuthoritativeState::doUpdateTick() {
     frame = frame + 1;
     copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
     for (auto inst : toDelete) delete inst;
-    instances.reserve(copy.size() + instances.size());
-    instances.insert(instances.end(), copy.begin(), copy.end());
+    copy.reserve(copy.size() + instances.size());
+    copy.insert(copy.end(), instances.begin(), instances.end());
+    instances = std::move(copy);
 }
 
 void AuthoritativeState::dump() {
@@ -255,8 +255,6 @@ static const Forwardable<4> forwardable(
     CommandKind::TARGET_UNIT,
     CommandKind::TARGET_LOCATION
 );
-
-// constexpr auto fowardsable = [](){ std::sort(fowardsable_.begin(), fowardsable_.end()); return fowardsable_; }();
 
 #include "api_util.hpp"
 

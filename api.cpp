@@ -297,7 +297,6 @@ void Api::gui_removePanel(const char *panelName) {
     context->gui->submitCommand({ Gui::GUI_REMOVE, what });
 }
 
-
 void Api::state_dumpAuthStateIDs() {
     std::scoped_lock l(context->authState.lock);
     context->authState.dump();
@@ -321,7 +320,6 @@ std::pair<TeamID, const std::string> Api::state_getTeamIAm() {
     return { static_cast<Engine *>(context)->engineSettings.teamIAm.id,
         static_cast<Engine *>(context)->engineSettings.teamIAm.displayName };
 }
-
 
 void Api::net_declareTeam(TeamID teamID, const std::string& name) {
     ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
