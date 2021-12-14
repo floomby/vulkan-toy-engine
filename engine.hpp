@@ -49,11 +49,6 @@ struct LineUBO {
     alignas(16) glm::vec4 bColor;
 };
 
-struct OffsetUBO {
-    glm::uint32_t x;
-    glm::uint32_t y;
-};
-
 struct LineHolder {
     std::vector<LineUBO> lines;
     void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius,
@@ -243,6 +238,8 @@ private:
         float x, y;
         glm::vec3 ray;
     };
+    InstanceID mousedOverId = 0;
+    bool selectionCanAttack = false, canAttack = false;
 
     boost::lockfree::spsc_queue<MouseEvent, boost::lockfree::capacity<1024>> mouseInput;
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -545,9 +542,7 @@ namespace GuiTextures {
     void setDefaultTexture();
 }
 
-#define MAX_GLYPHS_PER_DISPATCH 4
-
-// the alignment appears to be correct, but only the first 58 bytes work?
+// the alignment appears to be correct, but only the first 58 bytes work? (Idk what I was talking about, maybe this was the ssbo sync bug?)
 struct GlyphInfoUBO {
     glm::uint32_t pixelOffset;
     glm::uint32_t totalWidth;
@@ -556,7 +551,6 @@ struct GlyphInfoUBO {
     // I should read the rules about vulkan memomry alignment cause this seems stupid to have to make this 4 times as big
     // as it seems like it should be
     glm::uint32_t writeCounts[ECONF_MAX_LINES_IN_TEXT * 4];
-
 };
 
 struct IndexWidthSSBO {

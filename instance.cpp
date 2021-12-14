@@ -83,11 +83,14 @@ bool Instance::secondQueuedCommandRequiresMovement() const {
     auto it = ++commandList.begin();
     switch (it->kind) {
         case CommandKind::MOVE:
-        case CommandKind::ATTACK:
         case CommandKind::TARGET_UNIT:
         case CommandKind::TARGET_LOCATION:
             return true;
         default:
             return false;
     }
+}
+
+bool Instance::canAttack() {
+    return !!weapons.size();
 }

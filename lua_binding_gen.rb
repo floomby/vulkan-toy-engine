@@ -27,7 +27,7 @@ class BindingGenerator
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
-    @@integers = ["uint32_t", "int", "unsigned int", "InstanceID", "TeamID", "unsigned char"]
+    @@integers = ["uint32_t", "int", "uint", "size_t", "unsigned int", "InstanceID", "TeamID", "unsigned char"]
     @@floats = ["float", "double"]
     @@bool = ["bool"]
 
@@ -138,8 +138,16 @@ END
         return typestr.match?(/^[^<]*?pair<(.*)>/)
     end
 
+    def is_optional(typestr)
+        return typestr.match?(/^[^<]*?optional<(.*)>/)
+    end
+
     def vector_of(typestr)
         return typestr.match(/^[^<]*?vector<(.*)>/).captures[0]
+    end
+
+    def optional_of(typestr)
+        return typestr.match(/^[^<]*?optional<(.*)>/).captures[0]
     end
 
     def get_type(ts)
@@ -185,6 +193,30 @@ END
         elsif @@bool.include?(typestr)
             return -> (x) { "lua_pushboolean(ls, #{x});"}
         # oops
+        elsif typestr == "glm::vec3"
+            return -> (x) do<<-END
+lua_createtable(ls, 3, 0);
+    lua_pushnumber(ls, #{x}.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, #{x}.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, #{x}.z);
+    lua_rawseti(ls, -2, 3);
+END
+            end
+        elsif typestr == "glm::quat"
+            return -> (x) do<<-END
+lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, #{x}.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, #{x}.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, #{x}.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, #{x}.w);
+    lua_rawseti(ls, -2, 4);
+END
+            end
         elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>" || typestr == "std::basic_string<char, std::char_traits<char>>" 
             return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else
@@ -205,6 +237,15 @@ END
         #{push}
         lua_rawseti(ls, -2, i + 1);
     }
+END
+        elsif is_optional(@rettype)
+            of_type = optional_of(@rettype)
+            push = basic_pusher(of_type).call("r.value()")
+            acm += <<-END
+    if (r.has_value())
+        #{push}
+    else
+        lua_pushnil(ls);
 END
         elsif is_pair(@rettype)
             of_types = pair_of(@rettype)

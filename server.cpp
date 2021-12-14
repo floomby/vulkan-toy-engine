@@ -5,7 +5,7 @@
 #include "scene.hpp"
 
 Server::Server()
-: server(std::make_shared<Networking::Server>(net.io, 5555)) {
+: server(std::make_shared<Networking::Server>(net.io, Config::port)) {
     headless = true;
     currentScene = new Scene(this);
     Api::context = this;

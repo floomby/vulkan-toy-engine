@@ -40,57 +40,52 @@
 // #define DEPTH_DEBUG_IMAGE_USAGE VK_IMAGE_USAGE_TRANSFER_SRC_BIT
 #define DEPTH_DEBUG_IMAGE_USAGE 0
 
-#define LINUX_THREAD_DEBUGGING
-#ifdef LINUX_THREAD_DEBUGGING
-#include <sys/types.h>
-#endif
-
 // TODO, do this same thing for vma errors as well
 static std::map<int, const char *> vulkanErrors = {
-    { 0, "VK_SUCCESS" },
-    { 1, "VK_NOT_READY" },
-    { 2, "VK_TIMEOUT" },
-    { 3, "VK_EVENT_SET" },
-    { 4, "VK_EVENT_RESET" },
-    { 5, "VK_INCOMPLETE" },
-    { 1, "VK_ERROR_OUT_OF_HOST_MEMORY" },
-    { 2, "VK_ERROR_OUT_OF_DEVICE_MEMORY" },
-    { 3, "VK_ERROR_INITIALIZATION_FAILED" },
-    { 4, "VK_ERROR_DEVICE_LOST" },
-    { 5, "VK_ERROR_MEMORY_MAP_FAILED" },
-    { 6, "VK_ERROR_LAYER_NOT_PRESENT" },
-    { 7, "VK_ERROR_EXTENSION_NOT_PRESENT" },
-    { 8, "VK_ERROR_FEATURE_NOT_PRESENT" },
-    { 9, "VK_ERROR_INCOMPATIBLE_DRIVER" },
-    { 10, "VK_ERROR_TOO_MANY_OBJECTS" },
-    { 11, "VK_ERROR_FORMAT_NOT_SUPPORTED" },
-    { 12, "VK_ERROR_FRAGMENTED_POOL" },
-    { 13, "VK_ERROR_UNKNOWN" },
-    { 1000069000, "VK_ERROR_OUT_OF_POOL_MEMORY" },
-    { 1000072003, "VK_ERROR_INVALID_EXTERNAL_HANDLE" },
-    { 1000161000, "VK_ERROR_FRAGMENTATION" },
-    { 1000257000, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS" },
-    { 1000000000, "VK_ERROR_SURFACE_LOST_KHR" },
-    { 1000000001, "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR" },
-    { 1000001003, "VK_SUBOPTIMAL_KHR" },
-    { 1000001004, "VK_ERROR_OUT_OF_DATE_KHR" },
-    { 1000003001, "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR" },
-    { 1000011001, "VK_ERROR_VALIDATION_FAILED_EXT" },
-    { 1000012000, "VK_ERROR_INVALID_SHADER_NV" },
-    { 1000158000, "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT" },
-    { 1000174001, "VK_ERROR_NOT_PERMITTED_EXT" },
-    { 1000255000, "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT" },
-    { 1000268000, "VK_THREAD_IDLE_KHR" },
-    { 1000268001, "VK_THREAD_DONE_KHR" },
-    { 1000268002, "VK_OPERATION_DEFERRED_KHR" },
-    { 1000268003, "VK_OPERATION_NOT_DEFERRED_KHR" },
-    { 1000297000, "VK_PIPELINE_COMPILE_REQUIRED_EXT" },
-    { VK_ERROR_OUT_OF_POOL_MEMORY, "VK_ERROR_OUT_OF_POOL_MEMORY_KHR" },
-    { VK_ERROR_INVALID_EXTERNAL_HANDLE, "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR" },
-    { VK_ERROR_FRAGMENTATION, "VK_ERROR_FRAGMENTATION_EXT" },
-    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS, "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT" },
-    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS_KHR" },
-    { VK_PIPELINE_COMPILE_REQUIRED_EXT, "VK_ERROR_PIPELINE_COMPILE_REQUIRED_EXT" }
+    { VK_SUCCESS, "VK_SUCCESS" },
+    { VK_NOT_READY, "VK_NOT_READY" },
+    { VK_TIMEOUT, "VK_TIMEOUT" },
+    { VK_EVENT_SET, "VK_EVENT_SET" },
+    { VK_EVENT_RESET, "VK_EVENT_RESET" },
+    { VK_INCOMPLETE, "VK_INCOMPLETE" },
+    { VK_ERROR_OUT_OF_HOST_MEMORY, "VK_ERROR_OUT_OF_HOST_MEMORY" },
+    { VK_ERROR_OUT_OF_DEVICE_MEMORY, "VK_ERROR_OUT_OF_DEVICE_MEMORY" },
+    { VK_ERROR_INITIALIZATION_FAILED, "VK_ERROR_INITIALIZATION_FAILED" },
+    { VK_ERROR_DEVICE_LOST, "VK_ERROR_DEVICE_LOST" },
+    { VK_ERROR_MEMORY_MAP_FAILED, "VK_ERROR_MEMORY_MAP_FAILED" },
+    { VK_ERROR_LAYER_NOT_PRESENT, "VK_ERROR_LAYER_NOT_PRESENT" },
+    { VK_ERROR_EXTENSION_NOT_PRESENT, "VK_ERROR_EXTENSION_NOT_PRESENT" },
+    { VK_ERROR_FEATURE_NOT_PRESENT, "VK_ERROR_FEATURE_NOT_PRESENT" },
+    { VK_ERROR_INCOMPATIBLE_DRIVER, "VK_ERROR_INCOMPATIBLE_DRIVER" },
+    { VK_ERROR_TOO_MANY_OBJECTS, "VK_ERROR_TOO_MANY_OBJECTS" },
+    { VK_ERROR_FORMAT_NOT_SUPPORTED, "VK_ERROR_FORMAT_NOT_SUPPORTED" },
+    { VK_ERROR_FRAGMENTED_POOL, "VK_ERROR_FRAGMENTED_POOL" },
+    { VK_ERROR_UNKNOWN, "VK_ERROR_UNKNOWN" },
+    { VK_ERROR_OUT_OF_POOL_MEMORY, "VK_ERROR_OUT_OF_POOL_MEMORY" },
+    { VK_ERROR_INVALID_EXTERNAL_HANDLE, "VK_ERROR_INVALID_EXTERNAL_HANDLE" },
+    { VK_ERROR_FRAGMENTATION, "VK_ERROR_FRAGMENTATION" },
+    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS" },
+    { VK_ERROR_SURFACE_LOST_KHR, "VK_ERROR_SURFACE_LOST_KHR" },
+    { VK_ERROR_NATIVE_WINDOW_IN_USE_KHR, "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR" },
+    { VK_SUBOPTIMAL_KHR, "VK_SUBOPTIMAL_KHR" },
+    { VK_ERROR_OUT_OF_DATE_KHR, "VK_ERROR_OUT_OF_DATE_KHR" },
+    { VK_ERROR_INCOMPATIBLE_DISPLAY_KHR, "VK_ERROR_INCOMPATIBLE_DISPLAY_KHR" },
+    { VK_ERROR_VALIDATION_FAILED_EXT, "VK_ERROR_VALIDATION_FAILED_EXT" },
+    { VK_ERROR_INVALID_SHADER_NV, "VK_ERROR_INVALID_SHADER_NV" },
+    { VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT, "VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT" },
+    { VK_ERROR_NOT_PERMITTED_EXT, "VK_ERROR_NOT_PERMITTED_EXT" },
+    { VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT, "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT" },
+    { VK_THREAD_IDLE_KHR, "VK_THREAD_IDLE_KHR" },
+    { VK_THREAD_DONE_KHR, "VK_THREAD_DONE_KHR" },
+    { VK_OPERATION_DEFERRED_KHR, "VK_OPERATION_DEFERRED_KHR" },
+    { VK_OPERATION_NOT_DEFERRED_KHR, "VK_OPERATION_NOT_DEFERRED_KHR" },
+    { VK_PIPELINE_COMPILE_REQUIRED_EXT, "VK_PIPELINE_COMPILE_REQUIRED_EXT" },
+    { VK_ERROR_OUT_OF_POOL_MEMORY_KHR, "VK_ERROR_OUT_OF_POOL_MEMORY_KHR" },
+    { VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR, "VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR" },
+    { VK_ERROR_FRAGMENTATION_EXT, "VK_ERROR_FRAGMENTATION_EXT" },
+    { VK_ERROR_INVALID_DEVICE_ADDRESS_EXT, "VK_ERROR_INVALID_DEVICE_ADDRESS_EXT" },
+    { VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS_KHR, "VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS_KHR" },
+    { VK_ERROR_PIPELINE_COMPILE_REQUIRED_EXT, "VK_ERROR_PIPELINE_COMPILE_REQUIRED_EXT" }
 };
 
 void vulkanErrorGuard_(VkResult result, const char *errorMessage, const char *file, int line) {
@@ -158,9 +153,8 @@ static const std::vector<const char*> requiredInstanceExtensions = {
 };
 
 Engine::Engine(EngineSettings engineSettings)
-: client(std::make_shared<Networking::Client>(net.io, "127.0.0.1", "5555", &authState)) {
+: client(std::make_shared<Networking::Client>(net.io, "127.0.0.1", Config::portStr, &authState)) {
     this->engineSettings = engineSettings;
-    // std::cout << "Engine main thread is " << gettid() << std::endl;
     Api::context = this;
 }
 
@@ -200,7 +194,7 @@ void Engine::initWidow()
         }
     }
 
-    // TODO Get the monitor size and scalling from glfw to give to the freetype init function to make fonts a good size legible
+    // TODO Get the monitor size and scalling from glfw to help for deciding how big to make the text
     glfwInit();
     GuiTextures::initFreetype2(this);
     createCursors();
@@ -254,6 +248,15 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
         what->position.y.asFloat = engine->lastMousePosition.normedY;
         what->flags = mods;
         engine->gui->submitCommand({ Gui::GUI_CLICK, what });
+    }
+    if (engine->canAttack) {
+        auto mode = InsertionMode::OVERWRITE;
+        if (mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
+        if (mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
+        engine->apiLock.lock();
+        for (auto id : engine->idsSelected)
+            Api::cmd_setTargetID(id, engine->mousedOverId, mode);
+        engine->apiLock.unlock();
     }
 }
 
@@ -2444,6 +2447,8 @@ void Engine::handleInput() {
     }
 
     Instance *mousedOver = nullptr;
+    canAttack = false;
+    mousedOverId = 0;
     float minDistance = std::numeric_limits<float>::max();
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
@@ -2457,6 +2462,7 @@ void Engine::handleInput() {
 
     if(mousedOver) {
         // mousedOver->highlight() = true;
+        mousedOverId = mousedOver->id;
         glfwSetCursor(window, cursors[CursorIndex::CURSOR_SELECT]);
         bool tooltipStatus = true;
         for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
@@ -2517,10 +2523,11 @@ void Engine::handleInput() {
             //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             // }
             idsSelected.clear();
+            selectionCanAttack = false;
             idsSelectedChanged = true;
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
                 if (!currentScene->state.instances[i]->entity->isUnit || !currentScene->state.instances[i]->inPlay) continue;
-                assert(currentScene->state.instances[i]->inPlay);
+                if (engineSettings.teamIAm.id && engineSettings.teamIAm.id != currentScene->state.instances[i]->team) continue;
                 if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, currentScene->state.instances[i]->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, currentScene->state.instances[i]->position) < 0 !=
                     whichSideOfPlane(planes[2].first, planes[2].second, currentScene->state.instances[i]->position) < 0 &&
@@ -2531,11 +2538,16 @@ void Engine::handleInput() {
                 ) {
                     currentScene->state.instances[i]->highlight = true;
                     idsSelected.push_back(currentScene->state.instances[i]->id);
+                    if (!selectionCanAttack) selectionCanAttack = currentScene->state.instances[i]->canAttack();
                 } else {
                     currentScene->state.instances[i]->highlight = false;
                 }
             }
-            if (mousedOver) idsSelected.push_back(mousedOver->id);
+            if (mousedOver && engineSettings.teamIAm.id &&
+                engineSettings.teamIAm.id == mousedOver->team) {
+                idsSelected.push_back(mousedOver->id);
+                if (!selectionCanAttack) selectionCanAttack = mousedOver->canAttack();
+            }
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
             if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && planeDist > 0 && !idsSelected.empty()) {
@@ -2641,6 +2653,11 @@ void Engine::handleInput() {
         gui->submitCommand({ Gui::GUI_NOTIFY, what });
     }
 
+    if (mousedOver && mouseAction == MOUSE_NONE && selectionCanAttack && mousedOver->team != engineSettings.teamIAm.id) {
+        glfwSetCursor(window, cursors[CursorIndex::CURSOR_ATTACK]);
+        canAttack = true;
+    }
+
     lastMousePosition.x = x;
     lastMousePosition.y = y;
 
@@ -2689,6 +2706,7 @@ static bool frustumContainsSphere(const std::array<std::pair<glm::vec3, float>, 
 // The index is for which descriptor index to put the lighting buffer information
 // Here is the big graphics update function
 float Engine::updateScene(int index) {
+    // TODO This is where lag checking and compensation goes
     currentScene->state.syncToAuthoritativeState(authState);
 
     auto nowTime = std::chrono::steady_clock::now();
@@ -2706,7 +2724,7 @@ float Engine::updateScene(int index) {
     cammera.cached.projView = pushConstants.projection * pushConstants.view;
     cammera.cached.view_1Proj_1 = cammera.cached.view_1 * cammera.cached.proj_1;
 
-    // The 0th instance is the skybox (probably shouldnt be like this though)
+    // The 0th instance is always the skybox
     currentScene->state.instances[0]->position = cammera.position;
 
     auto projView = pushConstants.projection * pushConstants.view;

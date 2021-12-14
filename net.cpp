@@ -66,7 +66,7 @@ void Session::doRead() {
     boost::asio::async_read(socket, boost::asio::buffer(data, sizeof(ApiProtocol)),
         [this, self](boost::system::error_code err, size_t length) {
             if (!err) {
-                server.lock()->queue.push({ *reinterpret_cast<ApiProtocol *>(data), shared_from_this() });
+                std::shared_ptr(server)->queue.push({ *reinterpret_cast<ApiProtocol *>(data), shared_from_this() });
                 doRead();
             }
         });
@@ -81,7 +81,7 @@ void Session::writeData(const ApiProtocol& data) {
             std::cerr << " (" << (uint)team->id << " " << team->displayName << ")"; 
         }
         std::cerr << std::endl;
-        server.lock()->removeSession(shared_from_this());
+        std::shared_ptr(server)->removeSession(shared_from_this());
     }
 }
 

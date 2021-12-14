@@ -96,6 +96,7 @@ void Api::cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, Inserti
 }
 
 void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode) {
+    std::cout << "good " << unitID << " " << targetID << std::endl;
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { {}, {}, targetID }, mode }};
     context->send(data);
 }
@@ -103,11 +104,11 @@ void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode 
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
     std::scoped_lock l(context->authState.lock);
     Instance *inst;
-    if (Api::context->headless) {
+    if (context->headless) {
         inst = new Instance(projectileEntity, context->authState.counter++);
     } else {
-        inst = new Instance(projectileEntity, Api::context->currentScene->textures.data() + projectileEntity->textureIndex,
-            Api::context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
+        inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
+            context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
     }
     inst->dP = normedDirection * projectileEntity->maxSpeed;
     inst->position = position;
@@ -115,8 +116,6 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
     inst->parentID = parentID;
     context->authState.instances.push_back(inst);
 }
-
-#include <iostream>
 
 void Api::eng_echo(const char *message) {
     std::string msg("  > ");
@@ -253,6 +252,66 @@ void Api::eng_pickAudioDevice(const char *name) {
 void Api::eng_playSound(const char *name) {
     if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
     context->sound->playSound(name);
+}
+
+void Api::eng_setInstanceCustomState(InstanceID unitID, std::string key, int value) {
+    lock_and_get_iterator
+    it->customState[key] = value;
+}
+
+void Api::engS_setInstanceCustomState(Instance *unit, std::string key, int value) {
+    std::scoped_lock l(context->authState.lock);
+    unit->customState[key] = value;
+}
+
+std::optional<int> Api::eng_getInstanceCustomState(InstanceID unitID, std::string key) {
+    lock_and_get_iterator
+    auto mit = it->customState.find(key);
+    if (mit == it->customState.end()) return {};
+    return std::optional<int>(mit->second);
+}
+
+std::optional<int> Api::engS_getInstanceCustomState(Instance *unit, std::string key) {
+    std::scoped_lock l(context->authState.lock);
+    auto mit = unit->customState.find(key);
+    if (mit == unit->customState.end()) return {};
+    return std::optional<int>(mit->second);
+}
+
+void Api::eng_removeInstanceCustomState(InstanceID unitID, std::string key) {
+    lock_and_get_iterator
+    auto mit = it->customState.find(key);
+    if (mit == it->customState.end()) return;
+    it->customState.erase(mit);
+}
+
+void Api::engS_removeInstanceCustomState(Instance *unit, std::string key) {
+    std::scoped_lock l(context->authState.lock);
+    auto mit = unit->customState.find(key);
+    if (mit == unit->customState.end()) return;
+    unit->customState.erase(mit);
+}
+
+glm::vec3 Api::eng_getInstancePosition(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->position;
+}
+
+glm::vec3& Api::engS_getInstancePosition(Instance *unit) {
+    return unit->position;
+}
+
+glm::quat Api::eng_getInstanceHeading(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->heading;
+}
+
+glm::quat& Api::engS_getInstanceHeading(Instance *unit) {
+    return unit->heading;
+}
+
+size_t Api::eng_frame() {
+    return context->authState.frame;
 }
 
 void Api::gui_setVisibility(const char *name, bool visibility) {

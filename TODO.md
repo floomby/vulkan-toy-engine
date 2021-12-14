@@ -7,6 +7,7 @@
  * Finish unit ais
  * I guess I will go back to drawing in z sorted order for getting cloaking working
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
+ * The switching in the dynamic shadow level of detail is sort of appalling (this could be as easy as reducing the pcf kernel size, but I doubt it)
 
 ## Considerations
  * I think many things will be broken on big endian systems
@@ -15,7 +16,7 @@
  * The string of glyphs to cache is pretty silly imo
  * cpu (host) allocation stuff for vulkan (vma)?? (This is not worth doing until I profile stuff)
  * I think I read the glfw docs wrong and dont need to be using interthread queues for the input handling threads (afaict the linux tids are the same as the engine thread, this could be not guarenteed though)
- * The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass into the world pass because without it the code complexity of order line drawing was going to be really high doing it this way
+ * The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass back into the world pass because without it the code complexity of order line drawing was going to be really high doing it this way
  * I need to take a look and lighting and materials and stuff
  * I should move to using cmake or something for building
  * I need to look around at vram memory usage in general, it is very inefficient in many places

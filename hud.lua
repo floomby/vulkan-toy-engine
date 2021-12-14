@@ -64,7 +64,11 @@ local function testFire()
 end
 
 local function dummyCallback(id)
-    print("callback with id of " .. id)
+    -- print("callback with id of " .. id)
+    -- eng_setInstanceCustomState(id, "hold_position", 0)
+    -- print(inspect(eng_getInstanceCustomState(id, "hold_position")))
+    -- print(inspect(eng_getInstanceCustomState(id, "something_else")))
+    print(inspect(eng_getInstancePosition(id)))
 end
 
 function Build_handler(mods, name)
@@ -212,16 +216,12 @@ gui_setVisibility("build menu", true)
 build_visibility()
 engret_visibility()
 
-
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 -- gui_setLabelText("button", "Hello")
 -- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
 -- eng_setInstanceHealth(id, 40)
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
-
-
-
 
 local function dummyCallback2(id)
     print("callback with id of " .. id * 2)
@@ -242,6 +242,7 @@ end
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
+net_pause(false)
 
 local teamID, display_name = state_getTeamIAm()
 -- print(teamID .. " - " .. display_name)
@@ -257,3 +258,7 @@ for i = 0,1,1
 do 
 --    print(inspect(Server_callbacks[i]))
 end
+
+
+cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)

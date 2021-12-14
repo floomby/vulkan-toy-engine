@@ -9,28 +9,6 @@
 
 #include "instance.hpp"
 
-// struct StateSettings {
-    
-// };
-
-// class State;
-
-// class StatePropagator {
-// public:
-//     StatePropagator(State&& state);
-//     std::atomic<bool> completed;
-//     inline void doTicks(uint ticks) {
-//         std::scoped_lock(ticksToDoMutex);
-//         ticksToDo += ticks;
-//     }
-//     void dumpStateAfterCompletion(std::atomic<State *>& state);
-// private:
-//     uint ticksToDo = 0;
-//     std::mutex ticksToDoMutex;
-//     std::thread proscessingThread;
-// };
-
-#include <csignal>
 
 struct CommandCoroutineType {
     Command *command;
@@ -139,6 +117,7 @@ public:
     ~AuthoritativeState();
 
     std::vector<Instance *> instances;
+    // I don't remember why I made this volatile?
     volatile size_t frame = 0;
     InstanceID counter = 100;
     std::vector<std::shared_ptr<Team>> teams;
@@ -169,27 +148,8 @@ public:
     std::vector<Instance *> instances;
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
-    // player economy state and metadata stuff and so forth....
-    // Updating does not really belong here
+    // This update is only for smoothing the animations and stuff (Lag compensation will eventually go in it too once I get around to it)
     void doUpdate(float timeDelta);
     void syncToAuthoritativeState(AuthoritativeState& state);
     std::vector<Team> teams;
 };
-
-
-
-// class State {
-// public:
-//     void insertCommand(Command&& command, uint when);
-//     void step();
-//     inline void observe(std::function<void (ObservableState&)> observer) {
-//         std::lock_guard guard(observableStateMutex);
-//         observer(observableState);
-//     }
-// private:
-//     // CommandList commandList;
-//     std::mutex commandListMutex;
-//     uint atTicks;
-//     ObservableState observableState;
-//     std::mutex observableStateMutex;
-// };

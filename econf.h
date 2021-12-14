@@ -10,9 +10,7 @@
 
 #include <string>
 namespace GuiTextures {
-
-const std::string glyphsToCache = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-
+    const std::string glyphsToCache = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 }
 
 namespace Config {
@@ -32,6 +30,26 @@ namespace Net {
 }
 
 const float iconNDCSize = 0.05f;
+const short port = 5555;
+
+namespace Util {
+    template<unsigned... digits>
+    struct to_chars { static const char value[]; };
+
+    template<unsigned... digits>
+    constexpr char to_chars<digits...>::value[] = { ('0' + digits)..., 0 };
+
+    template<unsigned rem, unsigned... digits>
+    struct explode : explode<rem / 10, rem % 10, digits...> { };
+
+    template<unsigned... digits>
+    struct explode<0, digits...> : to_chars<digits...> { };
+}
+
+template<unsigned num>
+struct to_string : Util::explode<num> {};
+
+const std::string portStr = to_string<port>::value;
 
 }
 

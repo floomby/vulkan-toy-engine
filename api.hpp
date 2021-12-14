@@ -22,8 +22,7 @@ public:
     static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void(InstanceID)> cb);
     static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
     static void cmd_destroyInstance(InstanceID unitID);
-    // static void cmd_attack(const uint32_t unitID, const uint32_t target, const InsertionMode mode);
-
+    // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
     static void eng_echo(const char *message);
@@ -53,7 +52,17 @@ public:
     static std::vector<std::string> eng_listAudioDevices();
     static void eng_pickAudioDevice(const char *name);
     static void eng_playSound(const char *name);
-
+    static void eng_setInstanceCustomState(InstanceID unitID, std::string key, int value);
+    static void engS_setInstanceCustomState(Instance *unit, std::string key, int value);
+    static std::optional<int> eng_getInstanceCustomState(InstanceID unitID, std::string key);
+    static std::optional<int> engS_getInstanceCustomState(Instance *unit, std::string key);
+    static void eng_removeInstanceCustomState(InstanceID unitID, std::string key);
+    static void engS_removeInstanceCustomState(Instance *unit, std::string key);
+    static glm::vec3 eng_getInstancePosition(InstanceID unitID);
+    static glm::vec3& engS_getInstancePosition(Instance *unit);
+    static glm::quat eng_getInstanceHeading(InstanceID unitID);
+    static glm::quat& engS_getInstanceHeading(Instance *unit);
+    static size_t eng_frame();
     static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);

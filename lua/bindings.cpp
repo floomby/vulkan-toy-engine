@@ -478,6 +478,185 @@ static void eng_playSoundExport(lua_State *ls) {
     lua_setglobal(ls, "eng_playSound");
 }
 
+static int eng_setInstanceCustomStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto a2 = (int)luaL_checkinteger(ls, 3);
+    Api::eng_setInstanceCustomState(a0, a1, a2);
+    return 0;
+}
+
+static void eng_setInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setInstanceCustomStateWrapper);
+    lua_setglobal(ls, "eng_setInstanceCustomState");
+}
+
+static int engS_setInstanceCustomStateWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto a2 = (int)luaL_checkinteger(ls, 3);
+    Api::engS_setInstanceCustomState(a0, a1, a2);
+    return 0;
+}
+
+static void engS_setInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_setInstanceCustomStateWrapper);
+    lua_setglobal(ls, "engS_setInstanceCustomState");
+}
+
+static int eng_getInstanceCustomStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto r = Api::eng_getInstanceCustomState(a0, a1);
+    if (r.has_value())
+        lua_pushinteger(ls, r.value());
+    else
+        lua_pushnil(ls);
+    return 1;
+}
+
+static void eng_getInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceCustomStateWrapper);
+    lua_setglobal(ls, "eng_getInstanceCustomState");
+}
+
+static int engS_getInstanceCustomStateWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto r = Api::engS_getInstanceCustomState(a0, a1);
+    if (r.has_value())
+        lua_pushinteger(ls, r.value());
+    else
+        lua_pushnil(ls);
+    return 1;
+}
+
+static void engS_getInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceCustomStateWrapper);
+    lua_setglobal(ls, "engS_getInstanceCustomState");
+}
+
+static int eng_removeInstanceCustomStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::eng_removeInstanceCustomState(a0, a1);
+    return 0;
+}
+
+static void eng_removeInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_removeInstanceCustomStateWrapper);
+    lua_setglobal(ls, "eng_removeInstanceCustomState");
+}
+
+static int engS_removeInstanceCustomStateWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::engS_removeInstanceCustomState(a0, a1);
+    return 0;
+}
+
+static void engS_removeInstanceCustomStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_removeInstanceCustomStateWrapper);
+    lua_setglobal(ls, "engS_removeInstanceCustomState");
+}
+
+static int eng_getInstancePositionWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstancePosition(a0);
+    lua_createtable(ls, 3, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    return 1;
+}
+
+static void eng_getInstancePositionExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstancePositionWrapper);
+    lua_setglobal(ls, "eng_getInstancePosition");
+}
+
+static int engS_getInstancePositionWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstancePosition(a0);
+    lua_createtable(ls, 3, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    return 1;
+}
+
+static void engS_getInstancePositionExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstancePositionWrapper);
+    lua_setglobal(ls, "engS_getInstancePosition");
+}
+
+static int eng_getInstanceHeadingWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceHeading(a0);
+    lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, r.w);
+    lua_rawseti(ls, -2, 4);
+    return 1;
+}
+
+static void eng_getInstanceHeadingExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceHeadingWrapper);
+    lua_setglobal(ls, "eng_getInstanceHeading");
+}
+
+static int engS_getInstanceHeadingWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceHeading(a0);
+    lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, r.w);
+    lua_rawseti(ls, -2, 4);
+    return 1;
+}
+
+static void engS_getInstanceHeadingExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceHeadingWrapper);
+    lua_setglobal(ls, "engS_getInstanceHeading");
+}
+
+static int eng_frameWrapper(lua_State *ls) {
+    auto r = Api::eng_frame();
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void eng_frameExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_frameWrapper);
+    lua_setglobal(ls, "eng_frame");
+}
+
 static int eng_quitWrapper(lua_State *ls) {
     Api::eng_quit();
     return 0;
@@ -644,6 +823,17 @@ void LuaWrapper::apiExport() {
     eng_listAudioDevicesExport(luaState);
     eng_pickAudioDeviceExport(luaState);
     eng_playSoundExport(luaState);
+    eng_setInstanceCustomStateExport(luaState);
+    engS_setInstanceCustomStateExport(luaState);
+    eng_getInstanceCustomStateExport(luaState);
+    engS_getInstanceCustomStateExport(luaState);
+    eng_removeInstanceCustomStateExport(luaState);
+    engS_removeInstanceCustomStateExport(luaState);
+    eng_getInstancePositionExport(luaState);
+    engS_getInstancePositionExport(luaState);
+    eng_getInstanceHeadingExport(luaState);
+    engS_getInstanceHeadingExport(luaState);
+    eng_frameExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);

@@ -6,6 +6,7 @@
 #include <boost/crc.hpp>
 #include <coroutine>
 #include <list>
+#include <map>
 
 #include "team.hpp"
 #include "utilities.hpp"
@@ -14,7 +15,7 @@
 void crcString(boost::crc_32_type& crc, const std::string& str);
 
 enum class CommandKind {
-    ATTACK,
+    // ATTACK,
     MOVE,
     STOP,
     CREATE,
@@ -119,8 +120,10 @@ public:
 
     Target target;
     std::vector<WeaponInstance> weapons;
+    bool canAttack();
 
     InstanceState state { IEngage::ENGAGE };
+    std::map<std::string, int> customState;
 
     uint framesAlive = 0;
 
