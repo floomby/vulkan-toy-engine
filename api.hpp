@@ -62,7 +62,7 @@ public:
     static glm::vec3& engS_getInstancePosition(Instance *unit);
     static glm::quat eng_getInstanceHeading(InstanceID unitID);
     static glm::quat& engS_getInstanceHeading(Instance *unit);
-    static size_t eng_frame();
+    static unsigned long eng_frame();
     static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);

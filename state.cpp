@@ -118,7 +118,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
-    if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
+    if (frame.load(std::memory_order_relaxed) % 300 == 1) std::cout << std::hex << crc() << std::endl;
 
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
@@ -193,20 +193,22 @@ void AuthoritativeState::doUpdateTick() {
             for (const auto& ai : it->entity->ais) {
                 ai->run(*it);
             }
-            if (it->team == 1) {
-                for (auto& weapon : it->weapons) {
-                    for (auto other : copy) {
-                        if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
-
-                        auto v = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
+            float closest = std::numeric_limits<float>::max();
+            for (auto& weapon : it->weapons) {
+                glm::vec3 vec = { 0.0f, 0.0f, 0.0f };
+                for (auto other : copy) {
+                    if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
+                    auto dist = distance(other->position, it->position);
+                    if (dist < weapon.instanceOf->range * 1.5f && dist < closest) {
+                        vec = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
                             weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
-                        weapon.fire(it->position, v);
                     }
                 }
+                if (distance2(vec, { 0.0f, 0.0f, 0.0f }) > 0.01) weapon.fire(it->position, vec);
             }
         }
     }
-    frame = frame + 1;
+    frame.fetch_add(1, std::memory_order_relaxed);
     copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
     for (auto inst : toDelete) delete inst;
     copy.reserve(copy.size() + instances.size());
@@ -225,7 +227,8 @@ void AuthoritativeState::dump() {
 uint32_t AuthoritativeState::crc() {
     boost::crc_32_type crc;
     std::scoped_lock l(lock);
-    crc.process_bytes(const_cast<size_t *>(&frame), sizeof(frame));
+    auto tmp = frame.load(std::memory_order_relaxed);
+    crc.process_bytes(&tmp, sizeof(tmp));
     for (const auto& inst : instances) {
         inst->doCrc(crc);
     }
@@ -304,7 +307,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             if (data->callbackID && session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;
-                data2.frame = frame;
+                data2.frame = frame.load(std::memory_order_relaxed);
                 data2.command.id = inst->id;
                 callbacks.push({ data2, session.value() });
             }
@@ -324,7 +327,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
     } else if (data->kind == ApiProtocolKind::FRAME_ADVANCE) {
         assert(!context->headless);
         doUpdateTick();
-        frame = data->frame;
+        frame.store(data->frame, std::memory_order_relaxed);
     } else if (data->kind == ApiProtocolKind::PAUSE) {
         paused = (bool)data->frame;
     } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {

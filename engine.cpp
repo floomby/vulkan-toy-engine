@@ -4277,6 +4277,7 @@ void Engine::destroyCursors() {
 }
 
 namespace EntityTextures {
+    // I am pretty sure I dont need to synchronize this since only the render thread uses it
     static std::map<VkImage, uint> references = {};
 }
 
@@ -4703,6 +4704,7 @@ void Scene::updateUniforms(int idx) {
 }
 
 namespace CubeMaps {
+    // Again I don't think I need to synchronize this
     static std::map<VkImage, uint> references = {};
 }
 
@@ -4915,6 +4917,7 @@ CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
 
 namespace GuiTextures {
     // I should have just used shared pointers from the start
+    static std::mutex referenceLock;
     static std::map<VkImage, uint> references = {};
     static FT_Library library;
     static FT_Face face;
@@ -5046,7 +5049,9 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
+    GuiTextures::referenceLock.lock();
     GuiTextures::references.insert({ image, 1 });
+    GuiTextures::referenceLock.unlock();
 
     sampler = TextResource::sampler_;
 
@@ -5078,11 +5083,14 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 }
 
 GuiTexture::~GuiTexture() {
+    GuiTextures::referenceLock.lock();
     if (!invalid && --GuiTextures::references[image] == 0) {
+        GuiTextures::references.erase(image);
+        GuiTextures::referenceLock.unlock();
         vkDestroyImageView(context->device, imageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, image, allocation);
-        GuiTextures::references.erase(image);
     }
+    GuiTextures::referenceLock.unlock();
     invalid = true;
 }
 
@@ -5094,7 +5102,9 @@ GuiTexture::GuiTexture(const GuiTexture& other) {
     allocation = other.allocation;
     context = other.context;
     widenessRatio = other.widenessRatio;
+    GuiTextures::referenceLock.lock();
     GuiTextures::references[image]++;
+    GuiTextures::referenceLock.unlock();
 }
 
 GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
@@ -5113,12 +5123,15 @@ image(other.image), context(other.context), allocation(other.allocation)
 }
 
 GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
+    GuiTextures::referenceLock.lock();
     assert(!other.invalid);
     if (!invalid && --GuiTextures::references[image] == 0) {
+        GuiTextures::references.erase(image);
+        GuiTextures::referenceLock.unlock();
         vkDestroyImageView(context->device, imageView, nullptr);
         vmaDestroyImage(context->memoryAllocator, image, allocation);
-        GuiTextures::references.erase(image);
     }
+    GuiTextures::referenceLock.unlock();
     imageView = other.imageView;
     image = other.image;
     sampler = other.sampler;
@@ -5126,7 +5139,9 @@ GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
     context = other.context;
     widenessRatio = other.widenessRatio;
     invalid = false;
+    GuiTextures::referenceLock.lock();
     GuiTextures::references[image]++;
+    GuiTextures::referenceLock.unlock();
     return *this;
 }
 
@@ -5568,7 +5583,9 @@ GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation,
 : widenessRatio(widenessRatio), image(image), allocation(allocation), context(context) {
     this->imageView = imageView;
     sampler = TextResource::sampler_;
+    GuiTextures::referenceLock.lock();
     GuiTextures::references.insert({ image, 1 });
+    GuiTextures::referenceLock.unlock();
 }
 
 GuiTexture TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {

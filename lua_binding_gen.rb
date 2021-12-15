@@ -27,7 +27,7 @@ class BindingGenerator
     @@classes = ["Entity", "Instance"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
-    @@integers = ["uint32_t", "int", "uint", "size_t", "unsigned int", "InstanceID", "TeamID", "unsigned char"]
+    @@integers = ["uint32_t", "int", "uint", "size_t", "unsigned int", "long unsigned int", "InstanceID", "TeamID", "unsigned char"]
     @@floats = ["float", "double"]
     @@bool = ["bool"]
 

@@ -67,7 +67,7 @@ namespace Pathgen {
         }
     }
 
-    // This function doesn't compute the right thing exactly (It should make normed vectors, but it does not, but I kind of like how it looks now)
+    // This function doesn't compute the right thing exactly (It should make normed vectors, but it does not, but I kind of like what it does)
     glm::vec3 computeBalisticTrajectory(const glm::vec3& o, const glm::vec3& p,
         const glm::vec3& dp, float r, float v) {
         auto d = p - o;

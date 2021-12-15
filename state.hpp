@@ -117,8 +117,7 @@ public:
     ~AuthoritativeState();
 
     std::vector<Instance *> instances;
-    // I don't remember why I made this volatile?
-    volatile size_t frame = 0;
+    std::atomic<unsigned long> frame = 0;
     InstanceID counter = 100;
     std::vector<std::shared_ptr<Team>> teams;
 

@@ -109,8 +109,8 @@ public:
     InstanceID id;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
-    volatile double health = 1.0f;
-    volatile double resources;
+    CopyableAtomic<double> health = 1.0;
+    CopyableAtomic<double> resources = 0.0;
     bool hasCollision = true;
 
     // This is the stuff that needs to get synced

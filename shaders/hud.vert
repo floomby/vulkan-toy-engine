@@ -68,6 +68,9 @@ void main() {
         outTexCoord = vec2(0.0, 0.0);
         outTexIndex = -1;
         outGuiID = 0xffffffff;
+        outCursorID = pushConstants.cursorID;
+        outRenderMode = RMODE_NONE;
+        return;
     } else if (gl_VertexIndex < 12) {
         vec2 dragBox[6] = vec2[](
             pushConstants.dragBox[0],
