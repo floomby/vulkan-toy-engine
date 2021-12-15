@@ -32,10 +32,11 @@ WeaponInstance::WeaponInstance(Weapon *instanceOf, InstanceID parentID)
 
 #include <iostream>
 
-void WeaponInstance::fire(const glm::vec3& position) {
-    if (timeSinceFired > 1.0f) {
-        instanceOf->fire(position, { 0.0f, 0.0f, 1.0f }, parentID);
+void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction) {
+    if (timeSinceFired > instanceOf->reload[reloadIndex]) {
+        instanceOf->fire(position, direction, parentID);
         timeSinceFired = 0.0f;
+        reloadIndex = (reloadIndex + 1) % instanceOf->reload.size();
     }
     timeSinceFired += Config::Net::secondsPerTick;
 }

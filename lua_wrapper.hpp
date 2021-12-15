@@ -165,6 +165,23 @@ private:
         num = lua_tonumber(luaState, -1);
         lua_pop(luaState, 1);
     }
+    
+    template<typename T>
+    void getNumbersField(const char *key, std::vector<T>& nums) {
+        static_assert(std::is_arithmetic_v<T>, "Getting number field requires arithmetic type");
+        lua_pushstring(luaState, key);
+        lua_gettable(luaState, -2);
+        if (!lua_istable(luaState, -1))
+            error("Expected table for %s.", key);
+        auto count = lua_objlen(luaState, -1);
+        nums.reserve(nums.size() + count);
+        for (int i = 1; i <= count; i++) {
+            lua_rawgeti(luaState, -1, i);
+            nums.push_back(luaL_checknumber(luaState, -1));
+            lua_pop(luaState, 1);
+        }
+        lua_pop(luaState, 1);
+    }
 
     double getNumberField(const char *key);
     bool getFunctionField(const char *key, int pos = 0);

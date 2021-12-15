@@ -26,6 +26,7 @@ public:
     std::string name;
     float range;
     float damage;
+    std::vector<float> reload;
 private:
 };
 
@@ -50,8 +51,9 @@ public:
     // Target target;
     // void aquireTarget(/* needs some argements*/);
     float timeSinceFired;
+    uint reloadIndex;
 
     uint32_t parentID;
-    void fire(const glm::vec3& position);
+    void fire(const glm::vec3& position, const glm::vec3& direction);
     // glm::vec3 realativePosition;
 };

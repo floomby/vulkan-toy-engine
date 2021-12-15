@@ -375,6 +375,9 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             throw std::runtime_error("Lua error: unsupported weapon kind.");
     }
 
+    getNumbersField("reload", ret->reload);
+    assert(ret->reload.size());
+
     return ret;
 }
 

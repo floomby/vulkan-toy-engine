@@ -4,9 +4,6 @@
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
 : context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
-    // idLookup.erase(0);
-    // root->id = UINT32_MAX;
-    // idLookup.insert({ root->id, root });
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     lua = new LuaWrapper(true);
@@ -709,6 +706,7 @@ void GuiComponent::setText(const std::string& text) {
 }
 
 void GuiLabel::setText(const std::string& text) {
+    oldTextures.insert(oldTextures.end(), textures.begin(), textures.end());
     message = text;
     textures = { context->context->glyphCache->makeGuiTexture(text) };
     context->guiThreadNeedTextureSync = true;

@@ -5,7 +5,7 @@ Ship = {
     maxSpeed = 7,
     acceleration = 0.3,
     maxOmega = 0.2,
-    maxHealth = 50.0,
+    maxHealth = 500.0,
     weapons = {
         "basic_plasma",
     },

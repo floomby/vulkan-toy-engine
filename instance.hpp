@@ -120,16 +120,16 @@ public:
 
     Target target;
     std::vector<WeaponInstance> weapons;
-    bool canAttack();
+    bool canAttack() const;
 
     InstanceState state { IEngage::ENGAGE };
     std::map<std::string, int> customState;
 
     uint framesAlive = 0;
 
-    bool operator==(const Instance& other);
-    bool operator==(uint32_t id);
-    bool operator<(uint32_t id);
+    bool operator==(const Instance& other) const;
+    bool operator==(uint32_t id) const;
+    bool operator<(uint32_t id) const;
 
     void doCrc(boost::crc_32_type& crc) const;
 private:

@@ -31,7 +31,12 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
             * scale(glm::vec3(Config::iconNDCSize / aspectRatio, Config::iconNDCSize, Config::iconNDCSize));
 
     } else {
-        _state.model = translate(position) * glm::toMat4(heading);
+        if (!entity->isProjectile)
+            _state.model = translate(position) * glm::toMat4(heading);
+        else {
+            _state.model = translate(position) * glm::eulerAngleXYX(static_cast <float> (M_PI * rand()) / static_cast <float> (RAND_MAX),
+                static_cast <float> (M_PI * rand()) / static_cast <float> (RAND_MAX), static_cast <float> (M_PI * rand()) / static_cast <float> (RAND_MAX));
+        }
     }
     _state.normal = transpose(inverse(view * _state.model));
     // This math is wrong
@@ -60,15 +65,15 @@ bool Instance::rayIntersects(const glm::vec3& origin, const glm::vec3& direction
     return intersectRaySphere(origin, direction, position, entity->boundingRadius * entity->boundingRadius, distance);
 }
 
-bool Instance::operator==(const Instance& other) {
+bool Instance::operator==(const Instance& other) const {
     return id == other.id;
 }
 
-bool Instance::operator==(uint32_t id) {
+bool Instance::operator==(uint32_t id) const {
     return this->id == id;
 }
 
-bool Instance::operator<(uint32_t id) {
+bool Instance::operator<(uint32_t id) const {
     return this->id < id;
 }
 
@@ -91,6 +96,6 @@ bool Instance::secondQueuedCommandRequiresMovement() const {
     }
 }
 
-bool Instance::canAttack() {
+bool Instance::canAttack() const {
     return !!weapons.size();
 }

@@ -193,9 +193,16 @@ void AuthoritativeState::doUpdateTick() {
             for (const auto& ai : it->entity->ais) {
                 ai->run(*it);
             }
-            for (auto& weapon : it->weapons) {
-                // TODO Weapon targeting
-                weapon.fire(it->position);
+            if (it->team == 1) {
+                for (auto& weapon : it->weapons) {
+                    for (auto other : copy) {
+                        if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
+
+                        auto v = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
+                            weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
+                        weapon.fire(it->position, v);
+                    }
+                }
             }
         }
     }
