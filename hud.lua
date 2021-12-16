@@ -1,6 +1,23 @@
 local inspect = require('libs/inspect')
 -- require('lua/server_callbacks')
 
+local data_bindings = {}
+local data_bindings_cache = {}
+
+local function update_bound_data()
+    for name, wrapper in pairs(data_bindings) do
+        local value = wrapper()
+        if (value ~= data_bindings_cache[name]) then
+            data_bindings_cache[name] = value
+            gui_setLabelText(name, value)
+        end
+    end
+end
+
+local function bind_data(name, wrapper)
+    data_bindings[name] = wrapper
+end
+
 -- Idk where this belongs, but it isn't here (I should probably just lua_dostring it)
 local audioDeviceList = eng_listAudioDevices()
 eng_pickAudioDevice(audioDeviceList[1])
@@ -105,6 +122,8 @@ local function remove_build_menu()
     gui_removePanel("Build_menu")
 end
 
+
+
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
     x = -1.0,
@@ -115,6 +134,7 @@ Hud = {
     kind = GuiLayoutKind__PANEL,
     text = "",
     color = 0x6050cc60,
+    onPeriodicUpdate = update_bound_data,
     children = {
         {
             x = -0.9,
@@ -160,6 +180,28 @@ Hud = {
             name = "engret",
         },
         {
+            x = 0.3,
+            y = -1.0,
+            width = 0.2,
+            height = 0.1,
+            onSelectionChanged = engret_visibility,
+            kind = GuiLayoutKind__PANEL,
+            color = 0x6050cc60,
+            children = {
+                {
+                    x = 0.3,
+                    y = -1.0,
+                    width = 0.5,
+                    height = 0.1,
+                    onSelectionChanged = engret_visibility,
+                    kind = GuiLayoutKind__TEXT_BUTTON,
+                    color = 0x000000ff,
+                    name = "rus",
+                    text = "",
+                },
+            }
+        },
+        {
             x = -0.7,
             y = 0.875,
             width = 0.5,
@@ -189,6 +231,12 @@ Hud = {
         }
     }
 }
+
+local function resource_wrapper()
+    return state_getResources(1 ) .. " RUs"
+end
+
+bind_data("rus", resource_wrapper)
 
 local function new_handler()
     print("I guess the gui can be dynamically loaded now")
@@ -270,3 +318,5 @@ end
 -- cmd_createInstance("shipyard", { 0.0, 0.0, -5.0 }, { -0.798, 0.420, -0.104, 0.420 }, 2, nil)
 
 -- cmd_createInstance("ship", { 110.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
+
+-- state_giveResources(1, 50.76)

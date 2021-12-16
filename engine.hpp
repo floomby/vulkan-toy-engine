@@ -474,6 +474,7 @@ private:
 
     void recreateSwapChain();
 
+    unsigned long totalFrames = 0;
     int currentFrame;
     void drawFrame();
 

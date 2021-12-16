@@ -1,4 +1,7 @@
 ## Next steps
+ * Finish the sound
+ * Configurable keyboard input
+ * Resource system
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
  * Finish projectile stuff

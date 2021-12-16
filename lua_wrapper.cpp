@@ -195,6 +195,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     add_handler("onToggle")
     add_handler("onSelectionChanged")
     add_handler("onTextUpdated")
+    add_handler("onPeriodicUpdate")
     
     lua_pushstring(luaState, "children");
     int toRemove = lua_gettop(luaState);

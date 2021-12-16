@@ -1,3 +1,6 @@
+// This is basically the "vulkan" file plus the "glfw" file ie. most of the rendering and input handling
+// definately not good organization
+
 #ifndef DONT_PRINT_MEMORY_LOG
 #define VMA_DEBUG_LOG(format, ...) do { \
     printf(format, ##__VA_ARGS__); \
@@ -2817,6 +2820,7 @@ static std::array<int, 256> mainDepthHistogram {};
 // TODO The synchornization code is pretty much nonsence, it works but is bad (it require the swap chain size to match the in flight frames count)
 // The fences are for the swap chain, but they also protect the command buffers since we are tripple buffering the commands (at least on my machine)
 void Engine::drawFrame() {
+    totalFrames++;
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
@@ -3101,6 +3105,11 @@ void Engine::runCurrentScene() {
         drawFrame();
         glfwPollEvents();
         handleInput();
+        if (totalFrames % 50 == 2 & authState.frame.load(std::memory_order_relaxed) > 0) {
+            GuiCommandData *what = new GuiCommandData();
+            what->str = "onPeriodicUpdate";
+            gui->submitCommand({ Gui::GUI_NOTIFY, what });
+        }
     }
 
     net.io.stop();
