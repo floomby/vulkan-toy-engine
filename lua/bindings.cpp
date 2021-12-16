@@ -657,6 +657,16 @@ static void eng_frameExport(lua_State *ls) {
     lua_setglobal(ls, "eng_frame");
 }
 
+static int engS_getRandomFWrapper(lua_State *ls) {
+    auto r = Api::engS_getRandomF();
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void engS_getRandomFExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getRandomFWrapper);
+    lua_setglobal(ls, "engS_getRandomF");
+}
+
 static int eng_quitWrapper(lua_State *ls) {
     Api::eng_quit();
     return 0;
@@ -834,6 +844,7 @@ void LuaWrapper::apiExport() {
     eng_getInstanceHeadingExport(luaState);
     engS_getInstanceHeadingExport(luaState);
     eng_frameExport(luaState);
+    engS_getRandomFExport(luaState);
     eng_quitExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);

@@ -3065,7 +3065,7 @@ void Engine::runCurrentScene() {
     cursorLines = new LineHolder();
     lineObjects = { cursorLines, staticLines };
 
-    staticLines->addAxes(60, { 0.7f, 0.1f, 0.1f, 1.0f }, { 0.4f, 0.05f, 0.05f, 0.7f });
+    staticLines->addAxes(300, { 0.7f, 0.1f, 0.1f, 1.0f }, { 0.4f, 0.05f, 0.05f, 0.7f });
 
     gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
     gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
@@ -4631,6 +4631,7 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
                 std::cerr << "Weapon not found: " << weapon << std::endl;
             }
         }
+        entity->precompute();
     }
 }
 

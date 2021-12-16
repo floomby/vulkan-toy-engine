@@ -86,7 +86,7 @@ void Api::cmd_createInstance(const std::string& name, const glm::vec3& position,
 }
 
 void Api::cmd_destroyInstance(InstanceID unitID) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, 0, { {}, {}, 0 }, InsertionMode::NONE }};
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, unitID, { {}, {}, 0 }, InsertionMode::NONE }};
     context->send(data);
 }
 
@@ -96,7 +96,6 @@ void Api::cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, Inserti
 }
 
 void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode) {
-    std::cout << "good " << unitID << " " << targetID << std::endl;
     ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { {}, {}, targetID }, mode }};
     context->send(data);
 }
@@ -173,6 +172,10 @@ const std::string& Api::engS_getInstanceEntityName(Instance *unit) {
 
 InstanceID Api::engS_getInstanceID(Instance *unit) {
     return unit->id;
+}
+
+float Api::engS_getRandomF() {
+    return context->authState.realDistribution(context->authState.randomGenerator);
 }
 
 void Api::eng_quit() {

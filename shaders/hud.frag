@@ -78,7 +78,7 @@ void main() {
             // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             if (inGuiID == inCursorID) {
-                alpha = smoothstep(0.040, 0.48, distance);
+                alpha = smoothstep(0.20, 0.48, distance);
             } else {
                 alpha = smoothstep(0.46, 0.54, distance);
             }

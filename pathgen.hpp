@@ -67,17 +67,18 @@ namespace Pathgen {
         }
     }
 
-    // This function doesn't compute the right thing exactly (It should make normed vectors, but it does not, but I kind of like what it does)
     glm::vec3 computeBalisticTrajectory(const glm::vec3& o, const glm::vec3& p,
         const glm::vec3& dp, float r, float v) {
         auto d = p - o;
         // length2(d) - 2 * dot(dp, d) * t + sq(t) * (length2(dp) - sq(v)) = 0
-        auto a = length2(dp) - sq(v);
-        auto b = 2 * dot(dp, d);
-        auto c = length2(d);
-        auto disc = sqrtf(sq(b) - 4 * a * c);
-        auto t = (disc - b) / (2 * a);
+        // auto a = length2(dp) - sq(v);
+        // auto b = 2 * dot(dp, d);
+        // auto c = length2(d);
+        // auto disc = sqrtf(sq(b) - 4 * a * c);
+        // auto t = (disc - b) / (2 * a);
+        // I didn't code it correctly take this instead
+        float t = Config::Net::ticksPerSecond * 1.0f;
         auto x = (((o - p) / t) + dp) / - v;
-        return -x;
+        return x;
     }
 }

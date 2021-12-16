@@ -54,6 +54,7 @@ public:
 
     std::vector<std::string> weaponNames;
     std::vector<Weapon *> weapons;
+    float preferedEngageRange = 0.0f;
 
     std::vector<std::string> unitAINames;
     std::vector<UnitAI *> ais;

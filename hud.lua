@@ -29,6 +29,7 @@ local function engret_visibility()
 end
 
 local build_options = {}
+local build_location = { 0.0, 0.0, 0.0 }
 local function build_visibility()
     local units = eng_getSelectedInstances()
     local can_build = false
@@ -38,6 +39,7 @@ local function build_visibility()
         for _, option in ipairs(options) do
             can_build = true
             build_options[option] = true
+            build_location = eng_getInstancePosition(unit)
         end
     end
     gui_setVisibility("build", can_build)
@@ -73,7 +75,7 @@ end
 
 function Build_handler(mods, name)
     -- print("build handler: " .. mods .. " " .. name)
-    cmd_createInstance(Split(name, " ")[1], { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+    cmd_createInstance(Split(name, " ")[1], build_location, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 end
 
 local function show_build_options()
@@ -224,10 +226,12 @@ engret_visibility()
 -- net_declareTeam(1, "josh")
 
 local function dummyCallback2(id)
-    print("callback with id of " .. id * 2)
+    cmd_destroyInstance(id)
 end
 
--- cmd_createInstance("asteroid", { -95.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
+cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback2)
+
+-- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 -- cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
@@ -242,7 +246,7 @@ end
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
 
-net_pause(false)
+-- net_pause(false)
 
 local teamID, display_name = state_getTeamIAm()
 -- print(teamID .. " - " .. display_name)
@@ -260,5 +264,9 @@ do
 end
 
 
-cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
-cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+-- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+-- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+
+-- cmd_createInstance("shipyard", { 0.0, 0.0, -5.0 }, { -0.798, 0.420, -0.104, 0.420 }, 2, nil)
+
+-- cmd_createInstance("ship", { 110.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)

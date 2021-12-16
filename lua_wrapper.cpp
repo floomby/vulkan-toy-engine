@@ -324,8 +324,6 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     getStringsField("buildOptions", ret->buildOptions);
     getStringField("buildIcon", ret->buildIcon);
 
-    ret->precompute();
-
     return ret;
 }
 

@@ -87,6 +87,8 @@ void main() {
         outTexCoord = vec2(0.0, 0.0);
         outTexIndex = -1;
         outGuiID = 0xffffffff;
+        outRenderMode = RMODE_NONE;
+        return;
     } else if (gl_VertexIndex < 18) {
         vec2 tooltipBox[6] = vec2[](
             pushConstants.tooltipBox[0],

@@ -191,4 +191,12 @@ void Entity::precompute() {
     if (weapon) {
         framesTillDead = ceil(weapon->range / v_m);
     }
+
+    if (weapons.size()) {
+        auto sum = 0.0f;
+        for (auto w : weapons) {
+            sum += w->range;
+        }
+        preferedEngageRange = sum * 0.6f;
+    }
 }

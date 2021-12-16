@@ -63,6 +63,7 @@ public:
     static glm::quat eng_getInstanceHeading(InstanceID unitID);
     static glm::quat& engS_getInstanceHeading(Instance *unit);
     static unsigned long eng_frame();
+    static float engS_getRandomF();
     static void eng_quit();
 
     static void gui_setVisibility(const char *name, bool visibility);

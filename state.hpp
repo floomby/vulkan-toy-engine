@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/random.hpp>
 #include <list>
 #include <map>
 #include <mutex>
@@ -137,6 +138,9 @@ public:
     void emit(const ApiProtocol& data);
     void doCallbacks();
     void enableCallbacks();
+
+    boost::random::mt11213b randomGenerator { 37946U };
+    boost::random::uniform_real_distribution<float> realDistribution { 0.0f, 1.0f };
 private:
     std::queue<std::pair<ApiProtocol, std::shared_ptr<Networking::Session>>> callbacks;
     Base *context;

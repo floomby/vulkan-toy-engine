@@ -298,8 +298,8 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             if (Api::context->headless) {
                 inst = new Instance(ent, counter++);
             } else {
-                inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex, Api::context->currentScene->models.data() + ent->modelIndex,
-                    counter++, true);
+                inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex,
+                    Api::context->currentScene->models.data() + ent->modelIndex, counter++, true);
             }
             inst->heading = data->command.data.heading;
             inst->position = data->command.data.dest;

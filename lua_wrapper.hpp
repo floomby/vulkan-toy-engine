@@ -85,7 +85,7 @@ public:
 
     template<int argc>
     void callFunction(int index) {
-        std::cout << "Calling lua function at " << index << std::endl << boost::stacktrace::stacktrace() << std::endl;
+        // std::cout << "Calling lua function at " << index << std::endl << boost::stacktrace::stacktrace() << std::endl;
         lua_pushvalue(luaState, index);
         lua_insert(luaState, -1 - argc);
         if(lua_pcall(luaState, argc, 0, 0))
