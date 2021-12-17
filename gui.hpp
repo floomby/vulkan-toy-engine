@@ -111,16 +111,16 @@ public:
     GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes, VkFormat format,
         VkFilter = VK_FILTER_LINEAR, bool useRenderQueue = false, bool storable = false);
     GuiTexture(Engine *context, VkImage image, VmaAllocation allocation, VkImageView imageView, float widenessRatio);
-    GuiTexture(const GuiTexture&);
-    GuiTexture& operator=(const GuiTexture&);
-    GuiTexture(GuiTexture&& other) noexcept;
-    GuiTexture& operator=(GuiTexture&& other) noexcept;
+    GuiTexture(const GuiTexture&) = delete;
+    GuiTexture& operator=(const GuiTexture&) = delete;
+    GuiTexture(GuiTexture&& other) noexcept = delete;
+    GuiTexture& operator=(GuiTexture&& other) noexcept = delete;
     ~GuiTexture();
 
     ResourceID resourceID() const;
     bool operator==(const GuiTexture& other) const;
 
-    static GuiTexture *defaultTexture();
+    static std::shared_ptr<GuiTexture> defaultTexture();
     float widenessRatio;
 
     void makeComputable();
@@ -133,7 +133,7 @@ private:
 };
 
 namespace GuiTextures {
-    GuiTexture makeGuiTexture(const char *str);
+    std::shared_ptr<GuiTexture> makeGuiTexture(const char *str);
 }
 
 class Gui;
@@ -153,11 +153,11 @@ public:
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const std::pair<float, float>& c0,
         const std::pair<float, float>& c1, int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1,
-        int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers,uint32_t renderMode = RMODE_FLAT);
+        int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers,uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0, std::pair<float, float> c1,
-        int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
+        int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl,
-        float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
+        float height, int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     virtual ~GuiComponent();
     GuiComponent(const GuiComponent& other) = delete;
     GuiComponent(GuiComponent&& other) noexcept = delete;
@@ -178,8 +178,8 @@ public:
     // indices to child
     void removeComponent(std::queue<uint>& childIndices);
 
-    std::vector<GuiTexture *>& mapTextures(std::vector<GuiTexture *>& acm, int& idx);
-    std::vector<GuiTexture> textures, oldTextures;
+    std::vector<std::shared_ptr<GuiTexture>>& mapTextures(std::vector<std::shared_ptr<GuiTexture>>& acm, int& idx);
+    std::vector<std::shared_ptr<GuiTexture>> textures, oldTextures;
     std::vector<uint> textureIndexMap;
 
     void buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index);
@@ -217,7 +217,7 @@ protected:
 private:
     bool layoutOnly;
 
-    void mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx);
+    void mapTextures(std::vector<std::shared_ptr<GuiTexture>>& acm, std::map<ResourceID, int>& resources, int& idx);
     // I guess just one texture per component?
     void setTextureIndex(int textureIndex);
     GuiComponent *getComponent_i(std::queue<uint>& childIdices);
@@ -399,7 +399,7 @@ public:
 
     // This is constant time wrt the number of textures in the last resource map
     // (read it doesnt go through the component graph to find the textures)
-    bool alreadyHaveTexture(const GuiTexture& texture);
+    bool alreadyHaveTexture(std::shared_ptr<GuiTexture> texture) const;
     bool guiThreadNeedTextureSync = false;
     bool changed = false;
 
@@ -417,7 +417,7 @@ private:
     std::mutex queueLock;
     std::map<uint32_t, uint> idToBuffer;
     std::vector<GuiVertex> vertices;
-    std::vector<GuiTexture *> textures;
+    std::vector<std::shared_ptr<GuiTexture>> textures;
     std::vector<GuiVertex> dragBox;
 
     void pollChanges();

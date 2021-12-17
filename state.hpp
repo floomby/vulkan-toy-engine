@@ -99,6 +99,8 @@ struct ApiProtocol {
     CallbackID callbackID;
 };
 
+static_assert(std::is_trivially_copyable<ApiProtocol>::value, "ApiProtocol must be trivially copyable");
+
 #include <iostream>
 
 static const std::vector<std::string> ApiProtocolKinds = enumNames2<ApiProtocolKind>();
@@ -149,6 +151,7 @@ private:
 
 class ObservableState {
 public:
+    ~ObservableState();
     std::vector<Instance *> instances;
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);

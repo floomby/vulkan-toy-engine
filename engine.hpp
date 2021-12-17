@@ -77,7 +77,7 @@ public:
 
     static VkSampler sampler_;
 
-    static GuiTexture toGuiTexture(std::unique_ptr<TextResource>&& textResource);
+    static GuiTexture *toGuiTexture(std::unique_ptr<TextResource>&& textResource);
 private:
     float widenessRatio;
     Engine *context;
@@ -218,7 +218,7 @@ private:
     bool wasZMoving = false;
     bool drawTooltip = false;
     std::vector<bool> tooltipDirty;
-    GuiTexture tooltipResource, tooltipStillInUse;
+    std::shared_ptr<GuiTexture> tooltipResource, tooltipStillInUse;
     uint64_t tooltipJob = 0;
     void setTooltip(std::string&& str);
     void setTooltip(const std::string& str);
@@ -425,7 +425,7 @@ private:
     size_t hudVertexCount;
     std::map<uint32_t, uint> guiIdToBufferIndex;
     VkBuffer hudBuffer;
-    void setTooltipTexture(int index, const Textured& texture);
+    void setTooltipTexture(int index, std::shared_ptr<GuiTexture> texture);
     // void createHudBuffers();
 
     std::list<LineHolder *> lineObjects;
@@ -448,7 +448,7 @@ private:
     void writeHudDescriptors();
     std::vector<bool> hudDescriptorNeedsRewrite;
     void rewriteHudDescriptors(int index);
-    void rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures);
+    void rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>>& hudTextures);
 
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkCommandBuffer> transferCommandBuffers;
@@ -568,7 +568,7 @@ public:
 
     struct GlyphData {
         uint width;
-        GuiTexture onGpu;
+        std::shared_ptr<GuiTexture> onGpu;
         uint descriptorIndex;
     };
     std::map<char32_t, GlyphData> glyphDatum;
@@ -582,7 +582,7 @@ public:
     std::map<std::string, uint> cachedWidths;
     std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
     // This is blocking
-    GuiTexture makeGuiTexture(const std::string& str);
+    std::shared_ptr<GuiTexture> makeGuiTexture(const std::string& str);
 private:
     SSBOSyncer<IndexWidthSSBO> *syncer;
     GuiTexture *defaultGlyph;

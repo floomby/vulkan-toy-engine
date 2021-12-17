@@ -2174,7 +2174,7 @@ uint32_t Gui::idUnderPoint(float x, float y) {
 }
 
 void Gui::rebuildBuffer(bool texturesDirty) {
-    std::vector<GuiTexture *> buildingTextures;
+    std::vector<std::shared_ptr<GuiTexture>> buildingTextures;
     int idx = 0;
     std::vector<GuiVertex> buildingVertices;
     std::map<uint32_t, uint> componentIdToBufferMap;
@@ -2325,7 +2325,7 @@ void LineHolder::addAxes(float length, const glm::vec4& orginColor, const glm::v
 }
 
 namespace GuiTextures {
-    static GuiTexture *defaultTexture;
+    static std::shared_ptr<GuiTexture> defaultTexture;
     static int maxGlyphHeight;
 }
 
@@ -2401,7 +2401,8 @@ void Engine::handleInput() {
 
     gui->pushConstant.tooltipBox[0] = { mouseNormed.first + 0.05, mouseNormed.second + 0.04 };
     // whatever, just pick one
-    gui->pushConstant.tooltipBox[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipResource.widenessRatio, mouseNormed.second + 0.14 };
+    auto tooltipWideness = tooltipResource ? tooltipResource->widenessRatio : 0.0f;
+    gui->pushConstant.tooltipBox[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipWideness, mouseNormed.second + 0.14 };
 
     // Do I want this?
     for (int i = 0; i < 8; i++) {
@@ -2847,9 +2848,8 @@ void Engine::drawFrame() {
         ComputeOp op;
         if (manager->getJob(tooltipJob, op)) {
             tooltipJob = 0;
-            if (!tooltipResource.invalid) tooltipStillInUse = tooltipResource;
-            tooltipResource = std::move(*reinterpret_cast<GuiTexture *>(op.data));
-            delete reinterpret_cast<GuiTexture *>(op.data);
+            if (!tooltipResource->invalid) tooltipStillInUse = tooltipResource;
+            tooltipResource = std::shared_ptr<GuiTexture>(reinterpret_cast<GuiTexture *>(op.data));
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
             for (int i = 0; i < concurrentFrames; i++) if (i != currentFrame) tooltipDirty[i] = true;
@@ -2859,7 +2859,7 @@ void Engine::drawFrame() {
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
         }
-    }
+        }
 
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
 
@@ -3074,10 +3074,11 @@ void Engine::runCurrentScene() {
     gui->pushConstant.tooltipBox[0] = { -0.2, -0.2 };
     gui->pushConstant.tooltipBox[1] = {  0.2,  0.2 };
 
+    tooltipResource = GuiTextures::defaultTexture;
     tooltipDirty.resize(concurrentFrames);
     for (int i = 0; i < concurrentFrames; i++) {
         tooltipDirty[i] = false;
-        setTooltipTexture(i, *GuiTextures::defaultTexture);
+        setTooltipTexture(i, GuiTextures::defaultTexture);
     }
     // tooltipDirty[concurrentFrames] = false;
 
@@ -3335,10 +3336,10 @@ void Engine::writeHudDescriptors() {
 // This is to keep the refcount from hiting 0 on the textures in use by the gpu still, but with no guicomponents using it anymore
 // I think if concurrent frams was higher this would need more layers (I have concurrent frames = 2 right now)
 // TODO Think what is the better way to do this?
-static std::vector<GuiTexture> textureRefs, textureRefsOld, textureRefsOldOld;
+static std::vector<std::shared_ptr<GuiTexture>> textureRefs, textureRefsOld, textureRefsOldOld;
 static size_t oldSize = textureRefs.size();
 
-void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures) {
+void Engine::rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>>& hudTextures) {
     if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
     textureRefsOldOld = textureRefsOld;
     textureRefsOld = textureRefs;
@@ -3348,7 +3349,7 @@ void Engine::rewriteHudDescriptors(const std::vector<GuiTexture *>& hudTextures)
 
     // Now we leverage the reference counting to keep the textures from disapearing on us
     for(const auto textPtr : hudTextures) {
-        textureRefs.push_back(GuiTexture(*textPtr));
+        textureRefs.push_back(textPtr);
     }
 }
 
@@ -3360,8 +3361,8 @@ void Engine::rewriteHudDescriptors(int index) {
 
     for (j = 0; j < textureRefs.size(); j++) {
         hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        hudTextureInfos[j].imageView = textureRefs[j].imageView;
-        hudTextureInfos[j].sampler = textureRefs[j].sampler;
+        hudTextureInfos[j].imageView = textureRefs[j]->imageView;
+        hudTextureInfos[j].sampler = textureRefs[j]->sampler;
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
     }
@@ -3383,12 +3384,12 @@ void Engine::rewriteHudDescriptors(int index) {
 }
 
 // Idk if this should be gui or engine (probably engine since it needs syncronization to the draws)
-void Engine::setTooltipTexture(int index, const Textured& texture) {
+void Engine::setTooltipTexture(int index, std::shared_ptr<GuiTexture> texture) {
     VkDescriptorImageInfo tooltipTextureInfo;
     tooltipTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    if (texture.imageView) {
-        tooltipTextureInfo.imageView = texture.imageView;
-        tooltipTextureInfo.sampler = texture.sampler;
+    if (texture->imageView) {
+        tooltipTextureInfo.imageView = texture->imageView;
+        tooltipTextureInfo.sampler = texture->sampler;
     } else {
         tooltipTextureInfo.imageView = GuiTextures::defaultTexture->imageView;
         tooltipTextureInfo.sampler = GuiTextures::defaultTexture->sampler;
@@ -3750,14 +3751,13 @@ Engine::~Engine() {
     textureRefsOld.clear();
     textureRefsOldOld.clear();
     delete currentScene;
-    // there is state tracking associated with knowing what textures are being used, This makes it so none are and they are freed
-    delete GuiTextures::defaultTexture;
+    GuiTextures::defaultTexture.reset();
     delete gui;
     delete glyphCache;
     delete manager;
     delete sound;
-    tooltipResource.~GuiTexture();
-    tooltipStillInUse.~GuiTexture();
+    tooltipResource.reset();
+    tooltipStillInUse.reset();
     cleanup();
 }
 
@@ -4930,15 +4930,12 @@ CubeMap& CubeMap::operator=(CubeMap&& other) noexcept {
 }
 
 namespace GuiTextures {
-    // I should have just used shared pointers from the start
-    static std::mutex referenceLock;
-    static std::map<VkImage, uint> references = {};
     static FT_Library library;
     static FT_Face face;
     static Engine *context;
 }
 
-GuiTexture *GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
+std::shared_ptr<GuiTexture> GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
     VkFormat format, VkFilter filter, bool useRenderQueue, bool storable) {
@@ -5063,100 +5060,14 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     textureImageViewInfo.pNext = nullptr;
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
-    GuiTextures::referenceLock.lock();
-    GuiTextures::references.insert({ image, 1 });
-    GuiTextures::referenceLock.unlock();
-
     sampler = TextResource::sampler_;
-
-    // VkSamplerCreateInfo samplerInfo {};
-    // samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    // // samplerInfo.magFilter = VK_FILTER_CUBIC_IMG;
-    // // samplerInfo.minFilter = VK_FILTER_CUBIC_IMG;
-    // samplerInfo.magFilter = filter;
-    // samplerInfo.minFilter = filter;
-
-    // samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    // samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    // samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-    // samplerInfo.anisotropyEnable = VK_TRUE;
-    // // For right now we just use the max supported sampler anisotrpy
-    // samplerInfo.maxAnisotropy = context->maxSamplerAnisotropy;
-
-    // samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-    // samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    // samplerInfo.compareEnable = VK_FALSE;
-    // samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    // samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    // samplerInfo.mipLodBias = 0.0f;
-    // samplerInfo.maxLod = 1.0f;
-    // samplerInfo.mipLodBias = 0.0f;
-
-    // vulkanErrorGuard(vkCreateSampler(context->device, &samplerInfo, nullptr, &sampler), "Failed to create texture sampler.");
 }
 
 GuiTexture::~GuiTexture() {
-    GuiTextures::referenceLock.lock();
-    if (!invalid && --GuiTextures::references[image] == 0) {
-        GuiTextures::references.erase(image);
-        GuiTextures::referenceLock.unlock();
-        vkDestroyImageView(context->device, imageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, image, allocation);
-    }
-    GuiTextures::referenceLock.unlock();
+    if (invalid) return;
+    vkDestroyImageView(context->device, imageView, nullptr);
+    vmaDestroyImage(context->memoryAllocator, image, allocation);
     invalid = true;
-}
-
-GuiTexture::GuiTexture(const GuiTexture& other) {
-    assert(!other.invalid);
-    imageView = other.imageView;
-    image = other.image;
-    sampler = other.sampler;
-    allocation = other.allocation;
-    context = other.context;
-    widenessRatio = other.widenessRatio;
-    GuiTextures::referenceLock.lock();
-    GuiTextures::references[image]++;
-    GuiTextures::referenceLock.unlock();
-}
-
-GuiTexture& GuiTexture::operator=(const GuiTexture& other) {
-    assert(!other.invalid);
-    return *this = GuiTexture(other);
-}
-
-GuiTexture::GuiTexture(GuiTexture&& other) noexcept
-: widenessRatio(other.widenessRatio),
-image(other.image), context(other.context), allocation(other.allocation)
-{
-    assert(!other.invalid);
-    imageView = other.imageView;
-    sampler = other.sampler;
-    other.invalid = true;
-}
-
-GuiTexture& GuiTexture::operator=(GuiTexture&& other) noexcept {
-    GuiTextures::referenceLock.lock();
-    assert(!other.invalid);
-    if (!invalid && --GuiTextures::references[image] == 0) {
-        GuiTextures::references.erase(image);
-        GuiTextures::referenceLock.unlock();
-        vkDestroyImageView(context->device, imageView, nullptr);
-        vmaDestroyImage(context->memoryAllocator, image, allocation);
-    }
-    GuiTextures::referenceLock.unlock();
-    imageView = other.imageView;
-    image = other.image;
-    sampler = other.sampler;
-    allocation = other.allocation;
-    context = other.context;
-    widenessRatio = other.widenessRatio;
-    invalid = false;
-    GuiTextures::referenceLock.lock();
-    GuiTextures::references[image]++;
-    GuiTextures::referenceLock.unlock();
-    return *this;
 }
 
 bool GuiTexture::operator==(const GuiTexture& other) const {
@@ -5235,14 +5146,15 @@ namespace GuiTextures {
         atexit(destroyTextTextureBuffer);
     }
 
-    GuiTexture makeGuiTexture(const char *file) {
+    std::shared_ptr<GuiTexture> makeGuiTexture(const char *file) {
         assert(std::filesystem::exists(file));
 
         int texWidth, texHeight, texChannels;
         auto buf = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
         assert(texChannels == 4);
-        auto ret = GuiTexture(context, buf, texWidth, texHeight, texChannels, texWidth * texChannels, VK_FORMAT_R8G8B8A8_UNORM, VK_FILTER_LINEAR);
+        auto ret = std::make_shared<GuiTexture>(context, buf, texWidth, texHeight, texChannels, texWidth * texChannels,
+            VK_FORMAT_R8G8B8A8_UNORM, VK_FILTER_LINEAR);
 
         // stbi_write_png("check.png", texWidth, texHeight, texChannels, buf, texWidth * texChannels);
 
@@ -5259,7 +5171,7 @@ namespace GuiTextures {
             0xa0, 0xff, 0xff, 0xff, 0xff, 0xa0,
             0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0,
         };
-        defaultTexture = new GuiTexture(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_UNORM);
+        defaultTexture = std::make_shared<GuiTexture>(context, &value, 6, 6, 1, 6, VK_FORMAT_R8_UNORM);
     }
 }
 
@@ -5343,10 +5255,10 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
     for (const auto& glyphCode : glyphsWanted) {
         if (fontCache.contains(glyphCode)) {
             const auto& data = fontCache.at(glyphCode);
-            auto tex = GuiTexture(context, data.second, data.first->width, data.first->height, 1, data.first->width,
+            auto tex = std::make_shared<GuiTexture>(context, data.second, data.first->width, data.first->height, 1, data.first->width,
                 VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
-            tex.makeComputable();
-            glyphDatum.insert({ glyphCode, { data.first->advance, std::move(tex), index++ }});
+            tex->makeComputable();
+            glyphDatum.insert({ glyphCode, { data.first->advance, tex, index++ }});
 
             continue;
         }
@@ -5395,10 +5307,10 @@ GlyphCache::GlyphCache(Engine *context, const std::vector<char32_t>& glyphsWante
 
         // ultimately I don't think it maters which queue we use, neither should be in use at this time anyways, but hey I coded the functionallity to keep them seperate
         // and maybe it might mater if the gui wants to do gpu stuff in setup up at the same time
-        auto tex = GuiTexture(context, GuiTextures::textTextureBuffer, imageWidth, height, 1, GuiTextures::maxTextWidth,
+        auto tex = std::make_shared<GuiTexture>(context, GuiTextures::textTextureBuffer, imageWidth, height, 1, GuiTextures::maxTextWidth,
             VK_FORMAT_R8_UNORM, VK_FILTER_LINEAR, true, true);
-        tex.makeComputable();
-        glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), std::move(tex), index++ }});
+        tex->makeComputable();
+        glyphDatum.insert({ glyphCode, { uint(GuiTextures::face->glyph->advance.x >> 6), tex, index++ }});
     }
     syncer = nullptr;
 
@@ -5424,7 +5336,7 @@ void GlyphCache::writeDescriptors(VkDescriptorSet& set, uint32_t binding) {
 
     for (const auto& [code, data] : glyphDatum) {
         textureInfo[data.descriptorIndex].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        textureInfo[data.descriptorIndex].imageView = data.onGpu.imageView;
+        textureInfo[data.descriptorIndex].imageView = data.onGpu->imageView;
         textureInfo[data.descriptorIndex].sampler = VK_NULL_HANDLE;
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
@@ -5594,32 +5506,29 @@ T *SSBOSyncer<T>::ensureSize(T *buf, size_t count) {
 GuiTexture::GuiTexture() : invalid(true) {}
 
 GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation, VkImageView imageView, float widenessRatio)
-: widenessRatio(widenessRatio), image(image), allocation(allocation), context(context) {
+: widenessRatio(widenessRatio), image(image), allocation(allocation), context(context), invalid(false) {
     this->imageView = imageView;
     sampler = TextResource::sampler_;
-    GuiTextures::referenceLock.lock();
-    GuiTextures::references.insert({ image, 1 });
-    GuiTextures::referenceLock.unlock();
 }
 
-GuiTexture TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {
+GuiTexture *TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {
     auto that = textResource.get();
-    auto ret = GuiTexture(that->context, that->image, that->allocation, that->imageView, that->widenessRatio);
+    auto ret = new GuiTexture(that->context, that->image, that->allocation, that->imageView, that->widenessRatio);
     that->imageView = VK_NULL_HANDLE;
     that->image = VK_NULL_HANDLE;
     return ret;
 }
 
 // This blocks until completion (Do not use in the render thread!)
-GuiTexture GlyphCache::makeGuiTexture(const std::string& str) {
+std::shared_ptr<GuiTexture> GlyphCache::makeGuiTexture(const std::string& str) {
     ComputeOp op, done;
     op.kind = ComputeKind::TEXT;
     op.data = (void *)&str;
     auto id = context->manager->submitJob(std::move(op));
     while (true) {
         if (context->manager->getJob(id, done)) {
-            auto ret = GuiTexture(std::move(*reinterpret_cast<GuiTexture *>(done.data)));
-            delete reinterpret_cast<GuiTexture *>(done.data);
+            auto tex = reinterpret_cast<GuiTexture *>(done.data);
+            auto ret = std::shared_ptr<GuiTexture>(tex);
             return ret;
         }
         std::this_thread::yield();
@@ -5681,7 +5590,7 @@ void ComputeManager::poll() {
             switch (op.kind) {
                 case ComputeKind::TEXT:
                     result.kind = ComputeKind::TEXT;
-                    result.data = new GuiTexture(TextResource::toGuiTexture(std::move(textResource)));
+                    result.data = TextResource::toGuiTexture(std::move(textResource));
                     result.id = op.id;
                     outLock.lock();
                     outList.push_back(std::move(result));

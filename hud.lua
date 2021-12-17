@@ -9,7 +9,7 @@ local function update_bound_data()
         local value = wrapper()
         if (value ~= data_bindings_cache[name]) then
             data_bindings_cache[name] = value
-            -- gui_setLabelText(name, value)
+            gui_setLabelText(name, value)
         end
     end
 end

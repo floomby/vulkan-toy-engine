@@ -275,7 +275,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const 
     int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode)
 : context(context), luaHandlers(luaHandlers) {
     if (renderMode != RMODE_IMAGE) {
-        textures.push_back(*GuiTexture::defaultTexture());
+        textures.push_back(GuiTexture::defaultTexture());
     }
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly; // if fully transparent do not create vertices for it
@@ -305,7 +305,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const 
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl, 
-    float height, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+    float height, int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
 : textures(textures), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly;
@@ -330,7 +330,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
             (float)(0x000000ff & secondaryColor) / 0x000000ff,
         });
 
-        vertices = context->rectangle(tl, height, textures[0].widenessRatio, colorVec, secondaryColorVec, layer, id, renderMode);
+        vertices = context->rectangle(tl, height, textures[0]->widenessRatio, colorVec, secondaryColorVec, layer, id, renderMode);
     }
     for (const auto& tex : textures) {
         if (context->guiThreadNeedTextureSync) break;
@@ -339,7 +339,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+    std::pair<float, float> c1, int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
 : textures(textures), context(context), luaHandlers(luaHandlers) {
     textureIndexMap.resize(textures.size());
     this->layoutOnly = layoutOnly;
@@ -376,7 +376,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
 }
 
 GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, std::vector<GuiTexture> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
+    std::pair<float, float> c1, int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
 : GuiComponent(context, layoutOnly, color, color, c0, c1, layer, textures, luaHandlers, renderMode) {}
 
 GuiComponent::~GuiComponent() {
@@ -451,12 +451,12 @@ void GuiComponent::setTextureIndex(int textureIndex) {
 
 static std::map<ResourceID, int> lastTextureMap;
 
-bool Gui::alreadyHaveTexture(const GuiTexture& texture) {
-    return lastTextureMap.contains(texture.resourceID());
+bool Gui::alreadyHaveTexture(std::shared_ptr<GuiTexture> texture) const {
+    return lastTextureMap.contains(texture->resourceID());
 }
 
 // There some overhead associated with moving/copying texture objects even though they gpu resorces are not changed in any way, so pointers
-std::vector<GuiTexture *>& GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, int& idx) {
+std::vector<std::shared_ptr<GuiTexture>>& GuiComponent::mapTextures(std::vector<std::shared_ptr<GuiTexture>>& acm, int& idx) {
     std::map<ResourceID, int> resourceMap;
     mapTextures(acm, resourceMap, idx);
 
@@ -464,14 +464,14 @@ std::vector<GuiTexture *>& GuiComponent::mapTextures(std::vector<GuiTexture *>& 
     return acm;
 }
 
-void GuiComponent::mapTextures(std::vector<GuiTexture *>& acm, std::map<ResourceID, int>& resources, int& idx) {
+void GuiComponent::mapTextures(std::vector<std::shared_ptr<GuiTexture>>& acm, std::map<ResourceID, int>& resources, int& idx) {
     for (int i = 0; i < textures.size(); i++) {
-        ResourceID id = textures[i].resourceID();
+        ResourceID id = textures[i]->resourceID();
         if (resources.contains(id)) {
             if (i == activeTexture) setTextureIndex(resources.at(id));
             textureIndexMap[i] = idx;
         } else {
-            acm.push_back(&textures[i]);
+            acm.push_back(textures[i]);
             resources.insert({ id, idx });
             if (i == activeTexture) setTextureIndex(idx);
             textureIndexMap[i] = idx;
@@ -592,7 +592,7 @@ std::map<std::string, int> luaHandlers)
 
 void GuiLabel::resizeVertices() {
     float height = vertices[2].pos.y - vertices[0].pos.y;
-    float right = vertices[2].pos.x + height * textures[0].widenessRatio * (float)context->height / context->width;
+    float right = vertices[2].pos.x + height * textures[0]->widenessRatio * (float)context->height / context->width;
 
     vertices[1].pos.x = right;
     vertices[4].pos.x = right;
@@ -601,7 +601,7 @@ void GuiLabel::resizeVertices() {
 
 void GuiImage::resizeVertices() {
     float height = vertices[2].pos.y - vertices[0].pos.y;
-    float right = vertices[2].pos.x + height * textures[0].widenessRatio * (float)context->height / context->width;
+    float right = vertices[2].pos.x + height * textures[0]->widenessRatio * (float)context->height / context->width;
 
     vertices[1].pos.x = right;
     vertices[4].pos.x = right;

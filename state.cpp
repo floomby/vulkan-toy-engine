@@ -109,6 +109,10 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
     }
 }
 
+ObservableState::~ObservableState() {
+    for (auto inst : instances) delete inst;
+}
+
 #include "pathgen.hpp"
 
 
@@ -155,7 +159,6 @@ void AuthoritativeState::doUpdateTick() {
                 }
             }
         } else if (it && !it->commandList.empty() && !it->uncompleted) {
-            // TODO check if unit is alive
             const auto& cmd = it->commandList.front();
             float distance;
             switch (cmd.kind){
@@ -183,8 +186,6 @@ void AuthoritativeState::doUpdateTick() {
                     it->commandList.pop_front();
                     break;
             }
-            // do building
-            // if (it->isBuilding && it->entity->buildPower > 0) {
             if (!it->isBuilding && it->entity->buildPower > 0) {
                 auto bit = find_if(it->commandList.begin(), it->commandList.end(), [](const auto& x) -> bool { return x.kind == CommandKind::BUILD; });
                 if (bit != it->commandList.end()) {
@@ -245,30 +246,33 @@ void AuthoritativeState::doUpdateTick() {
             totalWantedThisTick += bp;
         }
         totalWantedThisTick *= Config::Net::secondsPerTick;
-        if (totalWantedThisTick < teams[buildPowerAllocation.front().first->team]->resourceUnits) {
-            teams[buildPowerAllocation.front().first->team]->resourceUnits -= totalWantedThisTick;
-            for (auto [inst, bp] : buildPowerAllocation) {
-                inst->resources += bp * Config::Net::secondsPerTick;
-                if (inst->resources >= inst->entity->resources) {
-                    // refund the overage
-                    teams[buildPowerAllocation.front().first->team]->resourceUnits += inst->resources - inst->entity->resources;
-                    inst->resources = inst->entity->resources;
-                    inst->hasCollision = true;
-                    inst->uncompleted = false;
-                    inst->buildPower = 0.0f;
-                    auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
-                    if (oit != copy.end()) {
-                        (*oit)->isBuilding = false;
-                        copy_if((*oit)->commandList.begin(), (*oit)->commandList.end(), inst->commandList.end(),
-                            [](const auto& x) -> bool { return x.kind != CommandKind::BUILD; });
-                    }
+        float fraction = 1.0f;
+        if (totalWantedThisTick > teams[buildPowerAllocation.front().first->team]->resourceUnits) {
+            fraction = totalWantedThisTick / teams[buildPowerAllocation.front().first->team]->resourceUnits;
+        }
+        teams[buildPowerAllocation.front().first->team]->resourceUnits -= totalWantedThisTick * fraction;
+        for (auto [inst, bp] : buildPowerAllocation) {
+            inst->resources += bp * Config::Net::secondsPerTick * fraction;
+            if (inst->resources >= inst->entity->resources) {
+                // refund the overage
+                teams[buildPowerAllocation.front().first->team]->resourceUnits += inst->resources - inst->entity->resources;
+                inst->resources = inst->entity->resources;
+                inst->hasCollision = true;
+                inst->uncompleted = false;
+                inst->buildPower = 0.0f;
+                auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
+                if (oit != copy.end()) {
+                    (*oit)->isBuilding = false;
+                    // Idk what is wrong with this, but something is very wrong, it seems to break like 3 different things 
+                    // and causes segfaults on shutdown (commands are trivially copyable, so I don't know what could possibly be wrong)
+                    // if (inst->commandList.empty()) {
+                    //     copy_if((*oit)->commandList.begin(), (*oit)->commandList.end(), inst->commandList.end(),
+                    //         [](const auto& x) -> bool { return x.kind != CommandKind::BUILD; });
+                    // }
                 }
             }
-        } else {
-            
         }
     }
-
     frame.fetch_add(1, std::memory_order_relaxed);
     copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
     for (auto inst : toDelete) delete inst;
