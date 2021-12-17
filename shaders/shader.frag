@@ -20,6 +20,7 @@ layout(location = 4) in vec3 shadowCoord;
 layout(location = 5) in vec3 skyCoord;
 layout(location = 6) in flat float inHealth;
 layout(location = 7) in flat float inResources;
+layout(location = 8) in flat float inBlinkTime;
 
 layout(location = 0) out vec4 outColor;
 
@@ -57,7 +58,6 @@ vec2 vectorMap(vec2 value, float min1, float max1, float min2, float max2) {
         map(value.y, min1, max1, min2, max2)
     );
 }
-
 
 float getShadow(vec3 ndc, uint pcfSize) {
     // outside the device viewing region
@@ -187,4 +187,8 @@ void main() {
     }
 
     outColor = vec4((outColor * (getShadow(shadowCoord, 8) * 0.9 + 0.1)).rgb, 1.0);
+
+    if (rtype == RINT_UNCOMPLETE) {
+        outColor = vectorMap(outColor, 0.0, 1.0, (1.0 - inBlinkTime) * 0.3, 1.0);
+    }
 }

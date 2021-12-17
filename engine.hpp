@@ -150,6 +150,7 @@ private:
         glm::uint32_t textureIndex;
         glm::uint32_t renderType;
         alignas(16) glm::vec3 teamColor;
+        glm::float32_t blinkTime;
     } pushConstants;
 
     Utilities::ViewProjPosNearFar lightingData;

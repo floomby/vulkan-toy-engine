@@ -42,6 +42,7 @@ public:
     double maxHealth = 1.0f;
     double resources = 0.0f;
     std::string name;
+    float buildPower = 0.0f;
 
     float dv;
     float v_m;

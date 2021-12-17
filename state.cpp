@@ -130,7 +130,7 @@ void AuthoritativeState::doUpdateTick() {
         assert(it->inPlay);
         if (it->entity->isProjectile) {
             for (auto& other : copy) {
-                if (!other || it->parentID == other->id || other->entity->isProjectile) continue;
+                if (!other || it->parentID == other->id || other->entity->isProjectile || !other->hasCollision) continue;
                 float d;
                 float l = length(it->dP);
                 if (other->rayIntersects(it->position, normalize(it->dP), d)) {
@@ -153,7 +153,7 @@ void AuthoritativeState::doUpdateTick() {
                     it = nullptr;
                 }
             }
-        } else if (it && !it->commandList.empty()) {
+        } else if (it && !it->commandList.empty() && !it->uncompleted) {
             // TODO check if unit is alive
             const auto& cmd = it->commandList.front();
             float distance;
@@ -182,14 +182,40 @@ void AuthoritativeState::doUpdateTick() {
                     it->commandList.pop_front();
                     break;
             }
-            for (auto other : copy) {
-                if (!other || *other == *it || other->entity->isProjectile) continue;
-                Pathgen::collide(*other, *it);
+            // do building
+            // if (it->isBuilding && it->entity->buildPower > 0) {
+            if (!it->isBuilding && it->entity->buildPower > 0) {
+                auto bit = find_if(it->commandList.begin(), it->commandList.end(), [](const auto& x) -> bool { return x.kind == CommandKind::BUILD; });
+                if (bit != it->commandList.end()) {
+                    const auto ent = Api::context->currentScene->entities.at(bit->data.buf);
+                    Instance *inst;
+                    if (Api::context->headless) {
+                        inst = new Instance(ent, counter++);
+                    } else {
+                        inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex,
+                            Api::context->currentScene->models.data() + ent->modelIndex, counter++, true);
+                    }
+                    inst->heading = it->heading;
+                    inst->position = it->position;
+                    inst->dP = it->dP;
+                    inst->parentID = it->id;
+                    inst->uncompleted = true;
+                    inst->team = it->team;
+                    inst->hasCollision = false;
+                    it->commandList.erase(bit);
+                    copy_if(it->commandList.begin(), it->commandList.end(), inst->commandList.end(),
+                        [](const auto& x) -> bool { return x.kind != CommandKind::BUILD; });
+                    instances.push_back(inst);
+                }
             }
-        } else if (it && it->entity->isUnit) {
+        } else if (it && it->entity->isUnit && !it->uncompleted) {
             Pathgen::stop(*it);
         }
         if (it) {
+            if (it->hasCollision) for (auto other : copy) {
+                if (!other || *other == *it || other->entity->isProjectile || !other->hasCollision) continue;
+                Pathgen::collide(*other, *it);
+            }
             for (const auto& ai : it->entity->ais) {
                 ai->run(*it);
             }
@@ -259,11 +285,12 @@ private:
     CommandKind data[N];
 };
 
-static const Forwardable<4> forwardable(
+static const Forwardable<5> forwardable(
     CommandKind::MOVE,
     CommandKind::STOP,
     CommandKind::TARGET_UNIT,
-    CommandKind::TARGET_LOCATION
+    CommandKind::TARGET_LOCATION,
+    CommandKind::BUILD
 );
 
 #include "api_util.hpp"

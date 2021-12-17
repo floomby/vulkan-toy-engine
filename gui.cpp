@@ -15,6 +15,7 @@ Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth
     lua->apiExport();
     lua->exportEnumToLua<GuiLayoutKind>();
     lua->exportEnumToLua<ToggleKind>();
+    lua->exportEnumToLua<InsertionMode>();
     guiThread = std::thread(&Gui::pollChanges, this);
     root->parent = nullptr;
 }

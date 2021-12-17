@@ -4,7 +4,7 @@
  * Resource system
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
- * Finish projectile stuff
+ * Finish weapons (need the other 2 kinds still guided and beam)
  * gui - I still need some more components, but this seems really low priority right now
  * Finish the path following/steering code
  * Finish unit ais

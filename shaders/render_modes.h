@@ -12,6 +12,7 @@
 #define RINT_PROJECTILE 3
 #define RINT_HEALTH     4
 #define RINT_RESOURCE   5
+#define RINT_UNCOMPLETE 6
 
 #define getRINT(x)      ((x) & 0x7)
 #define getRFLAGS(x)    ((x) & 0xfffffff8)

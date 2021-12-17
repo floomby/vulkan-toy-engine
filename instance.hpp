@@ -26,11 +26,13 @@ enum class CommandKind {
     //.....
 };
 
+const size_t CommandDataBufSize = 256;
+
 struct CommandData {
     glm::vec3 dest;
     glm::quat heading;
     uint32_t id;
-    char buf[256];
+    char buf[CommandDataBufSize];
 };
 
 struct Command {
@@ -121,6 +123,8 @@ public:
     Target target;
     std::vector<WeaponInstance> weapons;
     bool canAttack() const;
+    bool uncompleted = false;
+    bool isBuilding = false;
 
     InstanceState state { IEngage::ENGAGE };
     std::map<std::string, int> customState;

@@ -24,6 +24,7 @@ public:
     LuaWrapper *lua;
     friend void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>>);
     friend void LuaWrapper::dispatchCallbacks();
+    friend void AuthoritativeState::doUpdateTick();
     bool headless = false;
 protected:
     AuthoritativeState authState;

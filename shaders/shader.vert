@@ -30,6 +30,7 @@ layout(location = 4) out vec3 shadowCoord;
 layout(location = 5) out vec3 skyCoord;
 layout(location = 6) out float outHealth;
 layout(location = 7) out float outResources;
+layout(location = 8) out float outBlinkTime;
 
 layout( push_constant ) uniform constants {
     mat4 view;
@@ -38,9 +39,11 @@ layout( push_constant ) uniform constants {
     int index;
     int type;
     vec3 teamColor;
+    float blinkTime;
 } pushConstants;
 
 void main() {
+    outBlinkTime = pushConstants.blinkTime;
     outHealth = ubo.health;
     outResources = ubo.resources;
     vec4 worldPos;

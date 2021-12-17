@@ -100,6 +100,14 @@ void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode 
     context->send(data);
 }
 
+void Api::cmd_build(InstanceID unitID, const char *what, InsertionMode mode) {
+    if (!Api::context->currentScene->entities.contains(what)) throw std::runtime_error("Invalid build order");
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::BUILD, unitID, { {}, {}, 0 }, mode }};
+    strncpy(data.command.data.buf, what, CommandDataBufSize);
+    data.command.data.buf[CommandDataBufSize - 1] = '\0';
+    context->send(data);
+}
+
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
     std::scoped_lock l(context->authState.lock);
     Instance *inst;

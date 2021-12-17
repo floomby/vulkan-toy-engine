@@ -14,5 +14,6 @@ Shipyard = {
     buildOptions = {
         "ship",
         "miner"
-    }
+    },
+    buildPower = 10,
 }

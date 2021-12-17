@@ -22,6 +22,7 @@ public:
     static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void(InstanceID)> cb);
     static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
     static void cmd_destroyInstance(InstanceID unitID);
+    static void cmd_build(InstanceID unitID, const char *what, InsertionMode mode);
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);

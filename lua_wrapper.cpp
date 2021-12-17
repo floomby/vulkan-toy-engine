@@ -324,6 +324,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->resources = getNumberField("resources");
     getStringsField("buildOptions", ret->buildOptions);
     getStringField("buildIcon", ret->buildIcon);
+    getNumberField("buildPower", ret->buildPower);
 
     return ret;
 }

@@ -3443,6 +3443,9 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     beginInfo.flags = 0;
     beginInfo.pInheritanceInfo = nullptr;
 
+    pushConstants.blinkTime = sinf(static_cast<float>((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()
+        .time_since_epoch()) % 2000).count()) / (1999.0f / M_PI));
+
     vulkanErrorGuard(vkBeginCommandBuffer(buffer, &beginInfo), "Failed to begin recording command buffer.");
 
     runShadowPass(buffer, index);
@@ -3528,7 +3531,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         if (currentScene->state.instances[j]->entity->isProjectile) {
             pushConstants.renderType = RINT_PROJECTILE;
         } else {
-            pushConstants.renderType = RINT_OBJ | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT;
+            pushConstants.renderType = (currentScene->state.instances[j]->uncompleted ? RINT_UNCOMPLETE : RINT_OBJ)
+                | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         pushConstants.textureIndex = currentScene->state.instances[j]->entity->textureIndex;

@@ -1,5 +1,5 @@
 local inspect = require('libs/inspect')
--- require('lua/server_callbacks')
+require('bit')
 
 local data_bindings = {}
 local data_bindings_cache = {}
@@ -22,17 +22,6 @@ end
 local audioDeviceList = eng_listAudioDevices()
 eng_pickAudioDevice(audioDeviceList[1])
 
-local function click()
-    local r = eng_listAudioDevices()
-    for _, v in ipairs(r) do
-        print(v)
-    end
-end
-
-local function text_updated()
-    -- print("Text updated")
-end
-
 local function Split(s, delimiter)
     local result = {};
     for match in (s..delimiter):gmatch("(.-)"..delimiter) do
@@ -45,8 +34,23 @@ local function engret_visibility()
     gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
 end
 
+local MOD_SHIFT = 0x0001
+local MOD_CONTROL = 0x0002
+local MOD_ALT = 0x0004
+
+local function mods_to_mode(mods)
+    local mode = InsertionMode__OVERWRITE;
+    if bit.band(MOD_SHIFT, mods) ~= 0 then
+        mode = InsertionMode__BACK
+    end
+    if bit.band(MOD_ALT, mods) ~= 0 then
+        mode = InsertionMode__FRONT
+    end
+    return mode
+end
+
 local build_options = {}
-local build_location = { 0.0, 0.0, 0.0 }
+local build_units = {}
 local function build_visibility()
     local units = eng_getSelectedInstances()
     local can_build = false
@@ -56,43 +60,22 @@ local function build_visibility()
         for _, option in ipairs(options) do
             can_build = true
             build_options[option] = true
-            build_location = eng_getInstancePosition(unit)
+            if build_units[option] == nil then
+                build_units[option] = {}
+            end
+            build_units[option][unit] = true
         end
     end
     gui_setVisibility("build", can_build)
 end
 
-local function other(index)
-    local r = eng_getSelectedInstances()
-    for _, v in ipairs(r) do
-        eng_setInstanceStateEngage(v, index)
-    end
-end
-
-local function thing()
-    eng_setInstanceHealth(101, 0.7)
-    -- gui_setVisibility("broken", 0)
-end
-
-local function centerSelected()
-    print("You need to make the api bindings")
-end
-
-local function testFire()
-    pcall(test_fire)
-end
-
-local function dummyCallback(id)
-    -- print("callback with id of " .. id)
-    -- eng_setInstanceCustomState(id, "hold_position", 0)
-    -- print(inspect(eng_getInstanceCustomState(id, "hold_position")))
-    -- print(inspect(eng_getInstanceCustomState(id, "something_else")))
-    print(inspect(eng_getInstancePosition(id)))
-end
-
 function Build_handler(mods, name)
-    -- print("build handler: " .. mods .. " " .. name)
-    cmd_createInstance(Split(name, " ")[1], build_location, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
+    local true_name = Split(name, " ")[1]
+    print(true_name)
+    print(inspect(build_units))
+    for unit, _ in pairs(build_units[true_name]) do
+        cmd_build(unit, true_name, mods_to_mode(mods))
+    end
 end
 
 local function show_build_options()
@@ -122,8 +105,6 @@ local function remove_build_menu()
     gui_removePanel("Build_menu")
 end
 
-
-
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
     x = -1.0,
@@ -136,19 +117,19 @@ Hud = {
     color = 0x6050cc60,
     onPeriodicUpdate = update_bound_data,
     children = {
-        {
-            x = -0.9,
-            y = 0.75,
-            width = 0.5,
-            height = 0.1,
-            onClick = click,
-            kind = GuiLayoutKind__TEXT_BUTTON,
-            text = "Click!!!",
-            color = 0x101080ff,
-            -- children = {}
-            name = "button",
-            tooltip = "This has a tooltip!"
-        },
+        -- {
+        --     x = -0.9,
+        --     y = 0.75,
+        --     width = 0.5,
+        --     height = 0.1,
+        --     -- onClick = click,
+        --     kind = GuiLayoutKind__TEXT_BUTTON,
+        --     text = "Click!!!",
+        --     color = 0x101080ff,
+        --     -- children = {}
+        --     name = "button",
+        --     tooltip = "This has a tooltip!"
+        -- },
         {
             x = -0.2,
             y = 0.75,
@@ -160,7 +141,7 @@ Hud = {
             color = 0x101080ff,
             -- children = {}
             tooltip = "This has a tooltip!\nIsn't that nice",
-            onTextUpdated = text_updated
+            -- onTextUpdated = text_updated
         },
         {
             x = -0.9,
@@ -238,17 +219,6 @@ end
 
 bind_data("rus", resource_wrapper)
 
-local function new_handler()
-    print("I guess the gui can be dynamically loaded now")
-end
-
-local function new_handler2()
-    print("There is an off by 1 error")
-end
-
-local function build_menu_creator()
-end
-
 Build_menu = {
     x = 0.05,
     y = 0.75,
@@ -266,6 +236,11 @@ gui_setVisibility("build menu", true)
 build_visibility()
 engret_visibility()
 
+-- let the server know our team (I probably should not have to do this in lua)
+local teamID, display_name = state_getTeamIAm()
+net_declareTeam(teamID, display_name)
+
+
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 -- gui_setLabelText("button", "Hello")
 -- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
@@ -273,14 +248,14 @@ engret_visibility()
 -- print(eng_getInstanceHealth(id))
 -- net_declareTeam(1, "josh")
 
-local function dummyCallback2(id)
-    cmd_destroyInstance(id)
-end
+-- local function dummyCallback2(id)
+--     cmd_destroyInstance(id)
+-- end
 
-cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback2)
+-- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback2)
 
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
--- cmd_createInstance("shipyard", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+cmd_createInstance("shipyard", { 3.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
@@ -296,21 +271,13 @@ cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dum
 
 -- net_pause(false)
 
-local teamID, display_name = state_getTeamIAm()
--- print(teamID .. " - " .. display_name)
-net_declareTeam(teamID, display_name)
+
+
 -- state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
 -- net_pause(false)
 -- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
-
-
-for i = 0,1,1 
-do 
---    print(inspect(Server_callbacks[i]))
-end
-
 
 -- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
@@ -320,3 +287,7 @@ end
 -- cmd_createInstance("ship", { 110.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 
 -- state_giveResources(1, 50.76)
+
+-- cmd_destroyInstance(100)
+
+net_pause(false)

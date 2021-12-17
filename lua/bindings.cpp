@@ -107,6 +107,20 @@ static void cmd_destroyInstanceExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_destroyInstance");
 }
 
+static int cmd_buildWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
+    Api::cmd_build(a0, a1, a2);
+    return 0;
+}
+
+static void cmd_buildExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_buildWrapper);
+    lua_setglobal(ls, "cmd_build");
+}
+
 static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
     auto a0 = (Entity*)lua_topointer(ls, 1);
@@ -805,6 +819,7 @@ void LuaWrapper::apiExport() {
     cmd_createInstanceExport(luaState);
     cmd_stopExport(luaState);
     cmd_destroyInstanceExport(luaState);
+    cmd_buildExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_echoExport(luaState);
     eng_getTeamIDExport(luaState);
