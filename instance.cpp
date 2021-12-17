@@ -13,7 +13,7 @@ Instance::Instance(Entity *entity, InstanceID id) noexcept
 : Instance(entity, nullptr, nullptr, id, true) { }
 
 Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept
-: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo), resources(entity->resources) {
+: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo) {
 
     weapons.reserve(entity->weapons.size());
     for (auto& weapon : entity->weapons) {
@@ -21,6 +21,7 @@ Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* scene
     }
 
     if (inPlay && entity->isUnit) health = entity->maxHealth;
+    if (inPlay && entity->isResource) resources = entity->resources;
 }
 
 InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
@@ -58,6 +59,8 @@ void Instance::syncToAuthInstance(const Instance& other) {
     commandList = other.commandList;
     health = other.health;
     state = other.state;
+    uncompleted = other.uncompleted;
+    resources = other.resources;
 }
 
 // NOTE: direction has to be normalized

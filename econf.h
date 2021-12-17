@@ -32,6 +32,9 @@ namespace Net {
 const float iconNDCSize = 0.05f;
 const short port = 5555;
 
+// It is not hard to make this runtime configurable
+const int maxTeams = 16;
+
 namespace Util {
     template<unsigned... digits>
     struct to_chars { static const char value[]; };

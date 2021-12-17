@@ -15,7 +15,7 @@ public:
     Team(TeamID id, const std::string& displayName, std::optional<std::shared_ptr<Networking::Session>> = {});
     TeamID id;
     std::string displayName;
-    CopyableAtomic<double> resourceUnits;
+    double resourceUnits = 0.0f;
     std::optional<std::shared_ptr<Networking::Session>> session;
 
     inline bool operator==(TeamID other) const { return id == other; }

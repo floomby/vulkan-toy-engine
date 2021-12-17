@@ -9,7 +9,7 @@ local function update_bound_data()
         local value = wrapper()
         if (value ~= data_bindings_cache[name]) then
             data_bindings_cache[name] = value
-            gui_setLabelText(name, value)
+            -- gui_setLabelText(name, value)
         end
     end
 end
@@ -213,8 +213,11 @@ Hud = {
     }
 }
 
+local teamID, display_name = state_getTeamIAm()
+net_declareTeam(teamID, display_name)
+
 local function resource_wrapper()
-    return state_getResources(1 ) .. " RUs"
+    return math.floor(state_getResources(teamID)) .. " RUs"
 end
 
 bind_data("rus", resource_wrapper)
@@ -236,9 +239,9 @@ gui_setVisibility("build menu", true)
 build_visibility()
 engret_visibility()
 
+state_giveResources(2, 50000)
+
 -- let the server know our team (I probably should not have to do this in lua)
-local teamID, display_name = state_getTeamIAm()
-net_declareTeam(teamID, display_name)
 
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
@@ -253,6 +256,8 @@ net_declareTeam(teamID, display_name)
 -- end
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback2)
+
+-- state_giveResources(2, 5000)
 
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 cmd_createInstance("shipyard", { 3.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)

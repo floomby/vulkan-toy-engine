@@ -120,6 +120,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 void AuthoritativeState::doUpdateTick() {
     if (frame.load(std::memory_order_relaxed) % 300 == 1) std::cout << std::hex << crc() << std::endl;
 
+    std::array<std::vector<std::pair<Instance *, float>>, ::Config::maxTeams + 1> buildPowerAllocations;
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
     auto copy = instances;
@@ -203,8 +204,8 @@ void AuthoritativeState::doUpdateTick() {
                     inst->team = it->team;
                     inst->hasCollision = false;
                     it->commandList.erase(bit);
-                    copy_if(it->commandList.begin(), it->commandList.end(), inst->commandList.end(),
-                        [](const auto& x) -> bool { return x.kind != CommandKind::BUILD; });
+                    it->isBuilding = true;
+                    inst->buildPower = it->entity->buildPower;
                     instances.push_back(inst);
                 }
             }
@@ -212,6 +213,9 @@ void AuthoritativeState::doUpdateTick() {
             Pathgen::stop(*it);
         }
         if (it) {
+            if (it->buildPower) {
+                buildPowerAllocations[it->team].push_back({ it, it->buildPower });
+            }
             if (it->hasCollision) for (auto other : copy) {
                 if (!other || *other == *it || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
@@ -234,6 +238,37 @@ void AuthoritativeState::doUpdateTick() {
             }
         }
     }
+    for (const auto& buildPowerAllocation : buildPowerAllocations) {
+        if (buildPowerAllocation.empty()) continue;
+        float totalWantedThisTick = 0.0f;
+        for (const auto [inst, bp] : buildPowerAllocation) {
+            totalWantedThisTick += bp;
+        }
+        totalWantedThisTick *= Config::Net::secondsPerTick;
+        if (totalWantedThisTick < teams[buildPowerAllocation.front().first->team]->resourceUnits) {
+            teams[buildPowerAllocation.front().first->team]->resourceUnits -= totalWantedThisTick;
+            for (auto [inst, bp] : buildPowerAllocation) {
+                inst->resources += bp * Config::Net::secondsPerTick;
+                if (inst->resources >= inst->entity->resources) {
+                    // refund the overage
+                    teams[buildPowerAllocation.front().first->team]->resourceUnits += inst->resources - inst->entity->resources;
+                    inst->resources = inst->entity->resources;
+                    inst->hasCollision = true;
+                    inst->uncompleted = false;
+                    inst->buildPower = 0.0f;
+                    auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
+                    if (oit != copy.end()) {
+                        (*oit)->isBuilding = false;
+                        copy_if((*oit)->commandList.begin(), (*oit)->commandList.end(), inst->commandList.end(),
+                            [](const auto& x) -> bool { return x.kind != CommandKind::BUILD; });
+                    }
+                }
+            }
+        } else {
+            
+        }
+    }
+
     frame.fetch_add(1, std::memory_order_relaxed);
     copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
     for (auto inst : toDelete) delete inst;
@@ -359,15 +394,24 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
         paused = (bool)data->frame;
     } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {
         lock.lock();
-        teams.push_back(std::make_shared<Team>((TeamID)data->frame, data->buf, session));
+        teams[data->frame] = std::make_shared<Team>((TeamID)data->frame, data->buf, session);
         if (session.has_value()) {
-            session.value()->team = teams.back();
+            session.value()->team = teams[data->frame];
         }
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::RESOURCES) {
+        if (data->frame > Config::maxTeams) {
+            std::cerr << "Team id exceeds max teams " << std::dec << data->frame << std::endl;
+            return;
+        }
         lock.lock();
-        auto it = find_if(teams.begin(), teams.end(), [&](const auto& x){ return *x.get() == (TeamID)data->frame; });
-        if (it != teams.end()) (*it)->resourceUnits = (*it)->resourceUnits + data->dbl;
+        auto tmp = teams[data->frame];
+        if (!tmp) {
+            std::cerr << "Invalid team " << std::dec << data->frame << std::endl;
+            lock.unlock();
+            return;
+        }
+        tmp->resourceUnits += data->dbl;
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::SERVER_MESSAGE) {
         if (!context->headless) Api::eng_echo(data->buf);

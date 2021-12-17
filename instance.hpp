@@ -111,8 +111,8 @@ public:
     InstanceID id;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
-    CopyableAtomic<double> health = 1.0;
-    CopyableAtomic<double> resources = 0.0;
+    double health = 1.0;
+    double resources = 0.0;
     bool hasCollision = true;
 
     // This is the stuff that needs to get synced
@@ -125,6 +125,8 @@ public:
     bool canAttack() const;
     bool uncompleted = false;
     bool isBuilding = false;
+    // This is the build power being USED on this units construction
+    float buildPower = 0.0f;
 
     InstanceState state { IEngage::ENGAGE };
     std::map<std::string, int> customState;

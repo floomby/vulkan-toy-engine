@@ -162,11 +162,11 @@ float Api::engS_getInstanceHealth(Instance *unit) {
 
 double Api::eng_getInstanceResources(InstanceID unitID) {
     lock_and_get_iterator
-    return it->resources.load(std::memory_order_relaxed);
+    return it->resources;
 }
 
 double Api::engS_getInstanceResources(Instance *unit) {
-    return unit->resources.load(std::memory_order_relaxed);
+    return unit->resources;
 }
 
 const std::string& Api::eng_getInstanceEntityName(InstanceID unitID) {
@@ -322,7 +322,7 @@ glm::quat& Api::engS_getInstanceHeading(Instance *unit) {
 }
 
 unsigned long Api::eng_frame() {
-    return context->authState.frame.load(std::memory_order_relaxed);
+    return context->authState.frame;
 }
 
 void Api::gui_setVisibility(const char *name, bool visibility) {
@@ -379,10 +379,21 @@ void Api::state_giveResources(TeamID team, double resourceUnits) {
 }
 
 double Api::state_getResources(TeamID teamID) {
-    std::scoped_lock l(context->authState.lock);
-    auto it = find_if(context->authState.teams.begin(), context->authState.teams.end(), [&](const auto& x){ return *x.get() == teamID; });
-    if (it != context->authState.teams.end()) return (*it)->resourceUnits.load(std::memory_order_relaxed);
-    return 0.0;
+    if (teamID > Config::maxTeams) {
+        std::string msg = "TeamID is out of bounds (";
+        msg += teamID;
+        msg += " is greater than max teams)";
+        throw std::runtime_error(msg);
+    }
+
+    auto tmp = context->authState.teams[teamID];
+    if (!tmp) {
+        std::string msg = "TeamID is invalid (";
+        msg += teamID;
+        msg += " has not been declared)";
+        throw std::runtime_error(msg);
+    }
+    return tmp->resourceUnits;
 }
 
 std::pair<TeamID, const std::string> Api::state_getTeamIAm() {
@@ -392,6 +403,12 @@ std::pair<TeamID, const std::string> Api::state_getTeamIAm() {
 }
 
 void Api::net_declareTeam(TeamID teamID, const std::string& name) {
+    if (teamID > Config::maxTeams) {
+        std::string msg = "TeamID is out of bounds (";
+        msg += teamID;
+        msg += " is greater than max teams)";
+        throw std::runtime_error(msg);
+    }
     ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';

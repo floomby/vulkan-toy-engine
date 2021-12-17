@@ -8,6 +8,7 @@
 #include <thread>
 #include <utility>
 
+#include "econf.h"
 #include "instance.hpp"
 
 
@@ -120,7 +121,7 @@ public:
     std::vector<Instance *> instances;
     std::atomic<unsigned long> frame = 0;
     InstanceID counter = 100;
-    std::vector<std::shared_ptr<Team>> teams;
+    std::array<std::shared_ptr<Team>, Config::maxTeams + 1> teams;
 
     std::atomic<bool> paused = true;
 
