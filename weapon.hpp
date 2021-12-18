@@ -27,7 +27,7 @@ enum class WeaponKind {
 
 class Weapon {
 public:
-    virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID) = 0;
+    virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID, TeamID teamID) = 0;
     virtual bool hasEntity();
     std::shared_ptr<Entity> entity;
     std::string name;
@@ -43,7 +43,7 @@ private:
 class PlasmaCannon : public Weapon {
 public:
     PlasmaCannon(std::shared_ptr<Entity> projectileEntity);
-    virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID);
+    virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID, TeamID teamID);
     virtual bool hasEntity();
     virtual ~PlasmaCannon() = default;
     inline virtual WeaponKind kindOf() { return WeaponKind::PLASMA_CANNON; } 
@@ -52,24 +52,33 @@ private:
 
 class Beam : public Weapon {
 public:
-    virtual void fire(const glm::vec3& position, const glm::vec3& target, InstanceID parentID);
+    virtual void fire(const glm::vec3& position, const glm::vec3& target, InstanceID parentID, TeamID teamID);
     uint32_t color = 0xffffffff;
     static constexpr int framesToFire = Config::Net::ticksPerSecond * 0.5f;
     virtual ~Beam() = default;
     inline virtual WeaponKind kindOf() { return WeaponKind::BEAM; } 
 };
 
+class Guided : public PlasmaCannon {
+public:
+    Guided(std::shared_ptr<Entity> projectileEntity);
+    virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID, TeamID teamID);
+    virtual ~Guided() = default;
+    inline virtual WeaponKind kindOf() { return WeaponKind::GUIDED; }
+};
+
 class WeaponInstance {
 public:
-    WeaponInstance(Weapon *weapon, InstanceID parentID);
+    WeaponInstance(Weapon *weapon, InstanceID parentID, TeamID teamID);
     Weapon *instanceOf;
     WeaponKind kindOf;
     // Target target;
     // void aquireTarget(/* needs some argements*/);
     float timeSinceFired;
-    uint reloadIndex;
+    uint reloadIndex = 0;
 
-    uint32_t parentID;
+    InstanceID parentID;
+    TeamID teamID;
     void fire(const glm::vec3& position, const glm::vec3& direction);
     // glm::vec3 realativePosition;
     int framesFired = 0;

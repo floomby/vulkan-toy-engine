@@ -368,6 +368,16 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
         case WeaponKind::BEAM:
             ret = new Beam();
             static_cast<Beam *>(ret)->color = (uint32_t)getNumberField("color");
+            break;
+        case WeaponKind::GUIDED:
+            model = getStringField("model");
+            texture = getStringField("texture");
+
+            ret = new Guided(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
+            ret->entity->maxSpeed = getNumberField("speed");
+            ret->entity->acceleration = getNumberField("acceleration");
+            ret->entity->maxOmega = getNumberField("maxOmega");
+            ret->entity->isGuided = true;
 
             break;
         default:
@@ -384,6 +394,8 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
     // This does not belong here, but since I went with a trivial constructor idk where to put it
     if (kind == WeaponKind::BEAM) {
         ret->damage /= Beam::framesToFire;
+    } else {
+        ret->entity->precompute();
     }
 
     return ret;

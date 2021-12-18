@@ -49,7 +49,7 @@ public:
     float w_m;
 
     Weapon *weapon = nullptr;
-    bool isProjectile, isUnit, isResource;
+    bool isProjectile, isUnit, isResource, isGuided = false;
     WeaponKind weaponKind;
     uint framesTillDead = 0;
 

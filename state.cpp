@@ -140,21 +140,49 @@ void AuthoritativeState::doUpdateTick() {
         }
         assert(it->inPlay);
         if (it->entity->isProjectile) {
+            float closest = std::numeric_limits<float>::max();
+            bool targetIsAlive = false;
             for (auto& other : copy) {
                 if (!other || it->parentID == other->id || other->entity->isProjectile || !other->hasCollision) continue;
-                float d;
-                float l = length(it->dP);
-                if (other->rayIntersects(it->position, normalize(it->dP), d)) {
-                    if (d < l * timeDelta) {
+                if (!it->entity->isGuided) {
+                    float d;
+                    float l = length(it->dP);
+                    if (other->rayIntersects(it->position, normalize(it->dP), d)) {
+                        if (d < l * timeDelta) {
+                            other->health = other->health - it->entity->weapon->damage;
+                            toDelete.push_back(it);
+                            it = nullptr;
+                            break;
+                        }
+                    }
+                } else {
+                    if (it->entity->boundingRadius + other->entity->boundingRadius > distance(it->position, other->position)) {
                         other->health = other->health - it->entity->weapon->damage;
                         toDelete.push_back(it);
                         it = nullptr;
                         break;
                     }
                 }
+                if (it->entity->isGuided && !targetIsAlive && other->team != it->team) {
+                    if (it->target.targetID == other->id) {
+                        // std::cout << it->target.location << std::endl;
+                        targetIsAlive = true;
+                        it->target.location = other->position;
+                    } else {
+                        auto dist = distance(it->position, other->position);
+                        if (dist < closest) {
+                            closest = dist;
+                            it->target.location = other->position;
+                        }
+                    }
+                }
             }
             if (it) {
-                it->position += it->dP * timeDelta;
+                if (it->entity->isGuided) {
+                    Pathgen::seek(*it, it->target.location);
+                } else {
+                    it->position += it->dP * timeDelta;
+                }
                 if (++it->framesAlive > it->entity->framesTillDead) {
                     toDelete.push_back(it);
                     it = nullptr;
@@ -194,17 +222,16 @@ void AuthoritativeState::doUpdateTick() {
                     const auto ent = Api::context->currentScene->entities.at(bit->data.buf);
                     Instance *inst;
                     if (Api::context->headless) {
-                        inst = new Instance(ent, counter++);
+                        inst = new Instance(ent, counter++, it->team);
                     } else {
                         inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex,
-                            Api::context->currentScene->models.data() + ent->modelIndex, counter++, true);
+                            Api::context->currentScene->models.data() + ent->modelIndex, counter++, it->team, true);
                     }
                     inst->heading = it->heading;
                     inst->position = it->position;
                     inst->dP = it->dP;
                     inst->parentID = it->id;
                     inst->uncompleted = true;
-                    inst->team = it->team;
                     inst->hasCollision = false;
                     it->commandList.erase(bit);
                     it->isBuilding = true;
@@ -220,7 +247,7 @@ void AuthoritativeState::doUpdateTick() {
                 buildPowerAllocations[it->team].push_back({ it, it->buildPower });
             }
             if (it->hasCollision) for (auto other : copy) {
-                if (!other || *other == *it || other->entity->isProjectile || !other->hasCollision) continue;
+                if (!other || *other == *it || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
             }
             for (const auto& ai : it->entity->ais) {
@@ -233,7 +260,8 @@ void AuthoritativeState::doUpdateTick() {
                 for (auto other : copy) {
                     if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
                     auto dist = distance(other->position, it->position);
-                    if (weapon.kindOf == WeaponKind::PLASMA_CANNON && dist < weapon.instanceOf->range * 1.5f && dist < closest) {
+                    if ((weapon.kindOf == WeaponKind::PLASMA_CANNON || weapon.kindOf == WeaponKind::GUIDED) &&
+                        dist < weapon.instanceOf->range * 1.5f && dist < closest) {
                         vec = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
                             weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
                         closest = dist;
@@ -378,14 +406,13 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             lock.lock();
             Instance *inst;
             if (Api::context->headless) {
-                inst = new Instance(ent, counter++);
+                inst = new Instance(ent, counter++, data->command.data.id);
             } else {
                 inst = new Instance(ent, Api::context->currentScene->textures.data() + ent->textureIndex,
-                    Api::context->currentScene->models.data() + ent->modelIndex, counter++, true);
+                    Api::context->currentScene->models.data() + ent->modelIndex, counter++, data->command.data.id, true);
             }
             inst->heading = data->command.data.heading;
             inst->position = data->command.data.dest;
-            inst->team = data->command.data.id;
             if (data->callbackID && session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;

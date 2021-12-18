@@ -190,6 +190,7 @@ void Entity::precompute() {
 
     if (weapon) {
         framesTillDead = ceil(weapon->range / v_m);
+        if (isGuided) framesTillDead *= 3;
     }
 
     if (weapons.size()) {

@@ -3522,9 +3522,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     // 0th instance is always the skybox (see Engine::loadDefaultScene)
     for (int j = 1; j < uniformSync->validCount[index]; j++) {
         if (!currentScene->state.instances[j]->rendered) continue;
-        if (!currentScene->state.instances[j]->entity->isProjectile) {
-            pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j]->team];
-        }
+        pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j]->team];
         dynamicOffset = j * uniformSync->uniformSkip;
         // render the unit as an icon
         if (currentScene->state.instances[j]->renderAsIcon) {
@@ -3536,7 +3534,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
-        if (currentScene->state.instances[j]->entity->isProjectile) {
+        if (currentScene->state.instances[j]->entity->isProjectile && !currentScene->state.instances[j]->entity->isGuided) {
             pushConstants.renderType = RINT_PROJECTILE;
         } else {
             pushConstants.renderType = (currentScene->state.instances[j]->uncompleted ? RINT_UNCOMPLETE : RINT_OBJ)
@@ -4660,7 +4658,7 @@ Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *,
 void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 heading) {
     assert(models.size());
     auto ent = entities[name];
-    state.instances.push_back(new Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, false));
+    state.instances.push_back(new Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, 0, false));
     state.instances.back()->position = std::move(position);
     state.instances.back()->heading = std::move(heading);
 }

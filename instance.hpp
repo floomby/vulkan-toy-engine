@@ -85,8 +85,8 @@ class Entity;
 class Instance {
 public:
     Instance();
-    Instance(Entity* entity, InstanceID id) noexcept;
-    Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept;
+    Instance(Entity* entity, InstanceID id, TeamID team) noexcept;
+    Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, TeamID team, bool inPlay) noexcept;
     void syncToAuthInstance(const Instance& other);
 
     SceneModelInfo* sceneModelInfo;

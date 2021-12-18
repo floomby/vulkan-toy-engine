@@ -108,14 +108,14 @@ void Api::cmd_build(InstanceID unitID, const char *what, InsertionMode mode) {
     context->send(data);
 }
 
-void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID) {
+void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID) {
     std::scoped_lock l(context->authState.lock);
     Instance *inst;
     if (context->headless) {
-        inst = new Instance(projectileEntity, context->authState.counter++);
+        inst = new Instance(projectileEntity, context->authState.counter++, 0);
     } else {
         inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
-            context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, true);
+            context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, 0, true);
     }
     inst->dP = normedDirection * projectileEntity->maxSpeed;
     inst->position = position;
@@ -124,7 +124,23 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
     context->authState.instances.push_back(inst);
 }
 
-void Api::eng_createBeam(uint32_t color, float damage, const glm::vec3& from, const glm::vec3& to, uint32_t parentID) {
+void Api::eng_createGuidedProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID, TeamID teamID) {
+    std::scoped_lock l(context->authState.lock);
+    Instance *inst;
+    if (context->headless) {
+        inst = new Instance(projectileEntity, context->authState.counter++, teamID);
+    } else {
+        inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
+            context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, teamID, true);
+    }
+    inst->dP = normedDirection * projectileEntity->maxSpeed;
+    inst->position = position;
+    inst->heading = { 1.0f, 0.0f, 0.0f, 0.0f };
+    inst->parentID = parentID;
+    context->authState.instances.push_back(inst);
+}
+
+void Api::eng_createBeam(uint32_t color, float damage, const glm::vec3& from, const glm::vec3& to, InstanceID parentID) {
     std::scoped_lock l(context->authState.lock);
     context->authState.beamDatum.push_back({ parentID, damage });
     auto col = util_colorIntToVec(color);

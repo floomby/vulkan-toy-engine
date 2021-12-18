@@ -9,15 +9,15 @@ void crcString(boost::crc_32_type& crc, const std::string& str) {
 
 Instance::Instance() : id(42) { }
 
-Instance::Instance(Entity *entity, InstanceID id) noexcept
-: Instance(entity, nullptr, nullptr, id, true) { }
+Instance::Instance(Entity *entity, InstanceID id, TeamID team) noexcept
+: Instance(entity, nullptr, nullptr, id, team, true) { }
 
-Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, bool inPlay) noexcept
-: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo) {
+Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, TeamID team, bool inPlay) noexcept
+: id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo), team(team) {
 
     weapons.reserve(entity->weapons.size());
     for (auto& weapon : entity->weapons) {
-        weapons.push_back(WeaponInstance(weapon, id));
+        weapons.push_back(WeaponInstance(weapon, id, team));
     }
 
     if (inPlay && entity->isUnit) health = entity->maxHealth;
@@ -32,7 +32,7 @@ InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, 
             * scale(glm::vec3(Config::iconNDCSize / aspectRatio, Config::iconNDCSize, Config::iconNDCSize));
 
     } else {
-        if (!entity->isProjectile)
+        if (!entity->isProjectile || entity->isGuided)
             _state.model = translate(position) * glm::toMat4(heading);
         else {
             _state.model = translate(position) * glm::eulerAngleXYX(static_cast <float> (M_PI * rand()) / static_cast <float> (RAND_MAX),

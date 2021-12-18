@@ -144,7 +144,7 @@ static int eng_createBallisticProjectileWrapper(lua_State *ls) {
         lua_pop(ls, 1);
     }
     glm::vec3 a2(v2[0], v2[1], v2[2]);
-    auto a3 = (uint32_t)luaL_checkinteger(ls, 4);
+    auto a3 = (InstanceID)luaL_checkinteger(ls, 4);
     Api::eng_createBallisticProjectile(a0, a1, a2, a3);
     return 0;
 }
@@ -152,6 +152,40 @@ static int eng_createBallisticProjectileWrapper(lua_State *ls) {
 static void eng_createBallisticProjectileExport(lua_State *ls) {
     lua_pushcfunction(ls, eng_createBallisticProjectileWrapper);
     lua_setglobal(ls, "eng_createBallisticProjectile");
+}
+
+static int eng_createGuidedProjectileWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Entity*)lua_topointer(ls, 1);
+    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v1;
+    if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 2, i);
+        luaL_checknumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a1(v1[0], v1[1], v1[2]);
+    if(!lua_istable(ls, 3)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v2;
+    if (lua_objlen(ls, 3) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 3, i);
+        luaL_checknumber(ls, -1);
+        v2[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a2(v2[0], v2[1], v2[2]);
+    auto a3 = (InstanceID)luaL_checkinteger(ls, 4);
+    auto a4 = (TeamID)luaL_checkinteger(ls, 5);
+    Api::eng_createGuidedProjectile(a0, a1, a2, a3, a4);
+    return 0;
+}
+
+static void eng_createGuidedProjectileExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_createGuidedProjectileWrapper);
+    lua_setglobal(ls, "eng_createGuidedProjectile");
 }
 
 static int eng_createBeamWrapper(lua_State *ls) {
@@ -177,7 +211,7 @@ static int eng_createBeamWrapper(lua_State *ls) {
         lua_pop(ls, 1);
     }
     glm::vec3 a3(v3[0], v3[1], v3[2]);
-    auto a4 = (uint32_t)luaL_checkinteger(ls, 5);
+    auto a4 = (InstanceID)luaL_checkinteger(ls, 5);
     Api::eng_createBeam(a0, a1, a2, a3, a4);
     return 0;
 }
@@ -874,6 +908,7 @@ void LuaWrapper::apiExport() {
     cmd_destroyInstanceExport(luaState);
     cmd_buildExport(luaState);
     eng_createBallisticProjectileExport(luaState);
+    eng_createGuidedProjectileExport(luaState);
     eng_createBeamExport(luaState);
     eng_echoExport(luaState);
     eng_getTeamIDExport(luaState);
