@@ -3339,17 +3339,21 @@ void Engine::writeHudDescriptors() {
 static std::vector<std::shared_ptr<GuiTexture>> textureRefs, textureRefsOld, textureRefsOldOld;
 static size_t oldSize = textureRefs.size();
 
+static std::ofstream frameLog("frameLog", std::ofstream::out);
+
 void Engine::rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>>& hudTextures) {
     if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
-    textureRefsOldOld = textureRefsOld;
-    textureRefsOld = textureRefs;
+    // textureRefsOldOld = textureRefsOld;
+    // textureRefsOld = textureRefs;
     textureRefs.clear();
 
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
 
-    // Now we leverage the reference counting to keep the textures from disapearing on us
+    // frameLog << "On frame " << std::dec << totalFrames << std::endl;
     for(const auto textPtr : hudTextures) {
+        // frameLog << "    " << textPtr->imageView << std::endl;
         textureRefs.push_back(textPtr);
+        textureRefsOld.push_back(textPtr);
     }
 }
 
@@ -3439,6 +3443,7 @@ void Engine::allocateCommandBuffers() {
 // cause I didn't know what I was ultimately going to need (I should refactor it and make it less idiotic, but I don't really feel like doing that rn)
 void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuffer& framebuffer, const VkDescriptorSet& descriptorSet,
     const VkDescriptorSet& hudDescriptorSet, int index) {
+    // frameLog << "Doing frame " << std::dec << totalFrames << std::endl;
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = 0;
@@ -3607,6 +3612,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     // Draw the tooltip last
     if(drawTooltip) vkCmdDraw(buffer, 6, 1, 12, 0);
+
+    // frameLog << "    hud vertex count: " << hudVertexCount << std::endl;
 
     vkCmdEndRenderPass(buffer);
 
@@ -4937,6 +4944,8 @@ namespace GuiTextures {
 
 std::shared_ptr<GuiTexture> GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
+static std::ofstream textureLog("textureLog", std::ofstream::out);
+
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
     VkFormat format, VkFilter filter, bool useRenderQueue, bool storable) {
     // force using a linear color space format
@@ -5061,6 +5070,11 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
     vulkanErrorGuard(vkCreateImageView(context->device, &textureImageViewInfo, nullptr, &imageView), "Unable to create texture image view.");
 
     sampler = TextResource::sampler_;
+
+    // std::ostringstream ss;
+    // ss << std::hex << "Created " << this->imageView << " " << std::this_thread::get_id() << std::endl;
+    // ss << boost::stacktrace::stacktrace() << std::endl;
+    // textureLog << ss.str();
 }
 
 GuiTexture::~GuiTexture() {
@@ -5509,6 +5523,11 @@ GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation,
 : widenessRatio(widenessRatio), image(image), allocation(allocation), context(context), invalid(false) {
     this->imageView = imageView;
     sampler = TextResource::sampler_;
+
+    // std::ostringstream ss;
+    // ss << std::hex << "Created " << this->imageView << " " << std::this_thread::get_id() << std::endl;
+    // ss << boost::stacktrace::stacktrace() << std::endl;
+    // textureLog << ss.str();
 }
 
 GuiTexture *TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {

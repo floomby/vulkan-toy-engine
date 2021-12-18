@@ -144,7 +144,6 @@ void Gui::pollChanges() {
                         std::cerr << e.what() << std::endl;
                     }
                 }
-                changed = true;
                 delete command.data;
             } else if (command.action == GUI_RESIZE) {
                 changed = true; // really this is rarely false so just treat it like it is always true
@@ -423,7 +422,8 @@ void GuiComponent::addComponent(std::queue<uint>& childIndices, GuiComponent *co
 
 void GuiComponent::removeComponent(std::queue<uint>& childIndices) {
     // This is fine, you should never delete the root
-    if (childIndices.empty() && parent) {
+    assert(parent);
+    if (childIndices.empty()) {
         parent->children.erase(std::remove(parent->children.begin(), parent->children.end(), this), parent->children.end());
         delete this;
         return;
