@@ -446,6 +446,7 @@ private:
     // I do not like the way I am doing this
     void createMainDescriptors(const std::vector<EntityTexture>& textures, const std::vector<GuiTexture>& hudTextures);
     void writeHudDescriptors();
+    std::vector<size_t> hudDescriptorWriteCount;
     std::vector<bool> hudDescriptorNeedsRewrite;
     void rewriteHudDescriptors(int index);
     void rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>>& hudTextures);

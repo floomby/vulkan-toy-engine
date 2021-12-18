@@ -3282,6 +3282,8 @@ void Engine::createMainDescriptors(const std::vector<EntityTexture>& textures, c
 
 void Engine::writeHudDescriptors() {
     hudDescriptorNeedsRewrite.resize(concurrentFrames);
+    hudDescriptorWriteCount.resize(concurrentFrames);
+    fill(hudDescriptorWriteCount.begin(), hudDescriptorWriteCount.end(), 0);
 
     for (size_t i = 0; i < concurrentFrames; i++) {
         std::array<VkWriteDescriptorSet, 3> hudDescriptorWrites {};
@@ -3337,14 +3339,12 @@ void Engine::writeHudDescriptors() {
 // I think if concurrent frams was higher this would need more layers (I have concurrent frames = 2 right now)
 // TODO Think what is the better way to do this?
 static std::vector<std::shared_ptr<GuiTexture>> textureRefs, textureRefsOld, textureRefsOldOld;
-static size_t oldSize = textureRefs.size();
 
 static std::ofstream frameLog("frameLog", std::ofstream::out);
 
 void Engine::rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>>& hudTextures) {
-    if (hudTextures.empty() && !oldSize) return; // We got nothing to do here
-    // textureRefsOldOld = textureRefsOld;
-    // textureRefsOld = textureRefs;
+    textureRefsOldOld = textureRefsOld;
+    textureRefsOld = textureRefs;
     textureRefs.clear();
 
     fill(hudDescriptorNeedsRewrite.begin(), hudDescriptorNeedsRewrite.end(), true);
@@ -3353,14 +3353,14 @@ void Engine::rewriteHudDescriptors(const std::vector<std::shared_ptr<GuiTexture>
     for(const auto textPtr : hudTextures) {
         // frameLog << "    " << textPtr->imageView << std::endl;
         textureRefs.push_back(textPtr);
-        textureRefsOld.push_back(textPtr);
+        // textureRefsOld.push_back(textPtr);
     }
 }
 
 void Engine::rewriteHudDescriptors(int index) {
     std::array<VkWriteDescriptorSet, 1> hudDescriptorWrites {};
 
-    std::vector<VkDescriptorImageInfo> hudTextureInfos(std::max(textureRefs.size(), oldSize));
+    std::vector<VkDescriptorImageInfo> hudTextureInfos(std::max(textureRefs.size(), hudDescriptorWriteCount[index]));
     int j;
 
     for (j = 0; j < textureRefs.size(); j++) {
@@ -3370,7 +3370,7 @@ void Engine::rewriteHudDescriptors(int index) {
         // hudTextureInfos[i].imageView = currentScene->state.instances[0].texture->textureImageView;
         // hudTextureInfos[i].sampler = currentScene->state.instances[0].texture->textureSampler;
     }
-    for (; j < oldSize; j++) {
+    for (; j < hudDescriptorWriteCount[index]; j++) {
         hudTextureInfos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         hudTextureInfos[j].imageView = GuiTextures::defaultTexture->imageView;
         hudTextureInfos[j].sampler = GuiTextures::defaultTexture->sampler;
@@ -3385,6 +3385,8 @@ void Engine::rewriteHudDescriptors(int index) {
     hudDescriptorWrites[0].pImageInfo = hudTextureInfos.data();
 
     vkUpdateDescriptorSets(device, hudDescriptorWrites.size(), hudDescriptorWrites.data(), 0, nullptr);
+
+    hudDescriptorWriteCount[index] = textureRefs.size();
 }
 
 // Idk if this should be gui or engine (probably engine since it needs syncronization to the draws)
