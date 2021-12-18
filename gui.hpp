@@ -416,7 +416,6 @@ private:
     std::mutex dataMutex;
     std::mutex queueLock;
     std::map<uint32_t, uint> idToBuffer;
-    std::vector<GuiVertex> vertices;
     std::vector<std::shared_ptr<GuiTexture>> textures;
     std::vector<GuiVertex> dragBox;
 
@@ -426,7 +425,9 @@ private:
 
     GuiComponent *fromLayout(GuiLayoutNode *tree, int baseLayer, const std::string& panelName);
 
+    // This is protected by dataMutex
     int whichBuffer;
+
     std::array<VmaAllocation, 2> gpuAllocations;
     std::array<VkBuffer, 2> gpuBuffers;
     std::array<size_t, 2> gpuSizes;

@@ -2183,20 +2183,19 @@ void Gui::rebuildBuffer(bool texturesDirty) {
     root->mapTextures(buildingTextures, idx);
     root->buildVertexBuffer(buildingVertices, componentIdToBufferMap, otherIdx);
 
-    whichBuffer ^= 1;
-    vertices = buildingVertices;
-
     std::scoped_lock lock(dataMutex);
+    whichBuffer ^= 1;
     needTextureSync = texturesDirty;
     textures = buildingTextures;
     idToBuffer = componentIdToBufferMap;
-    usedSizes[whichBuffer] = Gui::dummyVertexCount + vertices.size();
-    if (vertices.size() + Gui::dummyVertexCount > gpuSizes[whichBuffer]) {
-        reallocateBuffer(whichBuffer, vertices.size() + Gui::dummyVertexCount);
-        gpuSizes[whichBuffer] = Gui::dummyVertexCount + vertices.size();
+    usedSizes[whichBuffer] = Gui::dummyVertexCount + buildingVertices.size();
+    if (buildingVertices.size() + Gui::dummyVertexCount > gpuSizes[whichBuffer]) {
+        reallocateBuffer(whichBuffer, buildingVertices.size() + Gui::dummyVertexCount);
+        gpuSizes[whichBuffer] = Gui::dummyVertexCount + buildingVertices.size();
     }
 
-    memcpy(static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + Gui::dummyVertexCount, vertices.data(), vertices.size() * sizeof(GuiVertex));
+    memcpy(static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + Gui::dummyVertexCount, buildingVertices.data(),
+        buildingVertices.size() * sizeof(GuiVertex));
 
     rebuilt = true;
 }
