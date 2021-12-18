@@ -408,7 +408,7 @@ public:
 
     void uncaptureKeyboard();
 private:
-    bool needTextureSync = false;
+    std::atomic<bool> needTextureSync = false;
     std::thread guiThread;
     std::queue<GuiCommand> guiCommands;
 

@@ -112,6 +112,14 @@ namespace std {
     }
 }
 
+// strange to have ubo here, but beams are simple and this is a simple way to do it
+struct LineUBO {
+    alignas(16) glm::vec3 a;
+    alignas(16) glm::vec3 b;
+    alignas(16) glm::vec4 aColor;
+    alignas(16) glm::vec4 bColor;
+};
+
 class Base;
 
 // I feel like I am doing this all wrong
@@ -121,6 +129,7 @@ public:
     ~AuthoritativeState();
 
     std::vector<Instance *> instances;
+    std::vector<LineUBO> beams;
     std::atomic<unsigned long> frame = 0;
     InstanceID counter = 100;
     std::array<std::shared_ptr<Team>, Config::maxTeams + 1> teams;
@@ -153,6 +162,7 @@ class ObservableState {
 public:
     ~ObservableState();
     std::vector<Instance *> instances;
+    std::vector<LineUBO> beams;
     uint commandCount(const std::vector<uint>& which);
     CommandGenerator<CommandCoroutineType> getCommandGenerator(std::vector<uint> *which);
     // This update is only for smoothing the animations and stuff (Lag compensation will eventually go in it too once I get around to it)

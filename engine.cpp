@@ -4699,7 +4699,7 @@ void Scene::updateUniforms(int idx) {
         return s + x->lines.size();
     });
     // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
-    std::vector<LineUBO> lineTmp(commandCount + lineObjectSize);
+    std::vector<LineUBO> lineTmp(commandCount + lineObjectSize + state.beams.size());
 
     for (const auto&  lineHolder : static_cast<Engine *>(context)->lineObjects) {
         lineTmp.insert(lineTmp.end(), lineHolder->lines.begin(), lineHolder->lines.end());
@@ -4722,6 +4722,8 @@ void Scene::updateUniforms(int idx) {
         return ret; };
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
+
+    copy(state.beams.begin(), state.beams.end(), lineTmp.end());
 
     static_cast<Engine *>(context)->lineSync->sync(idx, lineTmp);
 }

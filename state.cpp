@@ -107,6 +107,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
         what->str = "onSelectionChanged";
         static_cast<Engine *>(Api::context)->gui->submitCommand({ Gui::GUI_NOTIFY, what });
     }
+    beams = state.beams;
 }
 
 ObservableState::~ObservableState() {
@@ -129,6 +130,7 @@ void AuthoritativeState::doUpdateTick() {
     std::scoped_lock l(lock);
     auto copy = instances;
     instances.clear();
+    beams.clear();
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
         if (!it) continue;

@@ -24,8 +24,8 @@ public:
     virtual bool hasEntity();
     std::shared_ptr<Entity> entity;
     std::string name;
-    float range;
-    float damage;
+    float range = 50.0f;
+    float damage = 0.0f;
     std::vector<float> reload;
 private:
 };
@@ -56,4 +56,11 @@ public:
     uint32_t parentID;
     void fire(const glm::vec3& position, const glm::vec3& direction);
     // glm::vec3 realativePosition;
+};
+
+class Beam : public Weapon {
+public:
+    virtual void fire(const glm::vec3& position, const glm::vec3& target, InstanceID parentID);
+    uint32_t color = 0xffffffff;
+
 };

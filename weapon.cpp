@@ -19,7 +19,7 @@ bool PlasmaCannon::hasEntity() {
     return true;
 }
 
-Target::Target() { }
+Target::Target() {}
 
 Target::Target(const glm::vec3& location)
 : isLocation(true), location(location) { }

@@ -42,13 +42,6 @@ struct EngineSettings {
     Team teamIAm;
 };
 
-struct LineUBO {
-    alignas(16) glm::vec3 a;
-    alignas(16) glm::vec3 b;
-    alignas(16) glm::vec4 aColor;
-    alignas(16) glm::vec4 bColor;
-};
-
 struct LineHolder {
     std::vector<LineUBO> lines;
     void addCircle(const glm::vec3& center, const glm::vec3& normal, const float radius,
