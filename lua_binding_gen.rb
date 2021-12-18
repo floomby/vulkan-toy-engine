@@ -204,6 +204,19 @@ lua_createtable(ls, 3, 0);
     lua_rawseti(ls, -2, 3);
 END
             end
+        elsif typestr == "glm::vec4"
+            return -> (x) do<<-END
+lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, #{x}.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, #{x}.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, #{x}.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, #{x}.w);
+    lua_rawseti(ls, -2, 4);
+END
+            end
         elsif typestr == "glm::quat"
             return -> (x) do<<-END
 lua_createtable(ls, 4, 0);

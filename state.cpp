@@ -116,7 +116,6 @@ ObservableState::~ObservableState() {
 
 #include "pathgen.hpp"
 
-
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
 
@@ -134,6 +133,11 @@ void AuthoritativeState::doUpdateTick() {
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
         if (!it) continue;
+        if (it->health < 0) {
+            toDelete.push_back(it);
+            it = nullptr;
+            continue;
+        }
         assert(it->inPlay);
         if (it->entity->isProjectile) {
             for (auto& other : copy) {
@@ -143,10 +147,6 @@ void AuthoritativeState::doUpdateTick() {
                 if (other->rayIntersects(it->position, normalize(it->dP), d)) {
                     if (d < l * timeDelta) {
                         other->health = other->health - it->entity->weapon->damage;
-                        if (other->health < 0) {
-                            toDelete.push_back(other);
-                            other = nullptr;
-                        }
                         toDelete.push_back(it);
                         it = nullptr;
                         break;
@@ -229,16 +229,37 @@ void AuthoritativeState::doUpdateTick() {
             float closest = std::numeric_limits<float>::max();
             for (auto& weapon : it->weapons) {
                 glm::vec3 vec = { 0.0f, 0.0f, 0.0f };
+                bool fireBeam = false;
                 for (auto other : copy) {
                     if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
                     auto dist = distance(other->position, it->position);
-                    if (dist < weapon.instanceOf->range * 1.5f && dist < closest) {
+                    if (weapon.kindOf == WeaponKind::PLASMA_CANNON && dist < weapon.instanceOf->range * 1.5f && dist < closest) {
                         vec = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
                             weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
+                        closest = dist;
+                    } else if (weapon.kindOf == WeaponKind::BEAM && dist < weapon.instanceOf->range && dist < closest) {
+                        fireBeam = true;
+                        vec = other->position;
+                        closest = dist;
                     }
                 }
-                if (distance2(vec, { 0.0f, 0.0f, 0.0f }) > 0.01) weapon.fire(it->position, vec);
+                if (fireBeam || distance2(vec, { 0.0f, 0.0f, 0.0f }) > 0.01) weapon.fire(it->position, vec);
             }
+        }
+    }
+    for (int i = 0; i < beams.size(); i++) {
+        auto length = distance(beams[i].b, beams[i].a);
+        auto normed = normalize(beams[i].b - beams[i].a);
+        for (auto it : copy) {
+            if (!it || it->entity->isProjectile || beamDatum[i].parent == it->id) continue;
+            float dist;
+            bool hit = it->rayIntersects(beams[i].a, normed, dist);
+            if (!hit || dist > length) continue;
+            beams[i].b = beams[i].a + normed * dist;
+            if (it->entity->isUnit) {
+                it->health -= beamDatum[i].damage;
+            }
+            break;
         }
     }
     for (const auto& buildPowerAllocation : buildPowerAllocations) {
@@ -283,7 +304,7 @@ void AuthoritativeState::doUpdateTick() {
     instances = std::move(copy);
 }
 
-void AuthoritativeState::dump() {
+void AuthoritativeState::dump() const {
     std::cout << "Have instances: {" << std::endl;
     for (const auto& inst : this->instances) {
         std::cout << inst->id << "(" << inst->entity->name << ") - " << inst->position << std::endl;
@@ -291,7 +312,7 @@ void AuthoritativeState::dump() {
     std::cout << "}" << std::endl;
 }
 
-uint32_t AuthoritativeState::crc() {
+uint32_t AuthoritativeState::crc() const {
     boost::crc_32_type crc;
     std::scoped_lock l(lock);
     auto tmp = frame.load(std::memory_order_relaxed);
@@ -303,14 +324,7 @@ uint32_t AuthoritativeState::crc() {
 }
 
 AuthoritativeState::AuthoritativeState(Base *context)
-: context(context) { }
-
-const static std::vector<CommandKind> fowardsable_ = {
-    CommandKind::MOVE,
-    CommandKind::STOP,
-    CommandKind::TARGET_UNIT,
-    CommandKind::TARGET_LOCATION
-};
+: context(context) {}
 
 template<int N>
 struct Forwardable {
@@ -427,7 +441,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
     }
 }
 
-void AuthoritativeState::emit(const ApiProtocol& data) {
+void AuthoritativeState::emit(const ApiProtocol& data) const {
     context->send(data);
 }
 

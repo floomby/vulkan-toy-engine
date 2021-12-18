@@ -154,6 +154,39 @@ static void eng_createBallisticProjectileExport(lua_State *ls) {
     lua_setglobal(ls, "eng_createBallisticProjectile");
 }
 
+static int eng_createBeamWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto a1 = (float)luaL_checknumber(ls, 2);
+    if(!lua_istable(ls, 3)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v2;
+    if (lua_objlen(ls, 3) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 3, i);
+        luaL_checknumber(ls, -1);
+        v2[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a2(v2[0], v2[1], v2[2]);
+    if(!lua_istable(ls, 4)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v3;
+    if (lua_objlen(ls, 4) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 4, i);
+        luaL_checknumber(ls, -1);
+        v3[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a3(v3[0], v3[1], v3[2]);
+    auto a4 = (uint32_t)luaL_checkinteger(ls, 5);
+    Api::eng_createBeam(a0, a1, a2, a3, a4);
+    return 0;
+}
+
+static void eng_createBeamExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_createBeamWrapper);
+    lua_setglobal(ls, "eng_createBeam");
+}
+
 static int eng_echoWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -813,6 +846,26 @@ static void net_pauseExport(lua_State *ls) {
     lua_setglobal(ls, "net_pause");
 }
 
+static int util_colorIntToVecWrapper(lua_State *ls) {
+    auto a0 = (uint32_t)luaL_checkinteger(ls, 1);
+    auto r = Api::util_colorIntToVec(a0);
+    lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, r.w);
+    lua_rawseti(ls, -2, 4);
+    return 1;
+}
+
+static void util_colorIntToVecExport(lua_State *ls) {
+    lua_pushcfunction(ls, util_colorIntToVecWrapper);
+    lua_setglobal(ls, "util_colorIntToVec");
+}
+
 void LuaWrapper::apiExport() {
     cmd_moveExport(luaState);
     cmd_setTargetIDExport(luaState);
@@ -821,6 +874,7 @@ void LuaWrapper::apiExport() {
     cmd_destroyInstanceExport(luaState);
     cmd_buildExport(luaState);
     eng_createBallisticProjectileExport(luaState);
+    eng_createBeamExport(luaState);
     eng_echoExport(luaState);
     eng_getTeamIDExport(luaState);
     eng_getSelectedInstancesExport(luaState);
@@ -871,4 +925,5 @@ void LuaWrapper::apiExport() {
     state_getTeamIAmExport(luaState);
     net_declareTeamExport(luaState);
     net_pauseExport(luaState);
+    util_colorIntToVecExport(luaState);
 }

@@ -124,6 +124,13 @@ void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec
     context->authState.instances.push_back(inst);
 }
 
+void Api::eng_createBeam(uint32_t color, float damage, const glm::vec3& from, const glm::vec3& to, uint32_t parentID) {
+    std::scoped_lock l(context->authState.lock);
+    context->authState.beamDatum.push_back({ parentID, damage });
+    auto col = util_colorIntToVec(color);
+    context->authState.beams.push_back({ from, to, col, col });
+}
+
 void Api::eng_echo(const char *message) {
     std::string msg("  > ");
     msg += message;
@@ -418,4 +425,13 @@ void Api::net_declareTeam(TeamID teamID, const std::string& name) {
 void Api::net_pause(bool pause) {
     ApiProtocol data { ApiProtocolKind::PAUSE, (uint64_t)pause };
     context->send(data);
+}
+
+glm::vec4 Api::util_colorIntToVec(uint32_t color) {
+    return {
+        (float)(0xff000000 & color) / 0xff000000,
+        (float)(0x00ff0000 & color) / 0x00ff0000,
+        (float)(0x0000ff00 & color) / 0x0000ff00,
+        (float)(0x000000ff & color) / 0x000000ff,
+    };
 }

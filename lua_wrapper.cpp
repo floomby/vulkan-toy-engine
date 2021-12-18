@@ -363,9 +363,6 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             ret = new PlasmaCannon(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
             ret->entity->maxSpeed = getNumberField("speed");
 
-            luaName[0] = tolower(luaName[0]);
-
-            luaName[0] = tolower(luaName[0]);
             ret->entity->precompute();
             break;
         case WeaponKind::BEAM:
@@ -377,11 +374,17 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             throw std::runtime_error("Lua error: unsupported weapon kind.");
     }
 
+    luaName[0] = tolower(luaName[0]);
     ret->name = luaName;
     getNumberField("damage", ret->damage);
     getNumberField("range", ret->range);
     getNumbersField("reload", ret->reload);
     assert(ret->reload.size());
+
+    // This does not belong here, but since I went with a trivial constructor idk where to put it
+    if (kind == WeaponKind::BEAM) {
+        ret->damage /= Beam::framesToFire;
+    }
 
     return ret;
 }

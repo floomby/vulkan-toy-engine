@@ -120,6 +120,11 @@ struct LineUBO {
     alignas(16) glm::vec4 bColor;
 };
 
+struct BeamData {
+    InstanceID parent;
+    float damage;
+};
+
 class Base;
 
 // I feel like I am doing this all wrong
@@ -130,6 +135,7 @@ public:
 
     std::vector<Instance *> instances;
     std::vector<LineUBO> beams;
+    std::vector<BeamData> beamDatum;
     std::atomic<unsigned long> frame = 0;
     InstanceID counter = 100;
     std::array<std::shared_ptr<Team>, Config::maxTeams + 1> teams;
@@ -137,17 +143,17 @@ public:
     std::atomic<bool> paused = true;
 
     void doUpdateTick();
-    std::recursive_mutex lock;
+    mutable std::recursive_mutex lock;
     inline std::vector<Instance *>::iterator getInstance(InstanceID id) {
         return find_if(instances.begin(), instances.end(), [id](auto x) -> bool { return x->id == id; });
     }
 
-    bool inline started() { return frame > 0; }
-    void dump();
-    uint32_t crc();
+    bool inline started() const { return frame > 0; }
+    void dump() const;
+    uint32_t crc() const;
 
     void process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session);
-    void emit(const ApiProtocol& data);
+    void emit(const ApiProtocol& data) const;
     void doCallbacks();
     void enableCallbacks();
 

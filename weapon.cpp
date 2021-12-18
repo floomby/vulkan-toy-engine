@@ -19,6 +19,10 @@ bool PlasmaCannon::hasEntity() {
     return true;
 }
 
+void Beam::fire(const glm::vec3& position, const glm::vec3& target, InstanceID parentID) {
+    Api::eng_createBeam(color, damage, position, target, parentID);
+}
+
 Target::Target() {}
 
 Target::Target(const glm::vec3& location)
@@ -28,15 +32,22 @@ Target::Target(InstanceID targetID)
 : isUnit(true), targetID(targetID) { }
 
 WeaponInstance::WeaponInstance(Weapon *instanceOf, InstanceID parentID)
-: instanceOf(instanceOf), timeSinceFired(0.0f), parentID(parentID) { }
+: instanceOf(instanceOf), timeSinceFired(0.0f), parentID(parentID), kindOf(instanceOf->kindOf()) {}
 
 #include <iostream>
 
 void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction) {
     if (timeSinceFired > instanceOf->reload[reloadIndex]) {
-        instanceOf->fire(position, direction, parentID);
+        if (kindOf != WeaponKind::BEAM) instanceOf->fire(position, direction, parentID);
         timeSinceFired = 0.0f;
         reloadIndex = (reloadIndex + 1) % instanceOf->reload.size();
+        firing = true;
+        framesFired = 0;
+    }
+    if (kindOf == WeaponKind::BEAM && firing) {
+        if (framesFired++ < Beam::framesToFire) {
+            instanceOf->fire(position, direction, parentID);
+        } else firing = false;
     }
     timeSinceFired += Config::Net::secondsPerTick;
 }

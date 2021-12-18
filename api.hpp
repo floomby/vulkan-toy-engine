@@ -26,6 +26,7 @@ public:
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, uint32_t parentID);
+    static void eng_createBeam(uint32_t color, float damage, const glm::vec3& from, const glm::vec3& to, uint32_t parentID);
     static void eng_echo(const char *message);
     static int eng_getTeamID(InstanceID unitID);
     static std::vector<InstanceID> eng_getSelectedInstances();
@@ -80,4 +81,6 @@ public:
 
     static void net_declareTeam(TeamID teamID, const std::string& name);
     static void net_pause(bool pause);
+
+    static glm::vec4 util_colorIntToVec(uint32_t color);
 };

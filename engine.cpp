@@ -4723,7 +4723,7 @@ void Scene::updateUniforms(int idx) {
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
 
-    copy(state.beams.begin(), state.beams.end(), lineTmp.end());
+    lineTmp.insert(lineTmp.end(), state.beams.begin(), state.beams.end());
 
     static_cast<Engine *>(context)->lineSync->sync(idx, lineTmp);
 }
