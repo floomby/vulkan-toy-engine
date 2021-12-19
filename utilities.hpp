@@ -199,16 +199,16 @@ inline glm::vec3 orthogonal(const glm::vec3& v) {
     return cross(v, other);
 }
 
-inline glm::quat rotationVector(const glm::vec3& u, const glm::vec3& v) {
-    float kCosTheta = dot(u, v);
-    float k = sqrt(length2(u) * length2(v));
+inline glm::quat rotationVector(const glm::vec3& up, const glm::vec3& v) {
+    float kCosTheta = dot(up, v);
+    float k = sqrt(length2(up) * length2(v));
 
     if (kCosTheta / k == -1) {
         // 180 degree rotation around any orthogonal vector
-        return glm::quat(0.0f, normalize(orthogonal(u)));
+        return glm::quat(0.0f, normalize(orthogonal(up)));
     }
 
-    return normalize(glm::quat(kCosTheta + k, cross(u, v)));
+    return normalize(glm::quat(kCosTheta + k, cross(up, v)));
 }
 
 inline glm::vec3 quatToDirection(const glm::quat& q) {

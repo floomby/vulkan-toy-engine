@@ -285,12 +285,7 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const 
     context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
-        glm::vec4 colorVec({
-            (float)(0xff000000 & color) / 0xff000000,
-            (float)(0x00ff0000 & color) / 0x00ff0000,
-            (float)(0x0000ff00 & color) / 0x0000ff00,
-            (float)(0x000000ff & color) / 0x000000ff,
-        });
+        glm::vec4 colorVec = Api::util_colorIntToVec(color);
 
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
@@ -315,19 +310,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
     context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
-        glm::vec4 colorVec({
-            (float)(0xff000000 & color) / 0xff000000,
-            (float)(0x00ff0000 & color) / 0x00ff0000,
-            (float)(0x0000ff00 & color) / 0x0000ff00,
-            (float)(0x000000ff & color) / 0x000000ff,
-        });
-
-        glm::vec4 secondaryColorVec({
-            (float)(0xff000000 & secondaryColor) / 0xff000000,
-            (float)(0x00ff0000 & secondaryColor) / 0x00ff0000,
-            (float)(0x0000ff00 & secondaryColor) / 0x0000ff00,
-            (float)(0x000000ff & secondaryColor) / 0x000000ff,
-        });
+        glm::vec4 colorVec = Api::util_colorIntToVec(color);
+        glm::vec4 secondaryColorVec = Api::util_colorIntToVec(secondaryColor);
 
         vertices = context->rectangle(tl, height, textures[0]->widenessRatio, colorVec, secondaryColorVec, layer, id, renderMode);
     }
@@ -349,19 +333,8 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
     context->idLookup.insert({ id, this });
 
     if (!layoutOnly) {
-        glm::vec4 colorVec({
-            (float)(0xff000000 & color) / 0xff000000,
-            (float)(0x00ff0000 & color) / 0x00ff0000,
-            (float)(0x0000ff00 & color) / 0x0000ff00,
-            (float)(0x000000ff & color) / 0x000000ff,
-        });
-
-        glm::vec4 secondaryColorVec({
-            (float)(0xff000000 & secondaryColor) / 0xff000000,
-            (float)(0x00ff0000 & secondaryColor) / 0x00ff0000,
-            (float)(0x0000ff00 & secondaryColor) / 0x0000ff00,
-            (float)(0x000000ff & secondaryColor) / 0x000000ff,
-        });
+        glm::vec4 colorVec = Api::util_colorIntToVec(color);
+        glm::vec4 secondaryColorVec = Api::util_colorIntToVec(secondaryColor);
 
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };

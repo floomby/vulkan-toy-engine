@@ -3,6 +3,7 @@
 #include "instance.hpp"
 #include "utilities.hpp"
 
+// TODO Take a look at all the code here except stop and collide (none of the functions do exactly what they set out to do)
 namespace Pathgen {
     enum class Kind {
         OMNI,
@@ -29,6 +30,14 @@ namespace Pathgen {
     }
 
     float seek(Instance& inst, const glm::vec3& dest) {
+        auto offset = dest - inst.position;
+        auto dist = length(offset);
+        auto desiredVelocity = offset / dist * inst.entity->maxSpeed;
+        applySteering(inst, desiredVelocity - inst.dP);
+        return dist;
+    }
+
+    float seekrive(Instance& inst, const glm::vec3& dest) {
         auto offset = dest - inst.position;
         auto dist = length(offset);
         auto desiredVelocity = offset / dist * inst.entity->v_m;

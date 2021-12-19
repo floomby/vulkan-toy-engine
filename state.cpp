@@ -193,7 +193,7 @@ void AuthoritativeState::doUpdateTick() {
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seek(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
+                    distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seekrive(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
                     if (it->commandList.size() > 1) {
                         if (distance < Pathgen::arrivalDeltaContinuing) {
                             it->commandList.pop_front();
@@ -260,13 +260,15 @@ void AuthoritativeState::doUpdateTick() {
                 for (auto other : copy) {
                     if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
                     auto dist = distance(other->position, it->position);
-                    if ((weapon.kindOf == WeaponKind::PLASMA_CANNON || weapon.kindOf == WeaponKind::GUIDED) &&
-                        dist < weapon.instanceOf->range * 1.5f && dist < closest) {
+                    if (weapon.kindOf == WeaponKind::PLASMA_CANNON && dist < weapon.instanceOf->range * 1.5f && dist < closest) {
                         vec = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
                             weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
                         closest = dist;
                     } else if (weapon.kindOf == WeaponKind::BEAM && dist < weapon.instanceOf->range && dist < closest) {
                         fireBeam = true;
+                        vec = other->position;
+                        closest = dist;
+                    } else if (weapon.kindOf == WeaponKind::GUIDED && dist < weapon.instanceOf->range && dist < closest) {
                         vec = other->position;
                         closest = dist;
                     }

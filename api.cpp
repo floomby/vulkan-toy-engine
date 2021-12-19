@@ -133,9 +133,9 @@ void Api::eng_createGuidedProjectile(Entity *projectileEntity, const glm::vec3& 
         inst = new Instance(projectileEntity, context->currentScene->textures.data() + projectileEntity->textureIndex,
             context->currentScene->models.data() + projectileEntity->modelIndex, context->authState.counter++, teamID, true);
     }
-    inst->dP = normedDirection * projectileEntity->maxSpeed;
+    inst->dP = normalize(normedDirection - position) * projectileEntity->maxSpeed;
     inst->position = position;
-    inst->heading = { 1.0f, 0.0f, 0.0f, 0.0f };
+    inst->heading = rotationVector({ 1.0, 0.0, 0.0 }, normedDirection - position);
     inst->parentID = parentID;
     context->authState.instances.push_back(inst);
 }
