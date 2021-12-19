@@ -4,7 +4,7 @@ Shipyard = {
     icon = "textures/shipyard_icon.png",
     maxSpeed = 0,
     acceleration = 0.4,
-    maxOmega = 0.3,
+    maxOmega = 0.0,
     maxHealth = 50.0,
     weapons = {
     },
@@ -16,4 +16,5 @@ Shipyard = {
         "miner"
     },
     buildPower = 10,
+    stationary = true,
 }

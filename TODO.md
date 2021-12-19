@@ -4,9 +4,9 @@
  * Resource system
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
- * Finish weapons (need the other 2 kinds still guided and beam)
  * gui - I still need some more components, but this seems really low priority right now
- * Finish the path following/steering code
+ * Fix/finish the path following/steering code
+ * Maybe units should try and avoid friendly firing
  * Finish unit ais
  * I guess I will go back to drawing in z sorted order for getting cloaking working
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)

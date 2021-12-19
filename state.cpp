@@ -193,14 +193,16 @@ void AuthoritativeState::doUpdateTick() {
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seekrive(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
-                    if (it->commandList.size() > 1) {
-                        if (distance < Pathgen::arrivalDeltaContinuing) {
-                            it->commandList.pop_front();
-                        }
-                    } else {
-                        if (distance < Pathgen::arrivalDeltaStopping) {
-                            it->commandList.pop_front();
+                    if (!it->entity->isStation) {
+                        distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seekrive(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
+                        if (it->commandList.size() > 1) {
+                            if (distance < Pathgen::arrivalDeltaContinuing) {
+                                it->commandList.pop_front();
+                            }
+                        } else {
+                            if (distance < Pathgen::arrivalDeltaStopping) {
+                                it->commandList.pop_front();
+                            }
                         }
                     }
                     break;

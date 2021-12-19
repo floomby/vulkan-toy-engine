@@ -72,7 +72,7 @@ end
 function Build_handler(mods, name)
     local true_name = Split(name, " ")[1]
     print(true_name)
-    print(inspect(build_units))
+    -- print(inspect(build_units))
     for unit, _ in pairs(build_units[true_name]) do
         cmd_build(unit, true_name, mods_to_mode(mods))
     end
@@ -82,7 +82,7 @@ local function show_build_options()
     Build_menu.children = {}
     local i = 0
     for option, _ in pairs(build_options) do
-        print("textures/" .. option .. "_icon.png")
+        -- print("textures/" .. option .. "_icon.png")
         table.insert(Build_menu.children, {
             x = 0.1 + i * 0.1,
             y = 0.8,
@@ -101,7 +101,7 @@ local function show_build_options()
 end
 
 local function remove_build_menu()
-    print("removing panel")
+    -- print("removing panel")
     gui_removePanel("Build_menu")
 end
 
@@ -261,8 +261,8 @@ state_giveResources(2, 50000)
 
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 -- cmd_createInstance("shipyard", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
-cmd_createInstance("ship", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
-cmd_createInstance("ship", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+cmd_createInstance("ship", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)

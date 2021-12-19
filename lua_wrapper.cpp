@@ -322,6 +322,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->isResource = minable;
     ret->isUnit = !minable;
     ret->resources = getNumberField("resources");
+    ret->isStation = getBooleanField("stationary");
     getStringsField("buildOptions", ret->buildOptions);
     getStringField("buildIcon", ret->buildIcon);
     getNumberField("buildPower", ret->buildPower);

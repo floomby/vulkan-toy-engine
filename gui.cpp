@@ -718,7 +718,7 @@ void GuiEditable::click(float x, float y, int mods) {
 }
 
 void GuiEditable::typing(uint codepoint) {
-    std::cout << "got codepoint 0x" << std::hex << codepoint << std::endl;
+    // std::cout << "got codepoint 0x" << std::hex << codepoint << std::endl;
     editText.push_back(codepoint);
     this->setText(context->converter.to_bytes(editText));
     // bleck, I shouldn't need to do this in the way I am

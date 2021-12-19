@@ -71,8 +71,8 @@ namespace Pathgen {
         auto db2 = sq(a.entity->boundingRadius + b.entity->boundingRadius);
         if (d2 < db2) {
             auto amount = db2 - d2;
-            a.dP += amount * kick * normalize(v);
-            b.dP -= amount * kick * normalize(v);
+            if (!a.entity->isStation) a.dP += amount * kick * normalize(v);
+            if (!b.entity->isStation) b.dP -= amount * kick * normalize(v);
         }
     }
 
