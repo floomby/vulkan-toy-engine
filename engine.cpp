@@ -583,13 +583,13 @@ VkSampleCountFlagBits Engine::getMaxUsableSampleCount(const VkPhysicalDeviceProp
 
 void Engine::setupLogicalDevice() {
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    float queuePriorities[] = { 1.0f, 0.0f };
+    float queuePriorities[] = { 1.0f, 0.0f, 0.1f };
 
     for(uint32_t queueFamily : physicalDeviceIndices.families() ) {
         VkDeviceQueueCreateInfo queueCreateInfo {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = queueFamily == physicalDeviceIndices.graphicsFamily.value() ? 2 : 1;
+        queueCreateInfo.queueCount = queueFamily == physicalDeviceIndices.graphicsFamily.value() ? 3 : 1;
         queueCreateInfo.pQueuePriorities = queuePriorities;
         queueCreateInfos.push_back(queueCreateInfo);
     }
@@ -628,6 +628,7 @@ void Engine::setupLogicalDevice() {
 
     vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 1, &guiGraphicsQueue);
+    vkGetDeviceQueue(device, physicalDeviceIndices.graphicsFamily.value(), 2, &computeQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.presentFamily.value(), 0, &presentQueue);
     vkGetDeviceQueue(device, physicalDeviceIndices.transferFamily.value(), 0, &transferQueue);
     // if (engineSettings.verbose) std::cout << std::hex << "Presentation queue: " << presentQueue << "  Graphics queue: " << graphicsQueue << "  Transfer queue: " << transferQueue << std::endl;
@@ -1572,6 +1573,7 @@ void Engine::createCommandPools() {
     vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool), "Failed to create command pool.");
     // The gui pool is exactly the same, but it is just accessed from another thread so we need another pool
     vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &guiCommandPool), "Failed to create command pool.");
+    vulkanErrorGuard(vkCreateCommandPool(device, &poolInfo, nullptr, &computeCommandPool), "Failed to create command pool.");
 
     if (engineSettings.useConcurrentTransferQueue) {
         poolInfo.flags = 0;
@@ -3730,6 +3732,7 @@ void Engine::cleanup() {
     if (engineSettings.useConcurrentTransferQueue) vkDestroyCommandPool(device, transferCommandPool, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
     vkDestroyCommandPool(device, guiCommandPool, nullptr);
+    vkDestroyCommandPool(device, computeCommandPool, nullptr);
 
     vkDestroyPipelineCache(device, pipelineCache, nullptr);
     destroyShadowResources();
@@ -5643,7 +5646,7 @@ void ComputeManager::poll() {
                             textResource = std::make_unique<TextResource>(context, height, width);
                             textResource->writeDescriptor(context->computeSets[Engine::CP_SDF_BLIT]);
                             
-                            auto buffer = context->beginSingleTimeCommands(context->guiCommandPool);
+                            auto buffer = context->beginSingleTimeCommands(context->computeCommandPool);
 
                             VkImageMemoryBarrier imageMemoryBarrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
                             imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -5690,7 +5693,7 @@ void ComputeManager::poll() {
                                 1, &imageMemoryBarrier);
 
 
-                            bufferFreer = context->endSingleTimeCommands(buffer, context->guiCommandPool, context->guiGraphicsQueue, fence);
+                            bufferFreer = context->endSingleTimeCommands(buffer, context->computeCommandPool, context->computeQueue, fence);
                             runningOp = &op;
 
                             if (op.deleteData) delete reinterpret_cast<std::string *>(op.data);

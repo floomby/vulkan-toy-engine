@@ -296,6 +296,7 @@ private:
 
     VkQueue graphicsQueue;
     VkQueue guiGraphicsQueue;
+    VkQueue computeQueue;
     VkQueue presentQueue;
     VkQueue transferQueue;
     void setupLogicalDevice();
@@ -370,8 +371,8 @@ private:
 
     VkCommandPool commandPool;
     VkCommandPool transferCommandPool;
-    // Saddly I believe this needs to be on the graphics queue since it is messing with textures, even though it is mostly moving stuff around
     VkCommandPool guiCommandPool;
+    VkCommandPool computeCommandPool;
     void createCommandPools();
 
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);

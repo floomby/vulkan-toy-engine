@@ -119,6 +119,7 @@ ObservableState::~ObservableState() {
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
 
+// This function is getting frightening
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
@@ -130,6 +131,7 @@ void AuthoritativeState::doUpdateTick() {
     auto copy = instances;
     instances.clear();
     beams.clear();
+    std::vector<Instance *> doingBuilding;
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
         if (!it) continue;
@@ -445,6 +447,11 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
         paused = (bool)data->frame;
     } else if (data->kind == ApiProtocolKind::TEAM_DECLARATION) {
         lock.lock();
+        if (data->flags == APIF_NULL_TEAM) {
+            teams[data->frame] = std::make_shared<Team>((TeamID)data->frame, data->buf);
+            lock.unlock();
+            return;
+        }
         teams[data->frame] = std::make_shared<Team>((TeamID)data->frame, data->buf, session);
         if (session.has_value()) {
             session.value()->team = teams[data->frame];

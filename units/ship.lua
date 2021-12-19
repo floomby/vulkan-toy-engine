@@ -8,8 +8,8 @@ Ship = {
     maxHealth = 500.0,
     weapons = {
         -- "basic_plasma",
-        -- "basic_beam",
-        "basic_guided"
+        "basic_beam",
+        -- "basic_guided"
     },
     unitAIs = {
         "shooter_tester"

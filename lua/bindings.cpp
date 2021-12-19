@@ -869,6 +869,19 @@ static void net_declareTeamExport(lua_State *ls) {
     lua_setglobal(ls, "net_declareTeam");
 }
 
+static int net_declareNullTeamWrapper(lua_State *ls) {
+    auto a0 = (TeamID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::net_declareNullTeam(a0, a1);
+    return 0;
+}
+
+static void net_declareNullTeamExport(lua_State *ls) {
+    lua_pushcfunction(ls, net_declareNullTeamWrapper);
+    lua_setglobal(ls, "net_declareNullTeam");
+}
+
 static int net_pauseWrapper(lua_State *ls) {
     auto a0 = lua_toboolean(ls, 1);
     Api::net_pause(a0);
@@ -959,6 +972,7 @@ void LuaWrapper::apiExport() {
     state_getResourcesExport(luaState);
     state_getTeamIAmExport(luaState);
     net_declareTeamExport(luaState);
+    net_declareNullTeamExport(luaState);
     net_pauseExport(luaState);
     util_colorIntToVecExport(luaState);
 }

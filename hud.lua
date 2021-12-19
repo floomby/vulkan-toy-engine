@@ -222,6 +222,12 @@ end
 
 bind_data("rus", resource_wrapper)
 
+-- I am probably testing something if I am team 0
+if teamID == 0 then
+    net_declareNullTeam(1, "Team 1")
+    net_declareNullTeam(2, "Team 2")
+end
+
 Build_menu = {
     x = 0.05,
     y = 0.75,
@@ -240,8 +246,6 @@ build_visibility()
 engret_visibility()
 
 state_giveResources(2, 50000)
-
--- let the server know our team (I probably should not have to do this in lua)
 
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
@@ -262,7 +266,7 @@ state_giveResources(2, 50000)
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 -- cmd_createInstance("shipyard", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
-cmd_createInstance("ship", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+cmd_createInstance("ship", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)

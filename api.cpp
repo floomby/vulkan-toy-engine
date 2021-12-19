@@ -438,6 +438,20 @@ void Api::net_declareTeam(TeamID teamID, const std::string& name) {
     context->send(data);
 }
 
+void Api::net_declareNullTeam(TeamID teamID, const std::string& name) {
+    if (teamID > Config::maxTeams) {
+        std::string msg = "TeamID is out of bounds (";
+        msg += teamID;
+        msg += " is greater than max teams)";
+        throw std::runtime_error(msg);
+    }
+    ApiProtocol data { ApiProtocolKind::TEAM_DECLARATION, teamID };
+    strncpy(data.buf, name.c_str(), ApiTextBufferSize);
+    data.buf[ApiTextBufferSize - 1] = '\0';
+    data.flags = APIF_NULL_TEAM;
+    context->send(data);
+}
+
 void Api::net_pause(bool pause) {
     ApiProtocol data { ApiProtocolKind::PAUSE, (uint64_t)pause };
     context->send(data);

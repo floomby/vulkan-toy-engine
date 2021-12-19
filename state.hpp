@@ -90,6 +90,9 @@ enum class ApiProtocolKind {
 
 const uint ApiTextBufferSize = 128;
 
+#define APIF_NONE           0U
+#define APIF_NULL_TEAM      1U
+
 struct ApiProtocol {
     ApiProtocolKind kind;
     uint64_t frame;
@@ -97,6 +100,7 @@ struct ApiProtocol {
     Command command;
     double dbl;
     CallbackID callbackID;
+    uint32_t flags;
 };
 
 static_assert(std::is_trivially_copyable<ApiProtocol>::value, "ApiProtocol must be trivially copyable");

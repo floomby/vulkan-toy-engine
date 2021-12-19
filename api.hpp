@@ -81,6 +81,7 @@ public:
     static std::pair<TeamID, const std::string> state_getTeamIAm();
 
     static void net_declareTeam(TeamID teamID, const std::string& name);
+    static void net_declareNullTeam(TeamID teamID, const std::string& name);
     static void net_pause(bool pause);
 
     static glm::vec4 util_colorIntToVec(uint32_t color);
