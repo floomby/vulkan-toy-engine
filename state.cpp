@@ -246,14 +246,15 @@ void AuthoritativeState::doUpdateTick() {
                     inst->buildPower = it->entity->buildPower;
                     instances.push_back(inst);
                 }
-            } else if (it->isBuilding) {
-                doingBuilding.push_back(it);
             }
         } else if (it && it->entity->isUnit && !it->uncompleted) {
             Pathgen::stop(*it);
         }
         if (it && it->buildPower) {
             buildPowerAllocations[it->team].push_back({ it, it->buildPower });
+        }
+        if (it && it->isBuilding) {
+                doingBuilding.push_back(it);
         }
         if (it && !it->uncompleted) {
             if (it->hasCollision) for (auto other : copy) {
@@ -312,11 +313,10 @@ void AuthoritativeState::doUpdateTick() {
         if (buildPowerAllocation.empty()) continue;
         float totalWantedThisTick = 0.0f;
         for (const auto [inst, bp] : buildPowerAllocation) {
-            // std::cout << "looking for " << inst->parentID << std::endl;
-            // if (!binary_search(doingBuilding.begin(), doingBuilding.end(), inst->parentID, instComp)) {
-            //     inst->parentID = 0;
-            //     continue;
-            // }
+            if (!binary_search(doingBuilding.begin(), doingBuilding.end(), inst->parentID, instComp)) {
+                inst->parentID = 0;
+                continue;
+            }
             totalWantedThisTick += bp;
         }
         totalWantedThisTick *= Config::Net::secondsPerTick;

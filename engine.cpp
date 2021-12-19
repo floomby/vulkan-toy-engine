@@ -2436,7 +2436,7 @@ void Engine::handleInput() {
     }
     // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
     cammera.pointing = normalize(cammera.position - cammera.target);
-    auto pointingLength = length(cammera.position - cammera.target);
+    const auto pointingLength = length(cammera.position - cammera.target);
     cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
     cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
     cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
@@ -2583,15 +2583,26 @@ void Engine::handleInput() {
         // if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom2) cammera.position = pointing * cammera.maxZoom2 + cammera.target;
         // if (glm::distance(cammera.target, cammera.position) < cammera.minZoom2) cammera.position = pointing * cammera.minZoom2 + cammera.target;
         // scrollAmount = 0.0f;
+
         // scrollToCursor
+        scrollAmount *= std::max(powf(1.5f, pointingLength / 10.0f), 1.5f);
         auto deltaPos = -scrollAmount / 5.0f * mouseRayNormed;
         auto deltaTarget = normalize(planeIntersection - cammera.target) * (length(deltaPos) * length(planeIntersection - cammera.target) / planeDist);
         auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
         auto newPos = cammera.position + deltaPos;
         auto newDelta = length2(newTar - newPos);
-        if (newDelta > Config::Cammera.minZoom2 && newDelta < Config::Cammera.maxZoom2) {
+        if (newDelta > Config::Cammera.minZoom2 && (newDelta < Config::Cammera.maxZoom2 || scrollAmount < 0)) {
             cammera.target = newTar;
             cammera.position = newPos;
+        }
+        if (newDelta > Config::Cammera.maxZoom2 && scrollAmount > 0) {
+            // linear interpolation to get to max zoom
+            auto d = sqrtf(newDelta);
+            auto m = sqrtf(Config::Cammera.maxZoom2);
+            auto c = distance(cammera.target, cammera.position);
+            auto ratio = (m - c) / (d - c);
+            cammera.target += (newTar - cammera.target) * ratio;
+            cammera.position += (newPos - cammera.position) * ratio;
         }
 
         scrollAmount = 0.0f;
