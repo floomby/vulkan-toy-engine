@@ -3119,6 +3119,7 @@ void Engine::runCurrentScene() {
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
+    std::chrono::steady_clock::time_point frameStart = std::chrono::steady_clock::now();
     while (!glfwWindowShouldClose(window)) {
         drawFrame();
         glfwPollEvents();
@@ -3128,6 +3129,15 @@ void Engine::runCurrentScene() {
             what->str = "onPeriodicUpdate";
             gui->submitCommand({ Gui::GUI_NOTIFY, what });
         }
+
+        auto now = std::chrono::steady_clock::now();
+        frameTimes[frameTimeIndex] = std::chrono::duration_cast<std::chrono::milliseconds>(now - frameStart).count();
+        frameTimeIndex = (frameTimeIndex + 1) % frameTimes.size();
+        if (!frameTimeIndex) {
+            auto sum = std::accumulate(begin(frameTimes), end(frameTimes), 0);
+            fps = static_cast<float>(frameTimes.size()) / static_cast<float>(sum) * 1000.0f;
+        }
+        frameStart = now;
     }
 
     net.io.stop();

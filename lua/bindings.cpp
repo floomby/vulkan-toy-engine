@@ -758,6 +758,16 @@ static void eng_quitExport(lua_State *ls) {
     lua_setglobal(ls, "eng_quit");
 }
 
+static int eng_fpsWrapper(lua_State *ls) {
+    auto r = Api::eng_fps();
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void eng_fpsExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_fpsWrapper);
+    lua_setglobal(ls, "eng_fps");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -963,6 +973,7 @@ void LuaWrapper::apiExport() {
     eng_frameExport(luaState);
     engS_getRandomFExport(luaState);
     eng_quitExport(luaState);
+    eng_fpsExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

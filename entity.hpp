@@ -43,6 +43,7 @@ public:
     double resources = 0.0f;
     std::string name;
     float buildPower = 0.0f;
+    float minePower = 0.0f;
 
     float dv;
     float v_m;

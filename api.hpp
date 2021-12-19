@@ -68,6 +68,7 @@ public:
     static unsigned long eng_frame();
     static float engS_getRandomF();
     static void eng_quit();
+    static float eng_fps();
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);

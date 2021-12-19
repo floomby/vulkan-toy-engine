@@ -114,6 +114,8 @@ public:
     virtual void send(const ApiProtocol& data);
     virtual void send(ApiProtocol&& data);
     virtual void quit();
+
+    float fps = 0.0f;
 private:
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -531,6 +533,9 @@ private:
     ComputeManager *manager;
 
     std::shared_ptr<Networking::Client> client;
+
+    std::array<uint64_t, 50> frameTimes;
+    int frameTimeIndex = 0;
 };
 
 namespace GuiTextures {

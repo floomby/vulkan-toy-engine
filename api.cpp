@@ -213,6 +213,11 @@ void Api::eng_quit() {
     context->quit();
 }
 
+float Api::eng_fps() {
+    assert(!context->headless);
+    return static_cast<Engine *>(context)->fps;
+}
+
 bool Api::eng_getCollidability(InstanceID unitID) {
     lock_and_get_iterator
     return it->hasCollision;
