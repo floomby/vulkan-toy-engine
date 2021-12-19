@@ -1,6 +1,9 @@
 local inspect = require('libs/inspect')
 require('bit')
 
+local keys = require('lua/keys')
+local mods = require('lua/mods')
+
 local data_bindings = {}
 local data_bindings_cache = {}
 
@@ -34,16 +37,12 @@ local function engret_visibility()
     gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
 end
 
-local MOD_SHIFT = 0x0001
-local MOD_CONTROL = 0x0002
-local MOD_ALT = 0x0004
-
-local function mods_to_mode(mods)
+local function mods_to_mode(mds)
     local mode = InsertionMode__OVERWRITE;
-    if bit.band(MOD_SHIFT, mods) ~= 0 then
+    if bit.band(mods.MOD_SHIFT, mds) ~= 0 then
         mode = InsertionMode__BACK
     end
-    if bit.band(MOD_ALT, mods) ~= 0 then
+    if bit.band(mods.MOD_ALT, mds) ~= 0 then
         mode = InsertionMode__FRONT
     end
     return mode
@@ -71,7 +70,6 @@ end
 
 function Build_handler(mods, name)
     local true_name = Split(name, " ")[1]
-    print(true_name)
     -- print(inspect(build_units))
     for unit, _ in pairs(build_units[true_name]) do
         cmd_build(unit, true_name, mods_to_mode(mods))
@@ -101,7 +99,6 @@ local function show_build_options()
 end
 
 local function remove_build_menu()
-    -- print("removing panel")
     gui_removePanel("Build_menu")
 end
 

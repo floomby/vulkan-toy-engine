@@ -1,0 +1,6 @@
+*.spv
+*.d
+*.o
+fontcache
+*.mtl
+.gdb_history

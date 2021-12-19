@@ -1,4 +1,5 @@
 ## Next steps
+ * I should adopt a style guide or something, the code base is big enough to warrent one
  * Finish the sound
  * Configurable keyboard input
  * Resource system
