@@ -597,6 +597,7 @@ void Engine::setupLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.wideLines = VK_TRUE;
+    deviceFeatures.sampleRateShading = VK_TRUE;
     // Vulkan 1.2 feature that I might want to use
 
     // VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures {};
@@ -1420,6 +1421,9 @@ void Engine::createGraphicsPipelines() {
     // depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
     // vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[1]), "Failed to create graphics pipeline.");
+    multisampling.sampleShadingEnable = VK_TRUE;
+    multisampling.minSampleShading = .2f;
+    
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_HUD]), "Failed to create graphics pipeline.");
 
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
@@ -2403,7 +2407,7 @@ void Engine::handleInput() {
     gui->pushConstant.tooltipBox[0] = { mouseNormed.first + 0.05, mouseNormed.second + 0.04 };
     // whatever, just pick one
     auto tooltipWideness = tooltipResource ? tooltipResource->widenessRatio : 0.0f;
-    gui->pushConstant.tooltipBox[1] = { mouseNormed.first + 0.05 + 0.1 * tooltipWideness, mouseNormed.second + 0.14 };
+    gui->pushConstant.tooltipBox[1] = { mouseNormed.first + 0.05 + 0.13 * tooltipWideness, mouseNormed.second + 0.17 };
 
     // Do I want this?
     for (int i = 0; i < 8; i++) {
@@ -2473,7 +2477,8 @@ void Engine::handleInput() {
         for (const auto d : tooltipDirty) if (d) tooltipStatus = false;
         if (tooltipStatus) {
             std::ostringstream tooltipText;
-            tooltipText << std::fixed << std::setprecision(2) << mousedOver->position << "\n RUs: " << mousedOver->resources;
+            tooltipText << std::fixed << std::setprecision(2) << mousedOver->position << "\n RUs: " << mousedOver->resources << "\nID: " 
+                << std::dec << mousedOver->id << " <- " << mousedOver->parentID;
             if (!tooltipJob) setTooltip(tooltipText.str());
         }
         drawTooltip = true;

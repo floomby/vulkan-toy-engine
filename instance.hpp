@@ -109,6 +109,7 @@ public:
 
     // Game logic properties
     InstanceID id;
+    InstanceID whatBuilding = 0;
     Entity *entity;
     TeamID team = 0; // default to team 0 which is gaia
     double health = 1.0;
@@ -140,4 +141,13 @@ public:
     void doCrc(boost::crc_32_type& crc) const;
 private:
     InstanceUBO _state;
+};
+
+struct InstanceComparator {
+    inline bool operator()(const Instance *a, const InstanceID& b) const {
+          return *a < b;
+    }
+    inline bool operator()(const InstanceID& a, const Instance *b) const {
+          return a < b->id;
+    }
 };

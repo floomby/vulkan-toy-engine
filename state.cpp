@@ -119,6 +119,8 @@ ObservableState::~ObservableState() {
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
 
+static InstanceComparator instComp;
+
 // This function is getting frightening
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
@@ -131,6 +133,7 @@ void AuthoritativeState::doUpdateTick() {
     auto copy = instances;
     instances.clear();
     beams.clear();
+    beamDatum.clear();
     std::vector<Instance *> doingBuilding;
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
@@ -239,17 +242,20 @@ void AuthoritativeState::doUpdateTick() {
                     inst->hasCollision = false;
                     it->commandList.erase(bit);
                     it->isBuilding = true;
+                    it->whatBuilding = inst->id;
                     inst->buildPower = it->entity->buildPower;
                     instances.push_back(inst);
                 }
+            } else if (it->isBuilding) {
+                doingBuilding.push_back(it);
             }
         } else if (it && it->entity->isUnit && !it->uncompleted) {
             Pathgen::stop(*it);
         }
-        if (it) {
-            if (it->buildPower) {
-                buildPowerAllocations[it->team].push_back({ it, it->buildPower });
-            }
+        if (it && it->buildPower) {
+            buildPowerAllocations[it->team].push_back({ it, it->buildPower });
+        }
+        if (it && !it->uncompleted) {
             if (it->hasCollision) for (auto other : copy) {
                 if (!other || *other == *it || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
@@ -284,22 +290,33 @@ void AuthoritativeState::doUpdateTick() {
     for (int i = 0; i < beams.size(); i++) {
         auto length = distance(beams[i].b, beams[i].a);
         auto normed = normalize(beams[i].b - beams[i].a);
+        Instance *closestHit = nullptr;
+        float closest = std::numeric_limits<float>::max();
         for (auto it : copy) {
             if (!it || it->entity->isProjectile || beamDatum[i].parent == it->id) continue;
             float dist;
             bool hit = it->rayIntersects(beams[i].a, normed, dist);
-            if (!hit || dist > length) continue;
-            beams[i].b = beams[i].a + normed * dist;
-            if (it->entity->isUnit) {
-                it->health -= beamDatum[i].damage;
+            if (hit && dist < length && dist < closest) {
+                closestHit = it;
+                closest = dist;
             }
-            break;
+        }
+        if (closestHit) {
+            beams[i].b = beams[i].a + normed * closest;
+            if (closestHit->entity->isUnit) {
+                closestHit->health -= beamDatum[i].damage;
+            }
         }
     }
     for (const auto& buildPowerAllocation : buildPowerAllocations) {
         if (buildPowerAllocation.empty()) continue;
         float totalWantedThisTick = 0.0f;
         for (const auto [inst, bp] : buildPowerAllocation) {
+            // std::cout << "looking for " << inst->parentID << std::endl;
+            // if (!binary_search(doingBuilding.begin(), doingBuilding.end(), inst->parentID, instComp)) {
+            //     inst->parentID = 0;
+            //     continue;
+            // }
             totalWantedThisTick += bp;
         }
         totalWantedThisTick *= Config::Net::secondsPerTick;
@@ -309,6 +326,7 @@ void AuthoritativeState::doUpdateTick() {
         }
         teams[buildPowerAllocation.front().first->team]->resourceUnits -= totalWantedThisTick * fraction;
         for (auto [inst, bp] : buildPowerAllocation) {
+            if (!inst->parentID) continue;
             inst->resources += bp * Config::Net::secondsPerTick * fraction;
             if (inst->resources >= inst->entity->resources) {
                 // refund the overage
@@ -319,6 +337,7 @@ void AuthoritativeState::doUpdateTick() {
                 inst->buildPower = 0.0f;
                 auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
                 if (oit != copy.end()) {
+                    // std::cout << "completed building" << std::endl;
                     (*oit)->isBuilding = false;
                     // Idk what is wrong with this, but something is very wrong, it seems to break like 3 different things 
                     // and causes segfaults on shutdown (commands are trivially copyable, so I don't know what could possibly be wrong)
@@ -419,6 +438,7 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             }
             inst->heading = data->command.data.heading;
             inst->position = data->command.data.dest;
+            inst->resources = ent->resources;
             if (data->callbackID && session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;
