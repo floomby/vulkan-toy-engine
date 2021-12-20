@@ -155,7 +155,8 @@ void Api::eng_echo(const char *message) {
 }
 
 std::vector<InstanceID> Api::eng_getSelectedInstances() {
-    std::scoped_lock l(context->apiLock);
+    assert(!context->headless);
+    std::scoped_lock l(static_cast<Engine *>(context)->apiLocks[Engine::APIL_SELECTION]);
     return static_cast<Engine *>(context)->idsSelected;
 }
 
@@ -216,6 +217,23 @@ void Api::eng_quit() {
 float Api::eng_fps() {
     assert(!context->headless);
     return static_cast<Engine *>(context)->fps;
+}
+
+// Important note: keybindings are not like server callbacks an are only called in the gui thread
+void Api::eng_declareKeyBinding(int key) {
+    assert(!context->headless);
+    if (!LuaWrapper::isGuiThread) std::cerr << "Warning: Manipulating key bindings from a thread which is not the gui thread is probably not what you want to do.\n    The behavior might not be what you expect. They are not thread agnostic like the callback system." << std::endl;
+    auto ctx = static_cast<Engine *>(context);
+    std::scoped_lock l(ctx->apiLocks[Engine::APIL_KEYBINDINGS]);
+    ctx->luaKeyBindings.insert(key);
+}
+
+void Api::eng_undeclareKeyBinding(int key) {
+    assert(!context->headless);
+    if (!LuaWrapper::isGuiThread) std::cerr << "Warning: Manipulating key bindings from a thread which is not the gui thread is probably not what you want to do.\n    The behavior might not be what you expect. They are not thread agnostic like the callback system." << std::endl;
+    auto ctx = static_cast<Engine *>(context);
+    std::scoped_lock l(ctx->apiLocks[Engine::APIL_KEYBINDINGS]);
+    ctx->luaKeyBindings.erase(key);
 }
 
 bool Api::eng_getCollidability(InstanceID unitID) {

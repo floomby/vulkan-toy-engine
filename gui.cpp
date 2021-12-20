@@ -96,6 +96,7 @@ void Gui::submitCommand(GuiCommand&& command) {
 void Gui::pollChanges() {
     bool terminate = false;
     lua->enableCallbacksOnThisThread();
+    lua->enableKeyBindings();
     while(!terminate) {
         changed = false;
         queueLock.lock();
@@ -243,6 +244,9 @@ void Gui::pollChanges() {
                 if (withCapture) {
                     withCapture->keyInput(command.data->action);
                 }
+                delete command.data;
+            } else if (command.action == GUI_KEYBINDING) {
+                lua->callKeyBinding(command.data->id, command.data->flags);
                 delete command.data;
             }
             queueLock.lock();

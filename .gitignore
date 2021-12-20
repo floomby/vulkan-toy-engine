@@ -4,3 +4,7 @@
 fontcache
 *.mtl
 .gdb_history
+nsight
+result
+*log
+*Log

@@ -30,7 +30,6 @@ protected:
     AuthoritativeState authState;
     Gui *gui = nullptr;
     Sound *sound = nullptr;
-    std::mutex apiLock;
     Scene *currentScene;
     Net net;
 };

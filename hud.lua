@@ -244,6 +244,7 @@ engret_visibility()
 
 state_giveResources(2, 50000)
 
+eng_declareKeyBinding(keys.KEY_G);
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 -- gui_setLabelText("button", "Hello")

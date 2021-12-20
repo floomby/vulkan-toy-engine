@@ -67,27 +67,27 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
         if (instances[i]->inPlay) {
             if (syncIndex >= state.instances.size() || state.instances[syncIndex]->id > instances[i]->id) {
                 instances[i]->orphaned = true;
-                static_cast<Engine *>(Api::context)->apiLock.lock();
+                static_cast<Engine *>(Api::context)->apiLocks[Engine::APIL_SELECTION].lock();
                 auto it = find_if(static_cast<Engine *>(Api::context)->idsSelected.begin(),
                     static_cast<Engine *>(Api::context)->idsSelected.end(), [&](auto id) { return id == instances[i]->id; });
                 if (it != static_cast<Engine *>(Api::context)->idsSelected.end()) {
                     idSelectionChange = true;
                     static_cast<Engine *>(Api::context)->idsSelected.erase(it);
                 }
-                static_cast<Engine *>(Api::context)->apiLock.unlock();
+                static_cast<Engine *>(Api::context)->apiLocks[Engine::APIL_SELECTION].unlock();
             } else if (state.instances[syncIndex]->id == instances[i]->id) {
                 instances[i]->syncToAuthInstance(*state.instances[syncIndex]);
                 syncIndex++;
             } else {
                 instances[i]->orphaned = true;
-                static_cast<Engine *>(Api::context)->apiLock.lock();
+                static_cast<Engine *>(Api::context)->apiLocks[Engine::APIL_SELECTION].lock();
                 auto it = find_if(static_cast<Engine *>(Api::context)->idsSelected.begin(),
                     static_cast<Engine *>(Api::context)->idsSelected.end(), [&](auto id) { return id == instances[i]->id; });
                 if (it != static_cast<Engine *>(Api::context)->idsSelected.end()) {
                     idSelectionChange = true;
                     static_cast<Engine *>(Api::context)->idsSelected.erase(it);
                 }
-                static_cast<Engine *>(Api::context)->apiLock.unlock();
+                static_cast<Engine *>(Api::context)->apiLocks[Engine::APIL_SELECTION].unlock();
             }
         }
     }

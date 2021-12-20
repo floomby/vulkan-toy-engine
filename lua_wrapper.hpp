@@ -45,6 +45,7 @@ class LuaWrapper {
 public:
     // bad solution, but works for now
     static thread_local LuaWrapper *threadLuaInstance;
+    static thread_local bool isGuiThread;
 
     LuaWrapper(bool rethrowExceptions = false);
     ~LuaWrapper();
@@ -101,7 +102,6 @@ public:
         throw std::runtime_error("not implemented");
     }
 
-
 private:
     template<typename T>
     void stackPusher(const T& arg) {
@@ -147,8 +147,11 @@ public:
     void enableCallbacksOnThisThread();
     // The io thread has faster dispatch of callbacks directly, this is for all other threads
     void dispatchCallbacks();
+    // NOTE: Only call this from the gui thread (The keypress event dispatching is done in the engine to gui messaging)
+    void enableKeyBindings();
 
     uint getPanelHandlerOffset(const std::string& name);
+    void callKeyBinding(int key, int mods);
 private:
     void error(const char *fmt, ...);
 

@@ -353,7 +353,9 @@ public:
         GUI_CODEPOINT_INPUT,
         // We are just going to pass enter, backspace, end, home... seperately since
         // glfw doesn't put them into the codepoint stream and we don't really want them there anyways
-        GUI_KEY_INPUT
+        GUI_KEY_INPUT,
+        // I could piggyback off the keyboard capturing, but that seems complicated and error prone, doing it sepperatly seems best
+        GUI_KEYBINDING
     };
 
     // messages passed to the gui

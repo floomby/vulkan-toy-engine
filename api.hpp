@@ -10,7 +10,7 @@ class Instance;
 class Base;
 
 // I am using clang and ruby to look at the declarations in this class to generate code which creates bindings for these functions in the global lua namespace
-// The other thing is everything here is reentrant
+// Importantly everything here needs to be threadsafe except the *S_* functions which are allow to be used in unitais run in the main update loop (which is not parallelized)
 class Api {
 public:
     Api() = delete;
@@ -69,6 +69,8 @@ public:
     static float engS_getRandomF();
     static void eng_quit();
     static float eng_fps();
+    static void eng_declareKeyBinding(int key);
+    static void eng_undeclareKeyBinding(int key);
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);

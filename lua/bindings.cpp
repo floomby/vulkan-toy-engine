@@ -768,6 +768,28 @@ static void eng_fpsExport(lua_State *ls) {
     lua_setglobal(ls, "eng_fps");
 }
 
+static int eng_declareKeyBindingWrapper(lua_State *ls) {
+    auto a0 = (int)luaL_checkinteger(ls, 1);
+    Api::eng_declareKeyBinding(a0);
+    return 0;
+}
+
+static void eng_declareKeyBindingExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_declareKeyBindingWrapper);
+    lua_setglobal(ls, "eng_declareKeyBinding");
+}
+
+static int eng_undeclareKeyBindingWrapper(lua_State *ls) {
+    auto a0 = (int)luaL_checkinteger(ls, 1);
+    Api::eng_undeclareKeyBinding(a0);
+    return 0;
+}
+
+static void eng_undeclareKeyBindingExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_undeclareKeyBindingWrapper);
+    lua_setglobal(ls, "eng_undeclareKeyBinding");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -974,6 +996,8 @@ void LuaWrapper::apiExport() {
     engS_getRandomFExport(luaState);
     eng_quitExport(luaState);
     eng_fpsExport(luaState);
+    eng_declareKeyBindingExport(luaState);
+    eng_undeclareKeyBindingExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

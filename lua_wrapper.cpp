@@ -3,6 +3,7 @@
 #include "gui.hpp"
 
 thread_local LuaWrapper *LuaWrapper::threadLuaInstance = nullptr;
+thread_local bool LuaWrapper::isGuiThread = false;
 
 static int wrap_exceptions(lua_State *ls, lua_CFunction f)
 {
@@ -421,4 +422,25 @@ void LuaWrapper::enableCallbacksOnThisThread() {
     threadLuaInstance = this;
     lua_createtable(luaState, 0, 0);
     lua_setglobal(luaState, "Server_callbacks");
+}
+
+void LuaWrapper::enableKeyBindings() {
+    isGuiThread = true;
+    lua_createtable(luaState, 0, 0);
+    lua_setglobal(luaState, "Keybinding_callbacks");
+}
+
+void LuaWrapper::callKeyBinding(int key, int mods) {
+    lua_getglobal(luaState, "Keybinding_callbacks");
+    lua_pushinteger(luaState, key);
+    lua_gettable(luaState, -2);
+    lua_pushinteger(luaState, mods);
+    if (lua_isnil(luaState, -2)) {
+        std::cerr << "Warning missing keybinding (" << std::dec << key << "). This probably indicates a lua programming error." << std::endl;
+        lua_pop(luaState, 2);
+        return;
+    }
+    if(lua_pcall(luaState, 1, 0, 0))
+        error("Error running function: %s", lua_tostring(luaState, -1));
+    lua_pop(luaState, 1);
 }

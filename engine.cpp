@@ -256,10 +256,10 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
         auto mode = InsertionMode::OVERWRITE;
         if (mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
         if (mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
-        engine->apiLock.lock();
+        engine->apiLocks[APIL_SELECTION].lock();
         for (auto id : engine->idsSelected)
             Api::cmd_setTargetID(id, engine->mousedOverId, mode);
-        engine->apiLock.unlock();
+        engine->apiLocks[APIL_SELECTION].unlock();
     }
 }
 
@@ -2417,7 +2417,7 @@ void Engine::handleInput() {
     }
     KeyEvent keyEvent;
     while(keyboardInput.pop(keyEvent)) {
-        if (!keyboardCaptured && keyEvent.action == GLFW_PRESS) {
+        if (!keyboardCaptured && (keyEvent.action == GLFW_PRESS || keyEvent.action == GLFW_REPEAT)) {
             keysPressed[keyEvent.key] = true;
             if (keyEvent.key == GLFW_KEY_ESCAPE) {
                 quit();
@@ -2428,6 +2428,15 @@ void Engine::handleInput() {
                 InsertionMode mode = InsertionMode::OVERWRITE;
                 if (keyEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
                 for ( const auto id : idsSelected) Api::cmd_stop(id, mode);
+            }
+            apiLocks[APIL_KEYBINDINGS].lock();
+            bool callLuaHandler = luaKeyBindings.contains(keyEvent.key);
+            apiLocks[APIL_KEYBINDINGS].unlock();
+            if (callLuaHandler) {
+                GuiCommandData *what = new GuiCommandData();
+                what->id = keyEvent.key;
+                what->flags = keyEvent.mods;
+                gui->submitCommand({ Gui::GUI_KEYBINDING, what });
             }
         }
         if (keyEvent.action == GLFW_RELEASE) {
@@ -2666,9 +2675,9 @@ void Engine::handleInput() {
     }
 
     if (idsSelectedChanged) {
-        apiLock.lock();
+        apiLocks[APIL_SELECTION].lock();
         this->idsSelected = idsSelected;
-        apiLock.unlock();
+        apiLocks[APIL_SELECTION].unlock();
         GuiCommandData *what = new GuiCommandData();
         what->str = "onSelectionChanged";
         gui->submitCommand({ Gui::GUI_NOTIFY, what });

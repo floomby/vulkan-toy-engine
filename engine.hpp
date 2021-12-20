@@ -77,7 +77,7 @@ private:
 };
 
 class Engine : public Base {
-    // There is probably a better design patter here
+    // There is probably a better design pattern here
     friend class EntityTexture;
     friend class CubeMap;
     friend class GuiTexture;
@@ -85,7 +85,7 @@ class Engine : public Base {
     friend class GlyphCache;
     friend class TextResource;
     friend class ComputeManager;
-    // friend class Api;
+    friend class Api;
 
     friend class DynUBOSyncer<InstanceUBO>;
     friend class DynUBOSyncer<LineUBO>;
@@ -116,6 +116,14 @@ public:
     virtual void quit();
 
     float fps = 0.0f;
+
+    enum {
+        APIL_SELECTION,
+        APIL_KEYBINDINGS,
+        APIL_COUNT
+    };
+
+    std::array<std::mutex, static_cast<size_t>(APIL_COUNT)> apiLocks;
 private:
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -265,6 +273,7 @@ private:
     struct KeyEvent {
         int action, key, mods;
     };
+    std::set<int> luaKeyBindings;
     boost::lockfree::spsc_queue<KeyEvent, boost::lockfree::capacity<1024>> keyboardInput;
     static void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
     bool keyboardCaptured = false;
