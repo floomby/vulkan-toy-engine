@@ -262,6 +262,9 @@ private:
         CURSOR_SELECT,
         CURSOR_ATTACK
     };
+    Instance cursorInstance;
+    void setCursorInstance(const Instance& instance);
+    void setCursorInstance(Instance&& instance);
 
     inline std::pair<float, float> normedDevice(float x, float y);
     glm::vec3 raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView);
@@ -329,7 +332,7 @@ private:
     std::vector<VmaAllocation> bgSubpassImageAllocations;
     std::vector<VkImageView> bgSubpassImageViews;
 
-    std::vector<int> zSortedIcons;
+    std::vector<int> zSorted;
     
     std::vector<VkImageView> swapChainImageViews;
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT);

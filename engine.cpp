@@ -2545,7 +2545,7 @@ void Engine::handleInput() {
             selectionCanAttack = false;
             idsSelectedChanged = true;
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
-                if (!currentScene->state.instances[i]->entity->isUnit || !currentScene->state.instances[i]->inPlay) continue;
+                if (!currentScene->state.instances[i]->valid || !currentScene->state.instances[i]->inPlay || !currentScene->state.instances[i]->entity->isUnit) continue;
                 if (engineSettings.teamIAm.id && engineSettings.teamIAm.id != currentScene->state.instances[i]->team) continue;
                 if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, currentScene->state.instances[i]->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, currentScene->state.instances[i]->position) < 0 !=
@@ -2694,13 +2694,6 @@ void Engine::handleInput() {
     notFirstTime = false;
 }
 
-InstanceZSorter::InstanceZSorter(Scene *context)
-: context(context) {}
-
-bool InstanceZSorter::operator() (int a, int b) {
-    return context->state.instances[a]->cammeraDistance2 > context->state.instances[b]->cammeraDistance2;
-}
-
 static std::array<std::pair<glm::vec3, float>, 6> extractFrustum(const glm::mat4& m) {
     return {{
         {{ m[0][3] + m[0][0] , m[1][3] + m[1][0] , m[2][3] + m[2][0] }, m[3][3] + m[3][0] },
@@ -2773,6 +2766,7 @@ float Engine::updateScene(int index) {
     uint fullyRenderCount = 0;
 
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
+        if (!currentScene->state.instances[i]->valid) continue;
         if (currentScene->state.instances[i]->entity->isProjectile) {
             // I will just let the gpu do its thing and not mess about
             currentScene->state.instances[i]->rendered = true;
@@ -2816,10 +2810,10 @@ float Engine::updateScene(int index) {
     // zMax = -105;
     // zMin = -105;
 
-    // std::cout << "zMax: " << zMax << " zMin: " << zMin << std::endl;
+    zSorted.resize(currentScene->state.instances.size() - 1);
+    std::iota(zSorted.begin(), zSorted.end(), 1);
+    std::sort(zSorted.begin(), zSorted.end(), currentScene->zSorter);
 
-    // lightingData.pos = { 100.0f, 0.0f, 0.0f };
-    // if (lightingDirty[index] && shadow.needed) {
     if (fullyRenderCount) {
         // lightingData.nearFar = { 0.7f, 13.0f };
         // lightingData.view = glm::lookAt(lightingData.pos, glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -3157,6 +3151,17 @@ void Engine::runCurrentScene() {
     vkDeviceWaitIdle(device);
 }
 
+void Engine::setCursorInstance(const Instance& instance) {
+    cursorInstance = instance;
+    cursorInstance.dontDelete = true;
+}
+
+void Engine::setCursorInstance(Instance&& instance) {
+    cursorInstance = instance;
+    cursorInstance.dontDelete = true;
+}
+
+
 void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {
         {"models/sphere.obj", "textures/sphere.png", "", "sphere"}
@@ -3164,6 +3169,8 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance("sphere", { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
+    currentScene->state.instances.push_back(&cursorInstance);
+    cursorInstance.dontDelete = true;
 
     // +x = -x, +y = -y, z = -z
     lightingData.pos = { -50.0f, -110.0, 0.0f };
@@ -3546,18 +3553,29 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdBeginRenderPass(buffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_WORLD]);
-
     VkBuffer vertexBuffers[] = { vertexBuffer };
     VkDeviceSize offsets[] = { 0 };
     uint32_t dynamicOffset = 0;
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
+
+    vkCmdSetLineWidth(buffer, 1.0);
+
+    for (int j = 0; j < lineSync->validCount[index]; j++) {
+        dynamicOffset = j * uniformSync->uniformSkip;
+        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
+        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
+        vkCmdDraw(buffer, 2, 1, 0, 0);
+    }
+
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_WORLD]);
 
     vkCmdBindVertexBuffers(buffer, 0, 1, vertexBuffers, offsets);
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     // 0th instance is always the skybox (see Engine::loadDefaultScene)
-    for (int j = 1; j < uniformSync->validCount[index]; j++) {
-        if (!currentScene->state.instances[j]->rendered) continue;
+    for (auto j : zSorted) {
+        if (!currentScene->state.instances[j]->valid || !currentScene->state.instances[j]->rendered) continue;
         pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j]->team];
         dynamicOffset = j * uniformSync->uniformSkip;
         // render the unit as an icon
@@ -3593,17 +3611,6 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
         }
-    }
-
-    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelines[GP_LINES]);
-
-    vkCmdSetLineWidth(buffer, 1.0);
-
-    for (int j = 0; j < lineSync->validCount[index]; j++) {
-        dynamicOffset = j * uniformSync->uniformSkip;
-        vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
-        vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
-        vkCmdDraw(buffer, 2, 1, 0, 0);
     }
 
     vkCmdNextSubpass(buffer, VK_SUBPASS_CONTENTS_INLINE);
@@ -4282,11 +4289,10 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
     vkCmdBindIndexBuffer(buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     for(int j = 1; j < uniformSync->validCount[index]; j++) {
-        if (currentScene->state.instances[j]->renderAsIcon) continue;
+        if (!currentScene->state.instances[j]->valid || !currentScene->state.instances[j]->rendered || currentScene->state.instances[j]->renderAsIcon) continue;
         uint32_t dynamicOffset = j * uniformSync->uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow.pipelineLayout, 0, 1, &shadow.descriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, shadow.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ShadowPushConstansts), &shadow.constants);
-        // TODO we can bundle draw commands the entities are the same (this includes the textures)
         vkCmdDrawIndexed(buffer, currentScene->state.instances[j]->sceneModelInfo->indexCount, 1,
             currentScene->state.instances[j]->sceneModelInfo->indexOffset, 0, 0);
     }
@@ -4638,7 +4644,7 @@ EntityTexture& EntityTexture::operator=(EntityTexture&& other) noexcept {
 #include "unit_ai.hpp"
 
 Scene::Scene(Engine* context, std::vector<std::tuple<const char *, const char *, const char *, const char *>> entities, std::array<const char *, 6> skyboxImages)
-: skybox(context, skyboxImages) {
+: skybox(context, skyboxImages), zSorter(InstanceZSorter(this)) {
     this->context = context;
     auto icon = new Entity(ENT_ICON);
     for (const auto& entityData : entities) {
@@ -4696,8 +4702,8 @@ void Scene::addInstance(const std::string& name, glm::vec3 position, glm::vec3 h
     assert(models.size());
     auto ent = entities[name];
     state.instances.push_back(new Instance(ent, textures.data() + ent->textureIndex, models.data() + ent->modelIndex, 0, 0, false));
-    state.instances.back()->position = std::move(position);
-    state.instances.back()->heading = std::move(heading);
+    state.instances.back()->position = position;
+    state.instances.back()->heading = heading;
 }
 
 void Scene::makeBuffers() {

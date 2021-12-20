@@ -89,20 +89,22 @@ public:
     Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* sceneModelInfo, InstanceID id, TeamID team, bool inPlay) noexcept;
     void syncToAuthInstance(const Instance& other);
 
-    SceneModelInfo* sceneModelInfo;
+    SceneModelInfo* sceneModelInfo = nullptr;
 
     InstanceUBO *getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax);
 
     bool rayIntersects(const glm::vec3& origin, const glm::vec3& direction, float& distance) const;
-    EntityTexture* texture;
+    EntityTexture* texture = nullptr;
 
     bool secondQueuedCommandRequiresMovement() const;
 
     bool renderAsIcon = false;
     float cammeraDistance2; // , cammeraDistance;
-    bool highlight = false, rendered;
+    bool highlight = false, rendered = false;
 
-    bool inPlay;
+    bool valid = true;
+    bool dontDelete = false;
+    bool inPlay = false;
     bool orphaned = false;
 
     InstanceID parentID = 0;
@@ -110,7 +112,7 @@ public:
     // Game logic properties
     InstanceID id;
     InstanceID whatBuilding = 0;
-    Entity *entity;
+    Entity *entity = nullptr;
     TeamID team = 0; // default to team 0 which is gaia
     double health = 1.0;
     double resources = 0.0;
@@ -137,6 +139,7 @@ public:
     bool operator==(const Instance& other) const;
     bool operator==(uint32_t id) const;
     bool operator<(uint32_t id) const;
+    bool operator>(uint32_t id) const;
 
     void doCrc(boost::crc_32_type& crc) const;
 private:
@@ -148,6 +151,6 @@ struct InstanceComparator {
           return *a < b;
     }
     inline bool operator()(const InstanceID& a, const Instance *b) const {
-          return a < b->id;
+          return *b > a;
     }
 };

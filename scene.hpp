@@ -80,7 +80,7 @@ public:
     
     void updateUniforms(int idx);
 
-    // InstanceZSorter zSorter;
+    InstanceZSorter zSorter;
 
     void initUnitAIs(LuaWrapper *lua, const char *directory);
 private:

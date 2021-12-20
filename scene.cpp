@@ -4,6 +4,13 @@
 
 #include <filesystem>
 
+InstanceZSorter::InstanceZSorter(Scene *context)
+: context(context) {}
+
+bool InstanceZSorter::operator() (int a, int b) {
+    return context->state.instances[a]->cammeraDistance2 > context->state.instances[b]->cammeraDistance2;
+}
+
 std::vector<Entity *> Scene::loadEntitiesFromLua(const char *directory) {
     std::vector<Entity *> ret;
 
@@ -91,7 +98,7 @@ Scene::~Scene() {
 #include "server.hpp"
 
 Scene::Scene(Server *context)
-: context(context) {
+: context(context), zSorter(InstanceZSorter(this)) {
     auto weapons = loadWeaponsFromLua("weapons");
     for (const auto& weapon : weapons) {
         if (weapon->hasEntity()) {

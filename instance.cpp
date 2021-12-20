@@ -7,7 +7,7 @@ void crcString(boost::crc_32_type& crc, const std::string& str) {
     crc.process_bytes(str.data(), str.length());
 }
 
-Instance::Instance() : id(42) { }
+Instance::Instance() : id(0), valid(false) { }
 
 Instance::Instance(Entity *entity, InstanceID id, TeamID team) noexcept
 : Instance(entity, nullptr, nullptr, id, team, true) { }
@@ -25,6 +25,7 @@ Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* scene
 }
 
 InstanceUBO *Instance::getUBO(const glm::mat4& view, const glm::mat4& projView, const glm::mat4& view_1proj_1, float aspectRatio, float zMin, float zMax) {
+    if (!valid) return &_state;
     auto clipCoord = projView * glm::vec4(position.x, position.y, position.z, 1.0);
     if (renderAsIcon) {
 
@@ -77,6 +78,10 @@ bool Instance::operator==(uint32_t id) const {
 }
 
 bool Instance::operator<(uint32_t id) const {
+    return this->id < id;
+}
+
+bool Instance::operator>(uint32_t id) const {
     return this->id < id;
 }
 

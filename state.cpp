@@ -111,7 +111,7 @@ void ObservableState::syncToAuthoritativeState(AuthoritativeState& state) {
 }
 
 ObservableState::~ObservableState() {
-    for (auto inst : instances) delete inst;
+    for (auto inst : instances) if(!inst->dontDelete) delete inst;
 }
 
 #include "pathgen.hpp"
