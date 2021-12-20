@@ -102,6 +102,42 @@ local function remove_build_menu()
     gui_removePanel("Build_menu")
 end
 
+-- allow for context dependent keybinding overrides
+local keybinding_callback_stacks = {}
+
+local function add_keybinding(key, func)
+    if keybinding_callback_stacks[key] == nil then
+        keybinding_callback_stacks[key] = {}
+        eng_declareKeyBinding(key);
+    end
+    keybinding_callback_stacks[key][#keybinding_callback_stacks[key] + 1] = func
+    Keybinding_callbacks[key] = func
+end
+
+local function pop_keybinding(key)
+    if keybinding_callback_stacks[key] == nil then
+        return
+    end
+    keybinding_callback_stacks[key][#keybinding_callback_stacks[key]] = nil
+    if #keybinding_callback_stacks[key] == 0 then
+        eng_undeclareKeyBinding(key);
+    else
+        Keybinding_callbacks[key] = keybinding_callback_stacks[key][#keybinding_callback_stacks[key]]
+    end
+end
+
+-- local function tester()
+--     print("Yay!")
+-- end
+
+-- local function tester2()
+--     print("Yay2!")
+-- end
+
+-- add_keybinding(keys.KEY_G, tester2)
+-- add_keybinding(keys.KEY_G, tester)
+-- pop_keybinding(keys.KEY_G)
+
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
     x = -1.0,
@@ -244,7 +280,7 @@ engret_visibility()
 
 state_giveResources(2, 50000)
 
-eng_declareKeyBinding(keys.KEY_G);
+-- eng_declareKeyBinding(keys.KEY_G);
 
 -- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
 -- gui_setLabelText("button", "Hello")
