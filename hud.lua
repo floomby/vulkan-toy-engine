@@ -304,3 +304,6 @@ cmd_createInstance("miner", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 
 -- net_pause(false)
 -- print(eng_fps())
+
+
+-- eng_playSound("test.ogg")

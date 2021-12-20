@@ -3,10 +3,35 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
+#include <list>
 #include <map>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
+#include <queue>
+
+struct PlaybackData {
+    ALuint buffer;
+};
+
+class SoundPlayer {
+public:
+    SoundPlayer(ALCdevice *device, ALCcontext *context, uint totalSources);
+    ~SoundPlayer();
+    void submit(PlaybackData&& data);
+private:
+    ALCdevice *device = nullptr;
+    ALCcontext *context = nullptr;
+    std::thread playbackThread;
+    std::list<ALuint> activeSources;
+    std::queue<ALuint> idleSources;
+    std::vector<ALuint> sources;
+    std::atomic<bool> done = false;
+    void run();
+    std::queue<PlaybackData> playbackQueue;
+    std::mutex playbackQueueLock;
+};
 
 class Sound {
 public:
@@ -24,4 +49,6 @@ private:
     std::map<std::string, ALuint> cached;
     ALCdevice *device = nullptr;
     ALCcontext *context = nullptr;
+
+    SoundPlayer *player = nullptr;
 };

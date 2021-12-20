@@ -3,10 +3,11 @@
 #include <stdexcept>
 #include <sstream>
 
-#include "sound.hpp"
-
 #include <vorbis/codec.h>
 #include <vorbis/vorbisfile.h>
+
+#include "econf.h"
+#include "sound.hpp"
 
 #define alErrorGuard(function, ...) alcCallImpl(__FILE__, __LINE__, function, device, __VA_ARGS__)
 
@@ -67,6 +68,7 @@ Sound::~Sound() {
         alcDestroyContext(context);
     }
     if (device) alcCloseDevice(device);
+    if (player) delete player;
 }
 
 std::vector<std::string> Sound::listDevices() {
@@ -85,12 +87,15 @@ void Sound::setDevice(const char *name) {
         alcMakeContextCurrent(NULL);
         alcDestroyContext(context);
     }
+    if (player) delete player;
 
     device = alcOpenDevice(name);
     if (!device) throw std::runtime_error("Unable to open openal device");
 
     context = alcCreateContext(device, NULL);
     if (!alcMakeContextCurrent(context)) throw std::runtime_error("Unable to make openal context");
+
+    player = new SoundPlayer(device, context, Config::maxSoundSources);
 }
 
 #include <bit>
@@ -215,6 +220,7 @@ void Sound::loadSound(const char *name) {
 }
 
 void Sound::playSound(const char *name) {
+    if (!player) throw std::runtime_error("Please set an active sound device before attempting to play sounds");
     ALuint buffer;
     lock.lock();
     if (cached.contains(name)) {
@@ -227,6 +233,9 @@ void Sound::playSound(const char *name) {
         buffer = cached.at(name);
         lock.unlock();
     }
+
+    player->submit({ buffer });
+    return;
 
     ALuint source;
     alErrorGuard(alGenSources, 1, &source);
@@ -245,4 +254,65 @@ void Sound::playSound(const char *name) {
     }
 
     alErrorGuard(alDeleteSources, 1, &source);
+}
+
+SoundPlayer::SoundPlayer(ALCdevice *device, ALCcontext *context, uint totalSources)
+: device(device), context(context) {
+    sources.resize(totalSources);
+    alErrorGuard(alGenSources, totalSources, sources.data());
+
+    playbackThread = std::thread(&SoundPlayer::run, this);
+
+    for ( auto src : sources ) idleSources.push(src);
+}
+
+SoundPlayer::~SoundPlayer() {
+    done = true;
+    playbackThread.join();
+    alErrorGuard(alDeleteSources, sources.size(), sources.data());
+}
+
+void SoundPlayer::run() {
+    while (!done) {
+        playbackQueueLock.lock();
+        while(!playbackQueue.empty()) {
+            auto data = playbackQueue.front();
+            playbackQueueLock.unlock();
+            ALint state;
+            for (auto it = activeSources.begin(); it != activeSources.end();) {
+                alErrorGuard(alGetSourcei, *it, AL_SOURCE_STATE, &state);
+                if (state != AL_PLAYING) {
+                    idleSources.push(*it);
+                    activeSources.erase(it);
+                } else it++;
+            }
+            if (idleSources.empty()) {
+                // We are out of idle sorces (lets print a warning and twiddle our thumbs)
+                std::cerr << "Warning: Out of openal sound sources" << std::endl;
+                std::this_thread::yield();
+                playbackQueueLock.lock();
+                continue;
+            }
+
+            // Probably I don't need to set these every time I use the source (for now just leave it here)
+            alErrorGuard(alSourcef, idleSources.front(), AL_PITCH, 1);
+            alErrorGuard(alSourcef, idleSources.front(), AL_GAIN, 1.0f);
+            alErrorGuard(alSource3f, idleSources.front(), AL_POSITION, 0, 0, 0);
+            alErrorGuard(alSource3f, idleSources.front(), AL_VELOCITY, 0, 0, 0);
+            alErrorGuard(alSourcei, idleSources.front(), AL_LOOPING, AL_FALSE);
+            alErrorGuard(alSourcei, idleSources.front(), AL_BUFFER, data.buffer);
+            alErrorGuard(alSourcePlay, idleSources.front());
+            idleSources.pop();
+            
+            playbackQueueLock.lock();
+            playbackQueue.pop();
+        }
+        playbackQueueLock.unlock();
+        std::this_thread::yield();
+    }
+}
+
+void SoundPlayer::submit(PlaybackData&& data) {
+    std::scoped_lock l(playbackQueueLock);
+    playbackQueue.push(data);
 }
