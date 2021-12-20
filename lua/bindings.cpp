@@ -790,6 +790,48 @@ static void eng_undeclareKeyBindingExport(lua_State *ls) {
     lua_setglobal(ls, "eng_undeclareKeyBinding");
 }
 
+static int eng_getScreenWidthWrapper(lua_State *ls) {
+    auto r = Api::eng_getScreenWidth();
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void eng_getScreenWidthExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getScreenWidthWrapper);
+    lua_setglobal(ls, "eng_getScreenWidth");
+}
+
+static int eng_getScreenHeightWrapper(lua_State *ls) {
+    auto r = Api::eng_getScreenHeight();
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void eng_getScreenHeightExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getScreenHeightWrapper);
+    lua_setglobal(ls, "eng_getScreenHeight");
+}
+
+static int eng_setCursorEntityWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    Api::eng_setCursorEntity(a0);
+    return 0;
+}
+
+static void eng_setCursorEntityExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_setCursorEntityWrapper);
+    lua_setglobal(ls, "eng_setCursorEntity");
+}
+
+static int eng_clearCursorEntityWrapper(lua_State *ls) {
+    Api::eng_clearCursorEntity();
+    return 0;
+}
+
+static void eng_clearCursorEntityExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_clearCursorEntityWrapper);
+    lua_setglobal(ls, "eng_clearCursorEntity");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -998,6 +1040,10 @@ void LuaWrapper::apiExport() {
     eng_fpsExport(luaState);
     eng_declareKeyBindingExport(luaState);
     eng_undeclareKeyBindingExport(luaState);
+    eng_getScreenWidthExport(luaState);
+    eng_getScreenHeightExport(luaState);
+    eng_setCursorEntityExport(luaState);
+    eng_clearCursorEntityExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

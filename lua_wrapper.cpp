@@ -185,6 +185,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     getNumberField("width", ret->width);
     ret->kind = (GuiLayoutKind)(int)getNumberField("kind");
     ret->color = (uint32_t)getNumberField("color");
+    getNumberField("secondaryColor", ret->secondaryColor);
 
     getStringField("text", ret->text);
     getStringField("name", ret->name);

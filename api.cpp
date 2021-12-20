@@ -236,6 +236,24 @@ void Api::eng_undeclareKeyBinding(int key) {
     ctx->luaKeyBindings.erase(key);
 }
 
+int Api::eng_getScreenWidth() {
+    assert(!context->headless);
+    return static_cast<Engine *>(context)->swapChainExtent.width;
+}
+
+int Api::eng_getScreenHeight() {
+    assert(!context->headless);
+    return static_cast<Engine *>(context)->swapChainExtent.height;
+}
+
+void Api::eng_setCursorEntity(const std::string& name) {
+    throw std::runtime_error("not implemented yet");
+}
+
+void Api::eng_clearCursorEntity() {
+    throw std::runtime_error("not implemented yet");
+}
+
 bool Api::eng_getCollidability(InstanceID unitID) {
     lock_and_get_iterator
     return it->hasCollision;

@@ -28,7 +28,7 @@ struct GuiLayoutNode {
     std::vector<GuiLayoutNode *> children;
     std::map<std::string, int> handlers;
     std::string text;   // I guess do this like imageStates as well
-    uint32_t color;
+    uint32_t color, secondaryColor = 0;
     std::string name;
     std::vector<std::string> imageStates;
     std::string tooltip;

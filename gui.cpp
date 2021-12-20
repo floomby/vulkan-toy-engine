@@ -1,3 +1,6 @@
+// I think some of the constructors and stuff work, but are unused. I am going to implement some new features here.
+// The *only* thing I care about is that it works with the lua as expected
+
 #include "engine.hpp"
 
 #include <iostream>

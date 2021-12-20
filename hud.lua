@@ -193,27 +193,39 @@ Hud = {
             -- children = {}
             name = "engret",
         },
+        -- {
+        --     x = 0.3,
+        --     y = -1.0,
+        --     width = 0.2,
+        --     height = 0.1,
+        --     onSelectionChanged = engret_visibility,
+        --     kind = GuiLayoutKind__PANEL,
+        --     color = 0x6050cc60,
+        --     children = {
+        --         {
+        --             x = 0.3,
+        --             y = -1.0,
+        --             width = 0.5,
+        --             height = 0.1,
+        --             onSelectionChanged = engret_visibility,
+        --             kind = GuiLayoutKind__TEXT_BUTTON,
+        --             color = 0x000000ff,
+        --             name = "rus",
+        --             text = "",
+        --         },
+        --     }
+        -- },
         {
             x = 0.3,
             y = -1.0,
-            width = 0.2,
+            width = 0.5,
             height = 0.1,
             onSelectionChanged = engret_visibility,
-            kind = GuiLayoutKind__PANEL,
-            color = 0x6050cc60,
-            children = {
-                {
-                    x = 0.3,
-                    y = -1.0,
-                    width = 0.5,
-                    height = 0.1,
-                    onSelectionChanged = engret_visibility,
-                    kind = GuiLayoutKind__TEXT_BUTTON,
-                    color = 0x000000ff,
-                    name = "rus",
-                    text = "",
-                },
-            }
+            kind = GuiLayoutKind__TEXT_BUTTON,
+            color = 0x000000ff,
+            secondaryColor = 0x6050cc60,
+            name = "rus",
+            text = "",
         },
         {
             x = -0.7,

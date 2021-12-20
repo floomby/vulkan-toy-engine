@@ -25,6 +25,7 @@ public:
     static void cmd_build(InstanceID unitID, const char *what, InsertionMode mode);
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
+    // I dont like how I "namespaced" these function, it seems like almost everything is an eng* function
     static void eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID);
     static void eng_createGuidedProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID, TeamID teamID);
     static void eng_createBeam(uint32_t color, float damage, const glm::vec3& from, const glm::vec3& to, InstanceID parentID);
@@ -71,6 +72,11 @@ public:
     static float eng_fps();
     static void eng_declareKeyBinding(int key);
     static void eng_undeclareKeyBinding(int key);
+    // These two aren't really thread safe, but the consequences of that are minimal
+    static int eng_getScreenWidth();
+    static int eng_getScreenHeight();
+    static void eng_setCursorEntity(const std::string& name);
+    static void eng_clearCursorEntity();
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);
