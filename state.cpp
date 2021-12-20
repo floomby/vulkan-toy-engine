@@ -247,7 +247,7 @@ void AuthoritativeState::doUpdateTick() {
                     instances.push_back(inst);
                 }
             }
-        } else if (it && it->entity->isUnit && !it->uncompleted) {
+        } else if (it && it->entity->isUnit && !it->entity->isStation && !it->uncompleted) {
             Pathgen::stop(*it);
         }
         if (it && it->buildPower) {

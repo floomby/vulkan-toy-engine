@@ -4746,14 +4746,24 @@ void Scene::updateUniforms(int idx) {
         cmdGen.next();
         auto a = cmdGen.value();
         auto id = a.which->at(a.idx);
-        LineUBO ret = {
-            id == lastId ? lastDest : this->state.instances[id]->position,
-            a.command->data.dest,
-            { 0.3f, 1.0f, 0.3f, 1.0f },
-            { 0.3f, 1.0f, 0.3f, 1.0f }
-        };
-        lastDest = a.command->data.dest;
-        lastId = id;
+        LineUBO ret;
+        if (a.command->kind == CommandKind::MOVE) {
+            ret = {
+                id == lastId ? lastDest : this->state.instances[id]->position,
+                a.command->data.dest,
+                { 0.3f, 1.0f, 0.3f, 1.0f },
+                { 0.3f, 1.0f, 0.3f, 1.0f }
+            };
+            lastDest = a.command->data.dest;
+            lastId = id;
+        } else {
+            ret = { 
+                { 0.0f, 0.0f, 0.0f },
+                { 0.0f, 0.0f, 0.0f },
+                { 0.0f, 0.0f, 0.0f, 0.0f },
+                { 0.0f, 0.0f, 0.0f, 0.0f },
+            };
+        }
         return ret; };
 
     std::generate_n(std::back_inserter(lineTmp), commandCount, commandLines);
