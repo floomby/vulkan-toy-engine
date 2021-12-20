@@ -1249,7 +1249,7 @@ void Engine::createGraphicsPipelines() {
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
     rasterizer.depthBiasConstantFactor = 0.0f;
@@ -1341,6 +1341,7 @@ void Engine::createGraphicsPipelines() {
 
     vulkanErrorGuard(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineInfo, nullptr, &graphicsPipelines[GP_WORLD]), "Failed to create graphics pipeline.");
 
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
     colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineInfo.subpass = 1;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
