@@ -246,12 +246,19 @@ int Api::eng_getScreenHeight() {
     return static_cast<Engine *>(context)->swapChainExtent.height;
 }
 
+// Idk if I actually want these 2
 void Api::eng_setCursorEntity(const std::string& name) {
-    throw std::runtime_error("not implemented yet");
+    assert(!context->headless);
+    static_cast<Engine *>(context)->setCursorEntity(name);
 }
 
 void Api::eng_clearCursorEntity() {
-    throw std::runtime_error("not implemented yet");
+    assert(!context->headless);
+    static_cast<Engine *>(context)->removeCursorEntity();
+}
+
+bool Api::eng_entityIsStation(const std::string& name) {
+    return context->currentScene->entities.at(name)->isStation;
 }
 
 bool Api::eng_getCollidability(InstanceID unitID) {

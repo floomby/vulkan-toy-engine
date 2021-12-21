@@ -54,7 +54,9 @@ local function build_visibility()
     local units = eng_getSelectedInstances()
     local can_build = false
     build_options = {}
+    build_units = {}
     for _, unit in ipairs(units) do
+        print(unit .. " is selected")
         local options = eng_getInstanceBuildOptions(unit)
         for _, option in ipairs(options) do
             can_build = true
@@ -313,7 +315,7 @@ state_giveResources(2, 50000)
 -- cmd_createInstance("shipyard", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-cmd_createInstance("ship", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 cmd_createInstance("miner", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
@@ -336,7 +338,7 @@ cmd_createInstance("miner", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 -- state_giveResources(1, 55.3)
 -- print(state_getResources(1))
 
--- net_pause(false)
+net_pause(false)
 -- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 
 -- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
@@ -355,3 +357,6 @@ cmd_createInstance("miner", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 
 
 -- eng_playSound("test.ogg")
+
+-- eng_setCursorEntity("shipyard")
+-- eng_clearCursorEntity()

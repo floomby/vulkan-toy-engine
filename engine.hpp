@@ -120,6 +120,7 @@ public:
     enum {
         APIL_SELECTION,
         APIL_KEYBINDINGS,
+        APIL_CURSOR_INSTANCE,
         APIL_COUNT
     };
 
@@ -211,14 +212,16 @@ private:
     } framebufferSize;
 
     // Mouse ui state stuff
+    bool placingStructure = false;
     enum MouseAction {
         MOUSE_NONE,
         MOUSE_PANNING,
         MOUSE_ROTATING,
         MOUSE_DRAGGING,
-        MOUSE_MOVING_Z
+        MOUSE_MOVING_Z,
+        MOUSE_PLACING_Z
     } mouseAction;
-    bool wasZMoving = false;
+    bool wasZMoving = false, wasZPlacing = false;
     bool drawTooltip = false;
     std::vector<bool> tooltipDirty;
     std::shared_ptr<GuiTexture> tooltipResource, tooltipStillInUse;
@@ -265,6 +268,8 @@ private:
     Instance cursorInstance;
     void setCursorInstance(const Instance& instance);
     void setCursorInstance(Instance&& instance);
+    void setCursorEntity(const std::string& name);
+    void removeCursorEntity();
 
     inline std::pair<float, float> normedDevice(float x, float y);
     glm::vec3 raycast(float x, float y, glm::mat4 inverseProjection, glm::mat4 inverseView);

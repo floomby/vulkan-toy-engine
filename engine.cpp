@@ -1267,7 +1267,7 @@ void Engine::createGraphicsPipelines() {
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlendAttachment.blendEnable = VK_TRUE;
     colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
@@ -2353,6 +2353,16 @@ void Engine::setTooltip(const std::string& str) {
 // So many silly lines of code in this function
 // TODO This needs some serious reimagining
 void Engine::handleInput() {
+    apiLocks[APIL_CURSOR_INSTANCE].lock();
+    bool placingStructure = this->placingStructure;
+    this->placingStructure = false;
+    apiLocks[APIL_CURSOR_INSTANCE].unlock();
+    assert(!wasZPlacing || !wasZMoving);
+    if (wasZMoving && placingStructure) {
+        wasZMoving = false;
+        wasZPlacing = true;
+    }
+
     static bool notFirstTime;
     cursorLines->lines.clear();
     std::vector<uint32_t> idsSelected = this->idsSelected;
@@ -2451,7 +2461,7 @@ void Engine::handleInput() {
     cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
     cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
 
-    float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
+    const float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
     float planeDist;
     glm::vec3 planeIntersection;
     if (planeIntersectionDenominator == 0) {
@@ -2498,6 +2508,9 @@ void Engine::handleInput() {
     }
     if (planeIntersectionDenominator != 0 && planeDist > 0 && mouseAction == MOUSE_NONE && !idsSelected.empty()) {
         cursorLines->addCircle(planeIntersection, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
+        apiLocks[APIL_CURSOR_INSTANCE].lock();
+        cursorInstance.position = planeIntersection;
+        apiLocks[APIL_CURSOR_INSTANCE].unlock();
     }
 
     static glm::vec3 zPlaneNormal;
@@ -2509,10 +2522,16 @@ void Engine::handleInput() {
             if (mouseAction == MOUSE_MOVING_Z) {
                 wasZMoving = true;
             }
+            if (mouseAction == MOUSE_PLACING_Z) {
+                wasZPlacing = true;
+            }
             mouseAction = MOUSE_PANNING;
         } else if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_MIDDLE) {
             if (mouseAction == MOUSE_MOVING_Z) {
                 wasZMoving = true;
+            }
+            if (mouseAction == MOUSE_PLACING_Z) {
+                wasZPlacing = true;
             }
             mouseAction = MOUSE_ROTATING;
         }
@@ -2520,6 +2539,12 @@ void Engine::handleInput() {
             if (wasZMoving) {
                 mouseAction = MOUSE_MOVING_Z;
                 wasZMoving = false;
+            } else {
+                mouseAction = MOUSE_NONE;
+            }
+            if (wasZPlacing) {
+                mouseAction = MOUSE_PLACING_Z;
+                wasZPlacing = false;
             } else {
                 mouseAction = MOUSE_NONE;
             }
@@ -2571,7 +2596,11 @@ void Engine::handleInput() {
         }
         if (mouseEvent.action == GLFW_PRESS && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT) {
             if (planeIntersectionDenominator != 0 && mouseAction == MOUSE_NONE && planeDist > 0 && !idsSelected.empty()) {
-                mouseAction = MOUSE_MOVING_Z;
+                if (cursorInstance.valid) {
+                    mouseAction = MOUSE_PLACING_Z;
+                } else {
+                    mouseAction = MOUSE_MOVING_Z;
+                }
                 movingTo.x = planeIntersection.x;
                 movingTo.y = planeIntersection.y;
                 zPlaneNormal = normalize(cross({ 0.0f, 0.0f, 1.0f }, cross({ 0.0f, 0.0f, 1.0f }, mouseRayNormed)));
@@ -2661,16 +2690,19 @@ void Engine::handleInput() {
         }
     }
 
-    if (mouseAction == MOUSE_MOVING_Z) {
+    if (mouseAction == MOUSE_MOVING_Z || mouseAction == MOUSE_PLACING_Z) {
         if (planeIntersectionDenominator != 0.0f) {
             float dist;
             if (glm::intersectRayPlane(cammera.position, mouseRayNormed, { movingTo.x, movingTo.y, 0.0f }, zPlaneNormal, dist)) {
                 auto intersection = cammera.position + mouseRayNormed * dist;
                 movingTo.z = intersection.z;
-                cursorLines->addCircle(movingTo, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
+                apiLocks[APIL_CURSOR_INSTANCE].lock();
+                cursorInstance.position = movingTo;
+                apiLocks[APIL_CURSOR_INSTANCE].unlock();
+                if (mouseAction == MOUSE_MOVING_Z) {
+                    cursorLines->addCircle(movingTo, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.3f, 1.0f, 0.3f, 1.0f }));
+                }
                 cursorLines->addCircle({ movingTo.x, movingTo.y, 0 }, { 0.0f, 0.0f, 1.0f }, 1.0f, 20, glm::vec4({ 0.1f, 0.7f, 0.1f, 1.0f }));
-            } else {
-                // std::cout << "bad bad" << std::endl;
             }
         }
     }
@@ -2880,7 +2912,7 @@ void Engine::drawFrame() {
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
         }
-        }
+    }
 
     vkWaitForFences(device, 1, inFlightFences.data() + (currentFrame + concurrentFrames - 1) % concurrentFrames, VK_TRUE, UINT64_MAX);
 
@@ -3153,15 +3185,37 @@ void Engine::runCurrentScene() {
 }
 
 void Engine::setCursorInstance(const Instance& instance) {
+    auto position = cursorInstance.position;
     cursorInstance = instance;
     cursorInstance.dontDelete = true;
+    cursorInstance.isPlacement = true;
+    cursorInstance.position = position;
 }
 
 void Engine::setCursorInstance(Instance&& instance) {
+    auto position = cursorInstance.position;
     cursorInstance = instance;
     cursorInstance.dontDelete = true;
+    cursorInstance.isPlacement = true;
+    cursorInstance.position = position;
 }
 
+void Engine::setCursorEntity(const std::string& name) {
+    if (name.empty()) {
+        removeCursorEntity();
+    }
+    std::scoped_lock l(apiLocks[APIL_CURSOR_INSTANCE]);
+    const auto ent = currentScene->entities.at(name);
+    Instance inst(ent, currentScene->textures.data() + ent->textureIndex, currentScene->models.data() + ent->modelIndex, 1, engineSettings.teamIAm.id, false);
+    setCursorInstance(std::move(inst));
+    placingStructure = true;
+}
+
+void Engine::removeCursorEntity() {
+    std::scoped_lock l(apiLocks[APIL_CURSOR_INSTANCE]);
+    setCursorInstance(Instance());
+    return;
+}
 
 void Engine::loadDefaultScene() {
     currentScene = new Scene(this, {
@@ -3593,7 +3647,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             pushConstants.renderType = RINT_PROJECTILE;
         } else {
             pushConstants.renderType = (currentScene->state.instances[j]->uncompleted ? RINT_UNCOMPLETE : RINT_OBJ)
-                | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT;
+                | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT | (int)currentScene->state.instances[j]->isPlacement * RFLAG_TRANSPARENT;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         pushConstants.textureIndex = currentScene->state.instances[j]->entity->textureIndex;

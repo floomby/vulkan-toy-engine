@@ -77,6 +77,7 @@ public:
     static int eng_getScreenHeight();
     static void eng_setCursorEntity(const std::string& name);
     static void eng_clearCursorEntity();
+    static bool eng_entityIsStation(const std::string& name);
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);

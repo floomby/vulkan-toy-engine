@@ -17,5 +17,6 @@
 #define getRINT(x)      ((x) & 0x7)
 #define getRFLAGS(x)    ((x) & 0xfffffff8)
 
-#define RFLAG_NONE      0
-#define RFLAG_HIGHLIGHT (1 << 3)
+#define RFLAG_NONE          0
+#define RFLAG_HIGHLIGHT     (1 << 3)
+#define RFLAG_TRANSPARENT   (1 << 4)

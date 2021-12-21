@@ -832,6 +832,18 @@ static void eng_clearCursorEntityExport(lua_State *ls) {
     lua_setglobal(ls, "eng_clearCursorEntity");
 }
 
+static int eng_entityIsStationWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    auto r = Api::eng_entityIsStation(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void eng_entityIsStationExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_entityIsStationWrapper);
+    lua_setglobal(ls, "eng_entityIsStation");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -1044,6 +1056,7 @@ void LuaWrapper::apiExport() {
     eng_getScreenHeightExport(luaState);
     eng_setCursorEntityExport(luaState);
     eng_clearCursorEntityExport(luaState);
+    eng_entityIsStationExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

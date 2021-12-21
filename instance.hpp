@@ -106,6 +106,7 @@ public:
     bool dontDelete = false;
     bool inPlay = false;
     bool orphaned = false;
+    bool isPlacement = false;
 
     InstanceID parentID = 0;
 

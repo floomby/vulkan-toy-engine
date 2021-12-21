@@ -191,4 +191,8 @@ void main() {
     if (rtype == RINT_UNCOMPLETE) {
         outColor = vectorMap(outColor, 0.0, 1.0, (1.0 - inBlinkTime) * 0.3, 1.0);
     }
+
+    if (bool(rflags & RFLAG_TRANSPARENT)) {
+        outColor.w = 0.5;
+    }
 }
