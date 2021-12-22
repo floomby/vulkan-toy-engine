@@ -297,10 +297,12 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
             size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
             lua_pop(luaState, 1);
             ret->weaponNames.push_back(std::string(s));
+
             std::vector<float> position;
             getNumbersField("position", position);
             if (position.size() != 3)
                 error("Invalid weapon (position)");
+            ret->weaponPositions.push_back({ position[0], position[1], position[2] });
 
             lua_pop(luaState, 1);
         }

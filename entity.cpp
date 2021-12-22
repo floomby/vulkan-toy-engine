@@ -33,7 +33,7 @@ Entity::Entity(SpecialEntities entityType, const char *name, const char *model, 
                 { { -1.0f,  1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f , 1.0f }, { 0.0f, 0.0f, 1.0f } }
             }});
             indices = std::vector<uint32_t>({
-                0, 1, 3, 3, 1, 2
+                0, 3, 1, 3, 2, 1
             });
 
             boundingRadius = sqrtf(2);
