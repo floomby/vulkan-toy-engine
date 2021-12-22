@@ -40,9 +40,9 @@ Target::Target(InstanceID targetID)
 WeaponInstance::WeaponInstance(Weapon *instanceOf, InstanceID parentID, TeamID teamID, const glm::vec3& offset)
 : instanceOf(instanceOf), timeSinceFired(0.0f), parentID(parentID), teamID(teamID), kindOf(instanceOf->kindOf()), offset(offset) {}
 
-void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction) {
+void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction, const glm::mat3& transformation) {
     if (timeSinceFired > instanceOf->reload[reloadIndex]) {
-        if (kindOf != WeaponKind::BEAM) instanceOf->fire(position + offset, direction, parentID, teamID);
+        if (kindOf != WeaponKind::BEAM) instanceOf->fire(position + transformation * offset, direction, parentID, teamID);
         timeSinceFired = 0.0f;
         reloadIndex = (reloadIndex + 1) % instanceOf->reload.size();
         firing = true;
@@ -50,7 +50,7 @@ void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction)
     }
     if (kindOf == WeaponKind::BEAM && firing) {
         if (framesFired++ < Beam::framesToFire) {
-            instanceOf->fire(position + offset, direction, parentID, teamID);
+            instanceOf->fire(position + transformation * offset, direction, parentID, teamID);
         } else firing = false;
     }
     timeSinceFired += Config::Net::secondsPerTick;

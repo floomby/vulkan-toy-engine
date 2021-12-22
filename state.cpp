@@ -267,6 +267,10 @@ void AuthoritativeState::doUpdateTick() {
                 ai->run(*it);
             }
             float closest = std::numeric_limits<float>::max();
+            glm::mat3 trans;
+            if (it->weapons.size()) {
+                trans = toMat3(it->heading);
+            }
             for (auto& weapon : it->weapons) {
                 glm::vec3 vec = { 0.0f, 0.0f, 0.0f };
                 bool fireBeam = false;
@@ -286,7 +290,7 @@ void AuthoritativeState::doUpdateTick() {
                         closest = dist;
                     }
                 }
-                if (fireBeam || distance2(vec, { 0.0f, 0.0f, 0.0f }) > 0.01) weapon.fire(it->position, vec);
+                if (fireBeam || distance2(vec, { 0.0f, 0.0f, 0.0f }) > 0.01) weapon.fire(it->position, vec, trans);
             }
         }
     }

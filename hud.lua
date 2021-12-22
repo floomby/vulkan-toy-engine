@@ -322,7 +322,7 @@ state_giveResources(2, 50000)
 cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-cmd_createInstance("miner", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.707, 0.707, 0.0 }, 1, nil)
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)

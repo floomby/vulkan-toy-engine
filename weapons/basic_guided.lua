@@ -5,7 +5,7 @@ Basic_guided = {
     kind = WeaponKind__GUIDED,
     range = 50.0,
     damage = 0.01,
-    acceleration = 1.5,
+    acceleration = 6,
     maxOmega = 1.2,
     reload = { 1.0, 0.18, 0.13 }
 }

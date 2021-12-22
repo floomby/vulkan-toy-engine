@@ -78,7 +78,7 @@ public:
 
     InstanceID parentID;
     TeamID teamID;
-    void fire(const glm::vec3& position, const glm::vec3& direction);
+    void fire(const glm::vec3& position, const glm::vec3& direction, const glm::mat3& transformation);
     int framesFired = 0;
     bool firing = false;
 };
