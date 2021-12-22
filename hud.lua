@@ -179,6 +179,7 @@ Hud = {
             kind = GuiLayoutKind__TEXT_EDITABLE,
             text = "Edit me",
             color = 0x101080ff,
+            secondaryColor = 0x00000000,
             -- children = {}
             tooltip = "This has a tooltip!\nIsn't that nice",
             -- onTextUpdated = text_updated

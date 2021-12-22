@@ -621,11 +621,11 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
             ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutKind::TEXT_BUTTON:
-            ret = new GuiLabel(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
+            ret = new GuiLabel(this, tree->text.c_str(), tree->color, tree->secondaryColor, { tree->x, tree->y },
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutKind::TEXT_EDITABLE:
-            ret = new GuiEditable(this, tree->text.c_str(), tree->color, 0x000000FF, { tree->x, tree->y },
+            ret = new GuiEditable(this, tree->text.c_str(), tree->color, tree->secondaryColor, { tree->x, tree->y },
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
             break;
         case GuiLayoutKind::IMAGE_BUTTON:
