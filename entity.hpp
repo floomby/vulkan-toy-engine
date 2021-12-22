@@ -36,7 +36,9 @@ public:
 
     // Idk why I set defaults here??
     float maxSpeed = 0.5f;
-    float acceleration = 0.1f;
+    float mass = 1.0f;
+    float thrust = 1.0f;
+    float acceleration = 1.0f;
     // maybe this should be a glm::vec3 for yaw, pitch and roll seperately
     float maxOmega = 0.1f;
     double maxHealth = 1.0f;

@@ -19,7 +19,7 @@ namespace Pathgen {
         // acceleration = steering_force / mass
         inst.dP = clampLength(inst.dP + steeringAcceleration, inst.entity->v_m);
         inst.position += inst.dP;
-        if (length(steeringAcceleration) < steeringHeadingUpdateThreshhold) return;
+        if (length2(steeringAcceleration) < steeringHeadingUpdateThreshhold) return;
 
         auto rot = rotationVector({ 1.0f, 0.0f, 0.0f}, steeringAcceleration);
         // auto wantedAngular = log(rot * inverse(inst.heading));
@@ -30,14 +30,6 @@ namespace Pathgen {
     }
 
     float seek(Instance& inst, const glm::vec3& dest) {
-        auto offset = dest - inst.position;
-        auto dist = length(offset);
-        auto desiredVelocity = offset / dist * inst.entity->maxSpeed;
-        applySteering(inst, desiredVelocity - inst.dP);
-        return dist;
-    }
-
-    float seekrive(Instance& inst, const glm::vec3& dest) {
         auto offset = dest - inst.position;
         auto dist = length(offset);
         auto desiredVelocity = offset / dist * inst.entity->v_m;

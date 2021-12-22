@@ -121,7 +121,7 @@ public:
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::quat heading;
+    glm::quat heading = { 1.0, 0.0, 0.0, 0.0 };
     std::list<Command> commandList;
 
     Target target;

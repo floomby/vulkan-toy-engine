@@ -199,7 +199,7 @@ void AuthoritativeState::doUpdateTick() {
             switch (cmd.kind){
                 case CommandKind::MOVE:
                     if (!it->entity->isStation) {
-                        distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seekrive(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
+                        distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seek(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
                         if (it->commandList.size() > 1) {
                             if (distance < Pathgen::arrivalDeltaContinuing) {
                                 it->commandList.pop_front();
@@ -241,8 +241,10 @@ void AuthoritativeState::doUpdateTick() {
                     inst->uncompleted = true;
                     inst->hasCollision = false;
                     it->commandList.erase(bit);
-                    it->isBuilding = true;
-                    it->whatBuilding = inst->id;
+                    if (it->entity->isStation) {
+                        it->isBuilding = true;
+                        it->whatBuilding = inst->id;
+                    }
                     inst->buildPower = it->entity->buildPower;
                     instances.push_back(inst);
                 }
@@ -335,9 +337,9 @@ void AuthoritativeState::doUpdateTick() {
                 inst->hasCollision = true;
                 inst->uncompleted = false;
                 inst->buildPower = 0.0f;
+                inst->parentID = 0;
                 auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
                 if (oit != copy.end()) {
-                    // std::cout << "completed building" << std::endl;
                     (*oit)->isBuilding = false;
                     // Idk what is wrong with this, but something is very wrong, it seems to break like 3 different things 
                     // and causes segfaults on shutdown (commands are trivially copyable, so I don't know what could possibly be wrong)

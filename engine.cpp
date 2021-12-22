@@ -2440,7 +2440,7 @@ void Engine::handleInput() {
     while(keyboardInput.pop(keyEvent)) {
         if (!keyboardCaptured && (keyEvent.action == GLFW_PRESS || keyEvent.action == GLFW_REPEAT)) {
             keysPressed[keyEvent.key] = true;
-            if (keyEvent.key == GLFW_KEY_ESCAPE) {
+            if (keyEvent.key == GLFW_KEY_RIGHT_BRACKET) {
                 quit();
                 return;
             } else if (keyEvent.key == GLFW_KEY_B) {
@@ -2449,6 +2449,10 @@ void Engine::handleInput() {
                 InsertionMode mode = InsertionMode::OVERWRITE;
                 if (keyEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
                 for ( const auto id : idsSelected) Api::cmd_stop(id, mode);
+            } else if (keyEvent.key == GLFW_KEY_ESCAPE) {
+                apiLocks[APIL_CURSOR_INSTANCE].lock();
+                setCursorInstance(Instance());
+                apiLocks[APIL_CURSOR_INSTANCE].unlock();
             }
             apiLocks[APIL_KEYBINDINGS].lock();
             bool callLuaHandler = luaKeyBindings.contains(keyEvent.key);
@@ -2622,17 +2626,18 @@ void Engine::handleInput() {
                 if (mouseEvent.mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
                 if (mouseAction == MOUSE_MOVING_Z) {
                     Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
-                    mouseAction = MOUSE_NONE;
                 } else {
-                    Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
-                    apiLocks[APIL_CURSOR_INSTANCE].lock();
-                    setCursorInstance(Instance());
-                    apiLocks[APIL_CURSOR_INSTANCE].unlock();
-                    if (mode == InsertionMode::OVERWRITE) {
-                        mouseAction = MOUSE_NONE;
+                    if (cursorInstance.valid) {
+                        Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
+                        if (mode == InsertionMode::OVERWRITE) {
+                            apiLocks[APIL_CURSOR_INSTANCE].lock();
+                            setCursorInstance(Instance());
+                            apiLocks[APIL_CURSOR_INSTANCE].unlock();
+                        }
                     }
                 }
             }
+            mouseAction = MOUSE_NONE;
         }
     }
 
@@ -3208,6 +3213,7 @@ void Engine::runCurrentScene() {
     vkDeviceWaitIdle(device);
 }
 
+// NOTE This function needs proper synchronization
 void Engine::setCursorInstance(const Instance& instance) {
     auto position = cursorInstance.position;
     cursorInstance = instance;
@@ -3216,6 +3222,7 @@ void Engine::setCursorInstance(const Instance& instance) {
     cursorInstance.position = position;
 }
 
+// NOTE This function needs proper synchronization
 void Engine::setCursorInstance(Instance&& instance) {
     auto position = cursorInstance.position;
     cursorInstance = instance;
@@ -3667,6 +3674,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             vkCmdDrawIndexed(buffer, (currentScene->models.data() + iconModelIndex)->indexCount, 1, (currentScene->models.data() + iconModelIndex)->indexOffset, 0, 0);
             continue;
         }
+        // if (j == 1) std::cout << "drawing cursor instance: " << currentScene->state.instances[j]->position << std::endl;
         if (currentScene->state.instances[j]->entity->isProjectile && !currentScene->state.instances[j]->entity->isGuided) {
             pushConstants.renderType = RINT_PROJECTILE;
         } else {

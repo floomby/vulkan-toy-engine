@@ -3,8 +3,9 @@ Asteroid = {
     texture = "textures/asteroid.png",
     icon = "textures/asteroid_icon.png",
     maxSpeed = 0,
-    acceleration = 0.3,
-    maxOmega = 0.2,
+    mass = 100,
+    thrust = 0,
+    maxOmega = 0,
     maxHealth = 50.0,
     weapons = {
     },

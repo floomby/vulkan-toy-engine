@@ -329,8 +329,10 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     lua_pop(luaState, 1);
 
     ret->maxSpeed = getNumberField("maxSpeed");
-    ret->acceleration = getNumberField("acceleration");
     ret->maxOmega = getNumberField("maxOmega");
+    ret->mass = getNumberField("mass");
+    ret->thrust = getNumberField("thrust");
+    ret->acceleration = ret->thrust / ret->mass;
     ret->maxHealth = getNumberField("maxHealth");
     auto minable = getBooleanField("minable");
     ret->isResource = minable;
