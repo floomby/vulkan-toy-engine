@@ -225,7 +225,7 @@ void AuthoritativeState::doUpdateTick() {
             }
             if (!it->isBuilding && it->entity->buildPower > 0) {
                 auto bit = find_if(it->commandList.begin(), it->commandList.end(), [](const auto& x) -> bool { return x.kind == CommandKind::BUILD; });
-                if (bit != it->commandList.end()) {
+                if (bit != it->commandList.end() && (it->entity->isStation || bit == it->commandList.begin())) {
                     const auto ent = Api::context->currentScene->entities.at(bit->data.buf);
                     Instance *inst;
                     if (Api::context->headless) {
@@ -322,7 +322,7 @@ void AuthoritativeState::doUpdateTick() {
         totalWantedThisTick *= Config::Net::secondsPerTick;
         float fraction = 1.0f;
         if (totalWantedThisTick > teams[buildPowerAllocation.front().first->team]->resourceUnits) {
-            fraction = totalWantedThisTick / teams[buildPowerAllocation.front().first->team]->resourceUnits;
+            fraction = teams[buildPowerAllocation.front().first->team]->resourceUnits / totalWantedThisTick;
         }
         teams[buildPowerAllocation.front().first->team]->resourceUnits -= totalWantedThisTick * fraction;
         for (auto [inst, bp] : buildPowerAllocation) {
@@ -423,6 +423,16 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
                 case InsertionMode::OVERWRITE:
                     (*itx)->commandList.clear();
                     (*itx)->commandList.push_back(data->command);
+                    break;
+                case InsertionMode::SECOND:
+                    {
+                        auto tmp = (*itx)->commandList.begin();
+                        if (tmp == (*itx)->commandList.end()) {
+                            (*itx)->commandList.push_back(data->command);
+                            break;
+                        }
+                        (*itx)->commandList.insert(++tmp, data->command);
+                    }
                     break;
             }
             lock.unlock();

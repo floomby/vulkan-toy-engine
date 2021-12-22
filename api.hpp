@@ -23,6 +23,7 @@ public:
     static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
     static void cmd_destroyInstance(InstanceID unitID);
     static void cmd_build(InstanceID unitID, const char *what, InsertionMode mode);
+    static void cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionMode mode, const char *what);
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     // I dont like how I "namespaced" these function, it seems like almost everything is an eng* function
@@ -75,6 +76,7 @@ public:
     // These two aren't really thread safe, but the consequences of that are minimal
     static int eng_getScreenWidth();
     static int eng_getScreenHeight();
+    // read setCursorEntity as "we are placing a structure to build now" (I don't like how I did this)
     static void eng_setCursorEntity(const std::string& name);
     static void eng_clearCursorEntity();
     static bool eng_entityIsStation(const std::string& name);

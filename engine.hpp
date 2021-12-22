@@ -265,7 +265,7 @@ private:
         CURSOR_SELECT,
         CURSOR_ATTACK
     };
-    Instance cursorInstance;
+    Instance cursorInstance, cursorRender;
     void setCursorInstance(const Instance& instance);
     void setCursorInstance(Instance&& instance);
     void setCursorEntity(const std::string& name);

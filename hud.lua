@@ -56,7 +56,6 @@ local function build_visibility()
     build_options = {}
     build_units = {}
     for _, unit in ipairs(units) do
-        print(unit .. " is selected")
         local options = eng_getInstanceBuildOptions(unit)
         for _, option in ipairs(options) do
             can_build = true
@@ -73,8 +72,13 @@ end
 function Build_handler(mods, name)
     local true_name = Split(name, " ")[1]
     -- print(inspect(build_units))
+    local is_station = eng_entityIsStation(true_name)
     for unit, _ in pairs(build_units[true_name]) do
-        cmd_build(unit, true_name, mods_to_mode(mods))
+        if is_station then
+            eng_setCursorEntity("shipyard")
+        else
+            cmd_build(unit, true_name, mods_to_mode(mods))
+        end
     end
 end
 
@@ -292,6 +296,7 @@ gui_setVisibility("build menu", true)
 build_visibility()
 engret_visibility()
 
+state_giveResources(1, 50000)
 state_giveResources(2, 50000)
 
 -- eng_declareKeyBinding(keys.KEY_G);

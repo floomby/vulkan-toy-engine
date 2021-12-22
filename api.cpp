@@ -108,6 +108,25 @@ void Api::cmd_build(InstanceID unitID, const char *what, InsertionMode mode) {
     context->send(data);
 }
 
+void Api::cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionMode mode, const char *what) {
+    switch (mode) {
+        case InsertionMode::BACK:
+            Api::cmd_move(unitID, where, InsertionMode::BACK);
+            Api::cmd_build(unitID, what, InsertionMode::BACK);
+            break;
+        case InsertionMode::OVERWRITE:
+            Api::cmd_move(unitID, where, InsertionMode::OVERWRITE);
+            Api::cmd_build(unitID, what, InsertionMode::BACK);
+            break;
+        case InsertionMode::FRONT:
+            Api::cmd_move(unitID, where, InsertionMode::FRONT);
+            Api::cmd_build(unitID, what, InsertionMode::SECOND);
+            break;
+        default:
+            throw std::runtime_error("Unsupported insertion mode for building station");
+    }
+}
+
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID) {
     std::scoped_lock l(context->authState.lock);
     Instance *inst;

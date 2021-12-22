@@ -1,6 +1,8 @@
 // This is basically the "vulkan" file plus the "glfw" file ie. most of the rendering and input handling
 // definately not good organization
 
+#define LOG_GUI_TEXTURES
+
 #ifndef DONT_PRINT_MEMORY_LOG
 #define VMA_DEBUG_LOG(format, ...) do { \
     printf(format, ##__VA_ARGS__); \
@@ -37,6 +39,18 @@
 
 #define BOOST_STACKTRACE_USE_ADDR2LINE
 #include <boost/stacktrace.hpp>
+
+#ifdef LOG_GUI_TEXTURES
+static std::ofstream textureLog("textureLog", std::ofstream::out);
+#endif
+
+// void vkDestroyImageViewLog(VkDevice device, VkImageView imageView, const VkAllocationCallbacks *pAllocator) {
+//     std::ostringstream ss;
+//     ss << std::hex << "Destroying " << imageView << " " << std::this_thread::get_id() << std::endl;
+//     ss << boost::stacktrace::stacktrace() << std::endl;
+//     textureLog << ss.str();
+//     vkDestroyImageView(device, imageView, pAllocator);
+// }
 
 // The memory from the debugging is not cleaned up correctly
 // Debuging stuff
@@ -2351,7 +2365,7 @@ void Engine::setTooltip(const std::string& str) {
 
 
 // So many silly lines of code in this function
-// TODO This needs some serious reimagining
+// TODO I need to rewrite this as traversals of a state graph (I am putting off doing this until maintaining this function becomes absolutely terrible)
 void Engine::handleInput() {
     apiLocks[APIL_CURSOR_INSTANCE].lock();
     bool placingStructure = this->placingStructure;
@@ -2605,12 +2619,19 @@ void Engine::handleInput() {
                 movingTo.y = planeIntersection.y;
                 zPlaneNormal = normalize(cross({ 0.0f, 0.0f, 1.0f }, cross({ 0.0f, 0.0f, 1.0f }, mouseRayNormed)));
             }
-        } else if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT && mouseAction == MOUSE_MOVING_Z) {
+        } else if (mouseEvent.action == GLFW_RELEASE && mouseEvent.button == GLFW_MOUSE_BUTTON_RIGHT && (mouseAction == MOUSE_MOVING_Z || mouseAction == MOUSE_PLACING_Z)) {
             for (const auto id : idsSelected) {
                 auto mode = InsertionMode::OVERWRITE;
                 if (mouseEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
                 if (mouseEvent.mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
-                Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
+                if (mouseAction == MOUSE_MOVING_Z) {
+                    Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
+                } else {
+                    Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
+                    apiLocks[APIL_CURSOR_INSTANCE].lock();
+                    setCursorInstance(Instance());
+                    apiLocks[APIL_CURSOR_INSTANCE].unlock();
+                }
             }
             mouseAction = MOUSE_NONE;
         }
@@ -2901,7 +2922,7 @@ void Engine::drawFrame() {
         ComputeOp op;
         if (manager->getJob(tooltipJob, op)) {
             tooltipJob = 0;
-            if (!tooltipResource->invalid) tooltipStillInUse = tooltipResource;
+            tooltipStillInUse = tooltipResource;
             tooltipResource = std::shared_ptr<GuiTexture>(reinterpret_cast<GuiTexture *>(op.data));
             setTooltipTexture(currentFrame, tooltipResource);
             tooltipDirty[currentFrame] = false;
@@ -2972,6 +2993,10 @@ void Engine::drawFrame() {
     // update the next frame
 
     // vkDeviceWaitIdle(device);
+
+    apiLocks[APIL_CURSOR_INSTANCE].lock();
+    cursorRender = cursorInstance;
+    apiLocks[APIL_CURSOR_INSTANCE].unlock();
 
     float timeDelta = updateScene((currentFrame + 1)  % concurrentFrames);
     currentScene->updateUniforms((currentFrame + 1) % concurrentFrames);
@@ -3214,7 +3239,6 @@ void Engine::setCursorEntity(const std::string& name) {
 void Engine::removeCursorEntity() {
     std::scoped_lock l(apiLocks[APIL_CURSOR_INSTANCE]);
     setCursorInstance(Instance());
-    return;
 }
 
 void Engine::loadDefaultScene() {
@@ -3224,8 +3248,8 @@ void Engine::loadDefaultScene() {
     currentScene->makeBuffers();
     // This first is the skybox (the position and heading do not matter)
     currentScene->addInstance("sphere", { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
-    currentScene->state.instances.push_back(&cursorInstance);
-    cursorInstance.dontDelete = true;
+    currentScene->state.instances.push_back(&cursorRender);
+    cursorRender.dontDelete = true;
 
     // +x = -x, +y = -y, z = -z
     lightingData.pos = { -50.0f, -110.0, 0.0f };
@@ -3848,8 +3872,9 @@ void Engine::cleanup() {
 }
 
 Engine::~Engine() {
-    // Lazy badness
-    if (std::uncaught_exceptions()) return;
+    if (std::uncaught_exceptions()) {
+        return;
+    }
     done = true;
     consoleThread.join();
     delete consoleLua;
@@ -5054,8 +5079,6 @@ namespace GuiTextures {
 
 std::shared_ptr<GuiTexture> GuiTexture::defaultTexture() { return GuiTextures::defaultTexture; }
 
-static std::ofstream textureLog("textureLog", std::ofstream::out);
-
 GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int channels, int strideBytes,
     VkFormat format, VkFilter filter, bool useRenderQueue, bool storable) {
     // force using a linear color space format
@@ -5181,10 +5204,12 @@ GuiTexture::GuiTexture(Engine *context, void *pixels, int width, int height, int
 
     sampler = TextResource::sampler_;
 
+#ifdef LOG_GUI_TEXTURES
     // std::ostringstream ss;
     // ss << std::hex << "Created " << this->imageView << " " << std::this_thread::get_id() << std::endl;
     // ss << boost::stacktrace::stacktrace() << std::endl;
     // textureLog << ss.str();
+#endif
 }
 
 GuiTexture::~GuiTexture() {
@@ -5634,10 +5659,12 @@ GuiTexture::GuiTexture(Engine *context, VkImage image, VmaAllocation allocation,
     this->imageView = imageView;
     sampler = TextResource::sampler_;
 
+#ifdef LOG_GUI_TEXTURES
     // std::ostringstream ss;
     // ss << std::hex << "Created " << this->imageView << " " << std::this_thread::get_id() << std::endl;
     // ss << boost::stacktrace::stacktrace() << std::endl;
     // textureLog << ss.str();
+#endif
 }
 
 GuiTexture *TextResource::toGuiTexture(std::unique_ptr<TextResource>&& textResource) {
@@ -5806,8 +5833,6 @@ void ComputeManager::poll() {
                         }
                         break;
                     case ComputeKind::TERMINATE:
-                        // Think how to handle if the out queue still has stuff and we are termitating
-                        // (we should destroy objects in the queue that need to be destroyid)
                         running = false;
                         break;
                     default:

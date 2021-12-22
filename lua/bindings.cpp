@@ -121,6 +121,30 @@ static void cmd_buildExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_build");
 }
 
+static int cmd_buildStationWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v1;
+    if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 2, i);
+        luaL_checknumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a1(v1[0], v1[1], v1[2]);
+    auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
+    luaL_checkstring(ls, 4);
+    auto a3 = lua_tostring(ls, 4);
+    Api::cmd_buildStation(a0, a1, a2, a3);
+    return 0;
+}
+
+static void cmd_buildStationExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_buildStationWrapper);
+    lua_setglobal(ls, "cmd_buildStation");
+}
+
 static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
     auto a0 = (Entity*)lua_topointer(ls, 1);
@@ -1006,6 +1030,7 @@ void LuaWrapper::apiExport() {
     cmd_stopExport(luaState);
     cmd_destroyInstanceExport(luaState);
     cmd_buildExport(luaState);
+    cmd_buildStationExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_createGuidedProjectileExport(luaState);
     eng_createBeamExport(luaState);

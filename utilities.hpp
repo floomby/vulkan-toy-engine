@@ -161,6 +161,7 @@ enum class InsertionMode {
     FRONT,
     BACK,
     OVERWRITE,
+    SECOND,
     NONE
 };
 
