@@ -69,18 +69,16 @@ public:
 
 class WeaponInstance {
 public:
-    WeaponInstance(Weapon *weapon, InstanceID parentID, TeamID teamID);
+    WeaponInstance(Weapon *weapon, InstanceID parentID, TeamID teamID, const glm::vec3& offset);
     Weapon *instanceOf;
     WeaponKind kindOf;
-    // Target target;
-    // void aquireTarget(/* needs some argements*/);
     float timeSinceFired;
     uint reloadIndex = 0;
+    glm::vec3 offset = glm::vec3(0.0f);
 
     InstanceID parentID;
     TeamID teamID;
     void fire(const glm::vec3& position, const glm::vec3& direction);
-    // glm::vec3 realativePosition;
     int framesFired = 0;
     bool firing = false;
 };

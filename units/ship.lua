@@ -7,8 +7,11 @@ Ship = {
     maxOmega = 0.2,
     maxHealth = 500.0,
     weapons = {
+        {
+            name = "basic_beam",
+            position = { 0.0, 0.0, 0.0 },
+        }
         -- "basic_plasma",
-        "basic_beam",
         -- "basic_guided"
     },
     unitAIs = {

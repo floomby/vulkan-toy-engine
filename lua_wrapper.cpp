@@ -286,13 +286,23 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
 
         for (int i = 1; i <= weaponsCount; i++) {
             lua_rawgeti(luaState, -1, i);
+            if (!lua_istable(luaState, -1))
+                error("Invalid weapon (table)");
+            lua_pushstring(luaState, "name");
+            lua_gettable(luaState, -2);
             if (!lua_isstring(luaState, -1))
-                error("Invalid weapon");
+                error("Invalid weapon (string)");
 
             const char *s = lua_tostring(luaState, -1);
             size_t len = lua_strlen(luaState, -1); // I guess we ignore the length for now
             lua_pop(luaState, 1);
             ret->weaponNames.push_back(std::string(s));
+            std::vector<float> position;
+            getNumbersField("position", position);
+            if (position.size() != 3)
+                error("Invalid weapon (position)");
+
+            lua_pop(luaState, 1);
         }
     }
     lua_pop(luaState, 1);

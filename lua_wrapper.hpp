@@ -161,11 +161,11 @@ private:
         lua_pushstring(luaState, key);
         lua_gettable(luaState, -2);
         if (!lua_isnumber(luaState, -1)) {
-            num = 0;
+            num = static_cast<T>(0);
             lua_pop(luaState, 1);
             return;
         }
-        num = lua_tonumber(luaState, -1);
+        num = static_cast<T>(lua_tonumber(luaState, -1));
         lua_pop(luaState, 1);
     }
     

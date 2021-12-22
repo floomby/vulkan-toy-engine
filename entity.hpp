@@ -56,6 +56,7 @@ public:
 
     std::vector<std::string> weaponNames;
     std::vector<Weapon *> weapons;
+    std::vector<glm::vec3> weaponPositions;
     float preferedEngageRange = 0.0f;
 
     std::vector<std::string> unitAINames;

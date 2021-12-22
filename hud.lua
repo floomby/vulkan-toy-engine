@@ -75,6 +75,7 @@ function Build_handler(mods, name)
     local is_station = eng_entityIsStation(true_name)
     for unit, _ in pairs(build_units[true_name]) do
         if is_station then
+            print("placing structure")
             eng_setCursorEntity("shipyard")
         else
             cmd_build(unit, true_name, mods_to_mode(mods))

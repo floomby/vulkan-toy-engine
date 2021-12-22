@@ -16,8 +16,8 @@ Instance::Instance(Entity* entity, EntityTexture* texture, SceneModelInfo* scene
 : id(id), inPlay(inPlay), entity(entity), texture(texture), sceneModelInfo(sceneModelInfo), team(team) {
 
     weapons.reserve(entity->weapons.size());
-    for (auto& weapon : entity->weapons) {
-        weapons.push_back(WeaponInstance(weapon, id, team));
+    for (int i = 0; i < entity->weapons.size(); i++) {
+        weapons.push_back(WeaponInstance(entity->weapons[i], id, team, entity->weaponPositions[i]));
     }
 
     if (inPlay && entity->isUnit) health = entity->maxHealth;

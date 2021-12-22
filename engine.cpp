@@ -2367,10 +2367,6 @@ void Engine::setTooltip(const std::string& str) {
 // So many silly lines of code in this function
 // TODO I need to rewrite this as traversals of a state graph (I am putting off doing this until maintaining this function becomes absolutely terrible)
 void Engine::handleInput() {
-    apiLocks[APIL_CURSOR_INSTANCE].lock();
-    bool placingStructure = this->placingStructure;
-    this->placingStructure = false;
-    apiLocks[APIL_CURSOR_INSTANCE].unlock();
     assert(!wasZPlacing || !wasZMoving);
     if (wasZMoving && placingStructure) {
         wasZMoving = false;
@@ -2626,14 +2622,17 @@ void Engine::handleInput() {
                 if (mouseEvent.mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
                 if (mouseAction == MOUSE_MOVING_Z) {
                     Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
+                    mouseAction = MOUSE_NONE;
                 } else {
                     Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
                     apiLocks[APIL_CURSOR_INSTANCE].lock();
                     setCursorInstance(Instance());
                     apiLocks[APIL_CURSOR_INSTANCE].unlock();
+                    if (mode == InsertionMode::OVERWRITE) {
+                        mouseAction = MOUSE_NONE;
+                    }
                 }
             }
-            mouseAction = MOUSE_NONE;
         }
     }
 
@@ -3250,6 +3249,7 @@ void Engine::loadDefaultScene() {
     currentScene->addInstance("sphere", { 0.0f, 0.0f, 0.0f}, { 0.0f, 0.0f, 0.0f});
     currentScene->state.instances.push_back(&cursorRender);
     cursorRender.dontDelete = true;
+    cursorInstance.dontDelete = true;
 
     // +x = -x, +y = -y, z = -z
     lightingData.pos = { -50.0f, -110.0, 0.0f };
