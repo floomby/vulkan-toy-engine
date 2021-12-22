@@ -3113,7 +3113,7 @@ void Engine::runCurrentScene() {
     lastMousePosition.normedX = mouseNormed.first;
     lastMousePosition.normedY = mouseNormed.second;
 
-    cammera.position = glm::vec3({ 3.0f, 3.0f, 3.0f });
+    cammera.position = glm::vec3({ 20.0f, 20.0f, 20.0f });
     cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
     GuiTextures::setDefaultTexture();

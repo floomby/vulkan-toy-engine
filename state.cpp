@@ -198,7 +198,7 @@ void AuthoritativeState::doUpdateTick() {
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
-                    if (!it->entity->isStation) {
+                    if (!it->entity->isStation && !it->isBuilding) {
                         distance = it->secondQueuedCommandRequiresMovement() ? Pathgen::seek(*it, cmd.data.dest) : Pathgen::arrive(*it, cmd.data.dest);
                         if (it->commandList.size() > 1) {
                             if (distance < Pathgen::arrivalDeltaContinuing) {
@@ -241,10 +241,8 @@ void AuthoritativeState::doUpdateTick() {
                     inst->uncompleted = true;
                     inst->hasCollision = false;
                     it->commandList.erase(bit);
-                    if (it->entity->isStation) {
-                        it->isBuilding = true;
-                        it->whatBuilding = inst->id;
-                    }
+                    it->isBuilding = true;
+                    it->whatBuilding = inst->id;
                     inst->buildPower = it->entity->buildPower;
                     instances.push_back(inst);
                 }
@@ -278,7 +276,7 @@ void AuthoritativeState::doUpdateTick() {
                     if (!other || other->entity->isProjectile || !other->team || other->team == it->team) continue;
                     auto dist = distance(other->position, it->position);
                     if (weapon.kindOf == WeaponKind::PLASMA_CANNON && dist < weapon.instanceOf->range * 1.5f && dist < closest) {
-                        vec = Pathgen::computeBalisticTrajectory(it->position, other->position, other->dP,
+                        vec = Pathgen::computeBalisticTrajectory(it->position + trans * weapon.offset, other->position, other->dP,
                             weapon.instanceOf->range, weapon.instanceOf->entity->v_m);
                         closest = dist;
                     } else if (weapon.kindOf == WeaponKind::BEAM && dist < weapon.instanceOf->range && dist < closest) {
@@ -319,7 +317,7 @@ void AuthoritativeState::doUpdateTick() {
         if (buildPowerAllocation.empty()) continue;
         float totalWantedThisTick = 0.0f;
         for (const auto [inst, bp] : buildPowerAllocation) {
-            if (!binary_search(doingBuilding.begin(), doingBuilding.end(), inst->parentID, instComp)) {
+            if (!inst->entity->isStation && !binary_search(doingBuilding.begin(), doingBuilding.end(), inst->parentID, instComp)) {
                 inst->parentID = 0;
                 continue;
             }
@@ -341,8 +339,8 @@ void AuthoritativeState::doUpdateTick() {
                 inst->hasCollision = true;
                 inst->uncompleted = false;
                 inst->buildPower = 0.0f;
-                inst->parentID = 0;
                 auto oit = find_if(copy.begin(), copy.end(), [inst](auto x){ return x && x->id == inst->parentID; });
+                inst->parentID = 0;
                 if (oit != copy.end()) {
                     (*oit)->isBuilding = false;
                     // Idk what is wrong with this, but something is very wrong, it seems to break like 3 different things 

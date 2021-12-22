@@ -71,12 +71,10 @@ end
 
 function Build_handler(mods, name)
     local true_name = Split(name, " ")[1]
-    -- print(inspect(build_units))
     local is_station = eng_entityIsStation(true_name)
     for unit, _ in pairs(build_units[true_name]) do
         if is_station then
-            print("placing structure")
-            eng_setCursorEntity("shipyard")
+            eng_setCursorEntity(true_name)
         else
             cmd_build(unit, true_name, mods_to_mode(mods))
         end
@@ -170,20 +168,20 @@ Hud = {
         --     name = "button",
         --     tooltip = "This has a tooltip!"
         -- },
-        {
-            x = -0.2,
-            y = 0.75,
-            width = 0.5,
-            height = 0.1,
-            -- onClick = editing,
-            kind = GuiLayoutKind__TEXT_EDITABLE,
-            text = "Edit me",
-            color = 0x101080ff,
-            secondaryColor = 0x00000000,
-            -- children = {}
-            tooltip = "This has a tooltip!\nIsn't that nice",
-            -- onTextUpdated = text_updated
-        },
+        -- {
+        --     x = -0.2,
+        --     y = 0.75,
+        --     width = 0.5,
+        --     height = 0.1,
+        --     -- onClick = editing,
+        --     kind = GuiLayoutKind__TEXT_EDITABLE,
+        --     text = "Edit me",
+        --     color = 0x101080ff,
+        --     secondaryColor = 0x00000000,
+        --     -- children = {}
+        --     tooltip = "This has a tooltip!\nIsn't that nice",
+        --     -- onTextUpdated = text_updated
+        -- },
         {
             x = -0.9,
             y = 0.875,
@@ -323,7 +321,8 @@ state_giveResources(2, 50000)
 cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.707, 0.707, 0.0 }, 1, nil)
+cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+-- cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.707, 0.707, 0.0 }, 1, nil)
 
 -- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)

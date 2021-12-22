@@ -17,6 +17,7 @@ Constructor = {
     resources = 100,
     buildOptions = {
         "shipyard",
+        "turret"
     },
     buildPower = 10,
 }
