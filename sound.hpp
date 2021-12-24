@@ -11,8 +11,17 @@
 #include <vector>
 #include <queue>
 
+#include "utilities.hpp"
+
+enum class PlaybackDataKind {
+    BUFFER,
+    CAMMERA
+};
+
 struct PlaybackData {
+    PlaybackDataKind kind;
     ALuint buffer;
+    glm::vec3 spatial[4];
 };
 
 class SoundPlayer {
@@ -40,9 +49,10 @@ public:
 
     std::vector<std::string> listDevices();
     void setDevice(const char *name);
-    void playSound(const char *name);
+    void playSound(const char *name, const glm::vec3& position = glm::vec3(0.0f), const glm::vec3& velocity = glm::vec3(0.0f), bool assertMono = false);
+    void setCammeraPosition(const glm::vec3& position, const glm::vec3& up, const glm::vec3& at, const glm::vec3& velocity);
 private:
-    void loadSound(const char *name);
+    void loadSound(const char *name, bool assertMono);
     std::mutex lock;
     // vorbis_file has the codec_setup field and I have no idea if that will be valid ever
     // (so maybe we just don't ever derefference it from anything in this map)

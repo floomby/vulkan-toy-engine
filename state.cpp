@@ -125,11 +125,11 @@ static InstanceComparator instComp;
 // TODO This function is ineffecient and holds the auth state lock the whole time it runs (maybe making a copy and working on that would be better)
 // Also shoving all the instances in a vector is simple, but really we probably want a spacial partitioning system
 void AuthoritativeState::doUpdateTick() {
-    if (frame.load(std::memory_order_relaxed) % 300 == 1) std::cout << std::hex << crc() << std::endl;
 
     std::array<std::vector<std::pair<Instance *, float>>, ::Config::maxTeams + 1> buildPowerAllocations;
     const float timeDelta = Config::Net::secondsPerTick;
     std::scoped_lock l(lock);
+    if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
     auto copy = instances;
     instances.clear();
     beams.clear();
@@ -258,7 +258,7 @@ void AuthoritativeState::doUpdateTick() {
         }
         if (it && !it->uncompleted) {
             if (it->hasCollision) for (auto other : copy) {
-                if (!other || *other == *it || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
+                if (!other || *other == *it || it->entity->isProjectile || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
             }
             for (const auto& ai : it->entity->ais) {

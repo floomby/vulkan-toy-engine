@@ -2367,6 +2367,8 @@ void Engine::setTooltip(const std::string& str) {
 // So many silly lines of code in this function
 // TODO I need to rewrite this as traversals of a state graph (I am putting off doing this until maintaining this function becomes absolutely terrible)
 void Engine::handleInput() {
+    bool didCammeraMovement = false;
+
     assert(!wasZPlacing || !wasZMoving);
     if (wasZMoving && placingStructure) {
         wasZMoving = false;
@@ -2469,11 +2471,15 @@ void Engine::handleInput() {
         }
     }
     // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
-    cammera.pointing = normalize(cammera.position - cammera.target);
     const auto pointingLength = length(cammera.position - cammera.target);
-    cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
-    cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
-    cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
+
+    if (!notFirstTime) {
+        cammera.pointing = normalize(cammera.position - cammera.target);
+        cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
+        cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
+        cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
+        sound->setCammeraPosition(cammera.position, cammera.heading, cammera.pointing, { 0.0f, 0.0f, 0.0f });
+    }
 
     const float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
     float planeDist;
@@ -2658,6 +2664,7 @@ void Engine::handleInput() {
         if (newDelta > Config::Cammera.minZoom2 && (newDelta < Config::Cammera.maxZoom2 || scrollAmount < 0)) {
             cammera.target = newTar;
             cammera.position = newPos;
+            didCammeraMovement = true;
         }
         if (newDelta > Config::Cammera.maxZoom2 && scrollAmount > 0) {
             // linear interpolation to get to max zoom
@@ -2667,6 +2674,7 @@ void Engine::handleInput() {
             auto ratio = (m - c) / (d - c);
             cammera.target += (newTar - cammera.target) * ratio;
             cammera.position += (newPos - cammera.position) * ratio;
+            didCammeraMovement = true;
         }
 
         scrollAmount = 0.0f;
@@ -2676,18 +2684,22 @@ void Engine::handleInput() {
         if (keysPressed[GLFW_KEY_RIGHT]) {
             cammera.position -= cammera.strafing / 600.0f;
             cammera.target -= cammera.strafing / 600.0f;
+            didCammeraMovement = true;
         }
         if (keysPressed[GLFW_KEY_LEFT]) {
             cammera.position += cammera.strafing / 600.0f;
             cammera.target += cammera.strafing / 600.0f;
+            didCammeraMovement = true;
         }
         if (keysPressed[GLFW_KEY_DOWN]) {
             cammera.position -= cammera.fowarding / 600.0f;
             cammera.target -= cammera.fowarding / 600.0f;
+            didCammeraMovement = true;
         }
         if (keysPressed[GLFW_KEY_UP]) {
             cammera.position += cammera.fowarding / 600.0f;
             cammera.target += cammera.fowarding / 600.0f;
+            didCammeraMovement = true;
         }
     }
 
@@ -2706,12 +2718,14 @@ void Engine::handleInput() {
             if (/*(newPosition.z - cammera.target.z) > cammera.gimbleStop && */(newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
                 (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > Config::Cammera.gimbleStop) {
                     cammera.position = newPosition;
+                    didCammeraMovement = true;
             }
         }
         if (deltaX != 0.0f) {
             auto mouseOrbit = glm::angleAxis(glm::radians(deltaX * 400.0f) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
             auto mouseOrbitMatrix = glm::toMat3(mouseOrbit);
             cammera.position = mouseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
+            didCammeraMovement = true;
         }
     }
 
@@ -2750,6 +2764,14 @@ void Engine::handleInput() {
     lastMousePosition.y = y;
 
     notFirstTime = false;
+
+    if (didCammeraMovement) {
+        cammera.pointing = normalize(cammera.position - cammera.target);
+        cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
+        cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
+        cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
+        sound->setCammeraPosition(cammera.position, cammera.heading, cammera.pointing, { 0.0f, 0.0f, 0.0f });
+    }
 }
 
 static std::array<std::pair<glm::vec3, float>, 6> extractFrustum(const glm::mat4& m) {
@@ -3183,6 +3205,9 @@ void Engine::runCurrentScene() {
     consoleLua = new LuaWrapper(true);
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
+
+    // I think this is fine since we should always get the defualt implementation
+    lua->doString("local audioDeviceList = eng_listAudioDevices(); eng_pickAudioDevice(audioDeviceList[1])");
 
     std::chrono::steady_clock::time_point frameStart = std::chrono::steady_clock::now();
     while (!glfwWindowShouldClose(window)) {

@@ -22,8 +22,8 @@ local function bind_data(name, wrapper)
 end
 
 -- Idk where this belongs, but it isn't here (I should probably just lua_dostring it)
-local audioDeviceList = eng_listAudioDevices()
-eng_pickAudioDevice(audioDeviceList[1])
+-- local audioDeviceList = eng_listAudioDevices()
+-- eng_pickAudioDevice(audioDeviceList[1])
 
 local function Split(s, delimiter)
     local result = {};
@@ -362,7 +362,7 @@ net_pause(false)
 -- print(eng_fps())
 
 
--- eng_playSound("test.ogg")
+-- eng_playSound("test_mono.ogg")
 
 -- eng_setCursorEntity("shipyard")
 -- eng_clearCursorEntity()

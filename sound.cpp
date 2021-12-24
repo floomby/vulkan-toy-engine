@@ -142,7 +142,7 @@ static void addChunk(std::vector<char>& buffer, size_t newSize) {
 
 // This does not stream, it buffers everything into ram first, and it also caches
 // It has poor effeciency, use the (yet to be implemented) streaming version to play back big files
-void Sound::loadSound(const char *name) {
+void Sound::loadSound(const char *name, bool assertMono) {
     lock.lock();
     if (cached.contains(name)) {
         lock.unlock();
@@ -194,8 +194,10 @@ void Sound::loadSound(const char *name) {
     ALenum format;
     if(vorbisInfo->channels == 1)
         format = AL_FORMAT_MONO16;
-    else if(vorbisInfo->channels == 2)
+    else if(vorbisInfo->channels == 2) {
+        if (assertMono) std::cerr << "Using stereo sound for 3d sound is invalid. All sound processing will be disabled." << std::endl;
         format = AL_FORMAT_STEREO16;
+    }
     else {
         std::ostringstream ss;
         ss << "Unsupported sound file format: " << vorbisInfo->channels << " channels";
@@ -219,7 +221,7 @@ void Sound::loadSound(const char *name) {
     ov_clear(&vorbisFile);
 }
 
-void Sound::playSound(const char *name) {
+void Sound::playSound(const char *name, const glm::vec3& position, const glm::vec3& velocity, bool assertMono) {
     if (!player) throw std::runtime_error("Please set an active sound device before attempting to play sounds");
     ALuint buffer;
     lock.lock();
@@ -228,13 +230,13 @@ void Sound::playSound(const char *name) {
         lock.unlock();
     } else {
         lock.unlock();
-        loadSound(name);
+        loadSound(name, assertMono);
         lock.lock();
         buffer = cached.at(name);
         lock.unlock();
     }
 
-    player->submit({ buffer });
+    player->submit({ PlaybackDataKind::BUFFER, buffer, { position, velocity }});
     return;
 
     ALuint source;
@@ -254,6 +256,11 @@ void Sound::playSound(const char *name) {
     }
 
     alErrorGuard(alDeleteSources, 1, &source);
+}
+
+void Sound::setCammeraPosition(const glm::vec3& position, const glm::vec3& up, const glm::vec3& at, const glm::vec3& velocity) {
+    if (!player) throw std::runtime_error("Please set an active sound device before attempting to set cammera spatial components");
+    player->submit({ PlaybackDataKind::CAMMERA, 0, { position, at, up, velocity }});
 }
 
 SoundPlayer::SoundPlayer(ALCdevice *device, ALCcontext *context, uint totalSources)
@@ -278,6 +285,18 @@ void SoundPlayer::run() {
         while(!playbackQueue.empty()) {
             auto data = playbackQueue.front();
             playbackQueueLock.unlock();
+
+            if (data.kind == PlaybackDataKind::CAMMERA) {
+                alErrorGuard(alListenerfv, AL_POSITION, glm::value_ptr(data.spatial[0]));
+                alErrorGuard(alListenerfv, AL_ORIENTATION, glm::value_ptr(data.spatial[1]));
+                alErrorGuard(alListenerfv, AL_VELOCITY, glm::value_ptr(data.spatial[3]));
+
+                playbackQueueLock.lock();
+                playbackQueue.pop();
+                continue;
+            }
+
+            assert(data.kind == PlaybackDataKind::BUFFER);
             ALint state;
             for (auto it = activeSources.begin(); it != activeSources.end();) {
                 alErrorGuard(alGetSourcei, *it, AL_SOURCE_STATE, &state);
@@ -297,8 +316,8 @@ void SoundPlayer::run() {
             // Probably I don't need to set these every time I use the source (for now just leave it here)
             alErrorGuard(alSourcef, idleSources.front(), AL_PITCH, 1);
             alErrorGuard(alSourcef, idleSources.front(), AL_GAIN, 1.0f);
-            alErrorGuard(alSource3f, idleSources.front(), AL_POSITION, 0, 0, 0);
-            alErrorGuard(alSource3f, idleSources.front(), AL_VELOCITY, 0, 0, 0);
+            alErrorGuard(alSource3f, idleSources.front(), AL_POSITION, data.spatial[0].x, data.spatial[0].y, data.spatial[0].z);
+            alErrorGuard(alSource3f, idleSources.front(), AL_VELOCITY, data.spatial[1].x, data.spatial[1].y, data.spatial[1].z);
             alErrorGuard(alSourcei, idleSources.front(), AL_LOOPING, AL_FALSE);
             alErrorGuard(alSourcei, idleSources.front(), AL_BUFFER, data.buffer);
             alErrorGuard(alSourcePlay, idleSources.front());

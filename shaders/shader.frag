@@ -193,6 +193,6 @@ void main() {
     }
 
     if (bool(rflags & RFLAG_TRANSPARENT)) {
-        outColor.w = 0.5;
+        outColor.w = 0.8;
     }
 }

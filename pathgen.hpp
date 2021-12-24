@@ -55,7 +55,7 @@ namespace Pathgen {
 
     const float kick = 0.1f;
 
-    void collide(Instance& a, Instance& b) {
+    bool collide(Instance& a, Instance& b) {
         auto v = a.position - b.position;
         auto d2 = length2(v);
         if (d2 < 0.01) // avoid division by 0
@@ -65,11 +65,12 @@ namespace Pathgen {
             auto amount = db2 - d2;
             if (!a.entity->isStation) a.dP += amount * kick * normalize(v);
             if (!b.entity->isStation) b.dP -= amount * kick * normalize(v);
+            return true;
         }
+        return false;
     }
 
-    glm::vec3 computeBalisticTrajectory(const glm::vec3& o, const glm::vec3& p,
-        const glm::vec3& dp, float r, float v) {
+    glm::vec3 computeBalisticTrajectory(const glm::vec3& o, const glm::vec3& p, const glm::vec3& dp, float r, float v) {
         auto d = p - o;
         // length2(d) - 2 * dot(dp, d) * t + sq(t) * (length2(dp) - sq(v)) = 0
         // auto a = length2(dp) - sq(v);

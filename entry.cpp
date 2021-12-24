@@ -129,7 +129,12 @@ int main(int argc, char **argv) {
 void run(EngineSettings& settings) {
     Engine engine(settings);
     engine.init();
-    engine.runCurrentScene();
+    try {
+        engine.runCurrentScene();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        throw e;
+    }
 }
 
 // Note to myself cause I will forget how I did this
