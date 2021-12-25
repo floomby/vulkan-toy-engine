@@ -222,6 +222,7 @@ void Sound::loadSound(const char *name, bool assertMono) {
 }
 
 void Sound::playSound(const char *name, const glm::vec3& position, const glm::vec3& velocity, bool assertMono) {
+    if (muted) return;
     if (!player) throw std::runtime_error("Please set an active sound device before attempting to play sounds");
     ALuint buffer;
     lock.lock();

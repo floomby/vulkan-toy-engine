@@ -1,19 +1,18 @@
 ## Next steps
- * I should adopt a style guide or something, the code base is big enough to warrent one
- * Finish the sound
+ * Streaming sound for music (the sounds now are loaded into ram, which is fine for small stuff, but traditionally music is streamed)
  * Configurable keyboard input
  * Resource system
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
  * gui - I still need some more components, but this seems really low priority right now
- * Fix/finish the path following/steering code
+ * Fix the projectile calculation code
  * Maybe units should try and avoid friendly firing
  * Finish unit ais
- * I guess I will go back to drawing in z sorted order for getting cloaking working
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
  * The switching in the dynamic shadow level of detail is sort of appalling (this could be as easy as reducing the pcf kernel size, but I doubt it)
 
 ## Considerations
+ * I should adopt a style guide or something, the code base is big enough to warrent one
  * I think many things will be broken on big endian systems
  * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
  * I am linking to libpng now for freetype2, maybe I should stop using stbi

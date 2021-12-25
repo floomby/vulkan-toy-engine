@@ -615,6 +615,17 @@ static void eng_playSound3dExport(lua_State *ls) {
     lua_setglobal(ls, "eng_playSound3d");
 }
 
+static int eng_muteWrapper(lua_State *ls) {
+    auto a0 = lua_toboolean(ls, 1);
+    Api::eng_mute(a0);
+    return 0;
+}
+
+static void eng_muteExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_muteWrapper);
+    lua_setglobal(ls, "eng_mute");
+}
+
 static int eng_setInstanceCustomStateWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     luaL_checkstring(ls, 2);
@@ -1094,6 +1105,7 @@ void LuaWrapper::apiExport() {
     eng_pickAudioDeviceExport(luaState);
     eng_playSoundExport(luaState);
     eng_playSound3dExport(luaState);
+    eng_muteExport(luaState);
     eng_setInstanceCustomStateExport(luaState);
     engS_setInstanceCustomStateExport(luaState);
     eng_getInstanceCustomStateExport(luaState);

@@ -51,6 +51,8 @@ public:
     void setDevice(const char *name);
     void playSound(const char *name, const glm::vec3& position = glm::vec3(0.0f), const glm::vec3& velocity = glm::vec3(0.0f), bool assertMono = false);
     void setCammeraPosition(const glm::vec3& position, const glm::vec3& up, const glm::vec3& at, const glm::vec3& velocity);
+
+    bool muted = false;
 private:
     void loadSound(const char *name, bool assertMono);
     std::mutex lock;

@@ -191,6 +191,7 @@ GuiLayoutNode *LuaWrapper::readGuiLayoutNode(int handlerOffset) {
     getStringField("name", ret->name);
     getStringField("tooltip", ret->tooltip);
     getStringsField("images", ret->imageStates);
+    getNumberField("layerOverride", ret->layerOverride);
     
     int pushedHandlerCount = 0;
     add_handler("onClick")

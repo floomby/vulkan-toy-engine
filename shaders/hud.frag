@@ -66,7 +66,10 @@ vec4 getSubpassPixel() {
 
 void main() {
     float distance, alpha;
-    switch (inRenderMode) {
+    uint renderMode = getRMODE(inRenderMode);
+    uint renderFlags = getRFLAGS(inRenderMode);
+
+    switch (renderMode) {
         case RMODE_NONE:
             outColor = vec4(mix(getSubpassPixel().rgb, inColor.rgb, inColor.a), 1.0);
             break;
@@ -77,7 +80,7 @@ void main() {
         case RMODE_TEXT:
             // float distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
             distance = textureBicubic(texSampler[inTexIndex], inTexCoord).r;
-            if (inGuiID == inCursorID) {
+            if (inGuiID == inCursorID && !bool(RFLAG_NO_HOVER & renderFlags)) {
                 alpha = smoothstep(0.20, 0.48, distance);
             } else {
                 alpha = smoothstep(0.46, 0.54, distance);

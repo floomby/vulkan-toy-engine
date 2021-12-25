@@ -143,8 +143,45 @@ end
 -- add_keybinding(keys.KEY_G, tester)
 -- pop_keybinding(keys.KEY_G)
 
+
+Dialog = {
+    x = -0.4,
+    y = -0.8,
+    width = 0.8,
+    height = 1.6,
+    kind = GuiLayoutKind__PANEL,
+    color = 0x6050cc99,
+    children = {
+    },
+    -- iirc there are 100 max layers, we want to ensure we are on top, and I don't want to come up with the correct way to do this rn and this is like 3 loc to implement
+    layerOverride = 50,
+}
+
+local function hide_dialog()
+    gui_removePanel("Dialog")
+end
+
+local function display_settings()
+    Dialog.children = {
+        {
+            x = Dialog.x + Dialog.width - 0.1,
+            y = Dialog.y + 0.025,
+            width = 0.075,
+            height = 0.075,
+            onClick = hide_dialog,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "ui/x.png",
+            },
+            color = 0x000000ff,
+        },
+    }
+    gui_addPanel("hud root", "Dialog")
+end
+
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
+    name = "hud root",
     x = -1.0,
     y = 0.7,
     width = 2.0,
@@ -155,19 +192,17 @@ Hud = {
     color = 0x6050cc60,
     onPeriodicUpdate = update_bound_data,
     children = {
-        -- {
-        --     x = -0.9,
-        --     y = 0.75,
-        --     width = 0.5,
-        --     height = 0.1,
-        --     -- onClick = click,
-        --     kind = GuiLayoutKind__TEXT_BUTTON,
-        --     text = "Click!!!",
-        --     color = 0x101080ff,
-        --     -- children = {}
-        --     name = "button",
-        --     tooltip = "This has a tooltip!"
-        -- },
+        {
+            x = -0.9,
+            y = 0.75,
+            width = 0.5,
+            height = 0.1,
+            onClick = display_settings,
+            kind = GuiLayoutKind__TEXT_BUTTON,
+            text = "Settings",
+            color = 0x101080ff,
+            tooltip = "This has a tooltip!"
+        },
         -- {
         --     x = -0.2,
         --     y = 0.75,
@@ -227,7 +262,7 @@ Hud = {
             width = 0.5,
             height = 0.1,
             onSelectionChanged = engret_visibility,
-            kind = GuiLayoutKind__TEXT_BUTTON,
+            kind = GuiLayoutKind__TEXT,
             color = 0x000000ff,
             secondaryColor = 0x6050cc60,
             name = "rus",

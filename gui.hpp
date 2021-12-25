@@ -226,7 +226,7 @@ private:
 class GuiLabel : public GuiComponent {
 public:
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1,
-        int layer, std::map<std::string, int> luaHandlers);
+        int layer, std::map<std::string, int> luaHandlers, bool hoverable);
     GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> tl, float height,
         int layer, std::map<std::string, int> luaHandlers);
     virtual ~GuiLabel() = default;

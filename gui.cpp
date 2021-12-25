@@ -1,5 +1,6 @@
 // I think some of the constructors and stuff work, but are unused. I am going to implement some new features here.
 // The *only* thing I care about is that it works with the lua as expected
+// Frankly the entire gui is super jank, I don't think the overall design is bad just severly unrefined and has some bad ways of doing things
 
 #include "engine.hpp"
 
@@ -549,8 +550,9 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
-std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, RMODE_TEXT), message(str) {
+std::map<std::string, int> luaHandlers, bool hoverable)
+: GuiComponent(context, false, backgroundColor, textColor, c0, c1, layer, { context->context->glyphCache->makeGuiTexture(str) }, luaHandlers, 
+RMODE_TEXT | int(!hoverable) * RFLAG_NO_HOVER ), message(str) {
     dynamicNDC = true;
     // textures.push_back(context->context->glyphCache->makeGuiTexture("cleared"));
     for (const auto& tex : textures) {
@@ -618,19 +620,21 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
     GuiComponent *ret = nullptr;
     switch (tree->kind) {
         case GuiLayoutKind::PANEL:
-            ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+            ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
+                baseLayer + tree->layerOverride, tree->handlers);
             break;
+        case GuiLayoutKind::TEXT:
         case GuiLayoutKind::TEXT_BUTTON:
             ret = new GuiLabel(this, tree->text.c_str(), tree->color, tree->secondaryColor, { tree->x, tree->y },
-                { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+                { tree->x + tree->width, tree->y + tree->height }, baseLayer + tree->layerOverride, tree->handlers, tree->kind == GuiLayoutKind::TEXT_BUTTON);
             break;
         case GuiLayoutKind::TEXT_EDITABLE:
             ret = new GuiEditable(this, tree->text.c_str(), tree->color, tree->secondaryColor, { tree->x, tree->y },
-                { tree->x + tree->width, tree->y + tree->height }, baseLayer, tree->handlers);
+                { tree->x + tree->width, tree->y + tree->height }, baseLayer + tree->layerOverride, tree->handlers);
             break;
         case GuiLayoutKind::IMAGE_BUTTON:
             ret = new GuiImage(this, tree->text.c_str(), tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
-                tree->imageStates, baseLayer, tree->handlers);
+                tree->imageStates, baseLayer + tree->layerOverride, tree->handlers);
             break;
         default:
             throw std::runtime_error("Unsupported gui layout kind - aborting.");
@@ -646,7 +650,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
     ret->tooltip = tree->tooltip;
     ret->children.reserve(tree->children.size());
     for (auto& child : tree->children) {
-        ret->children.push_back(fromLayout(child, baseLayer + 1, panelName));
+        ret->children.push_back(fromLayout(child, baseLayer + tree->layerOverride + 1, panelName));
     }
     return ret;
 }
@@ -714,7 +718,7 @@ const std::string& GuiLabel::getText() {
 
 GuiEditable::GuiEditable(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1,
 int layer, std::map<std::string, int> luaHandlers)
-: GuiLabel(context, str, textColor, backgroundColor, c0, c1, layer, luaHandlers) { }
+: GuiLabel(context, str, textColor, backgroundColor, c0, c1, layer, luaHandlers, true) { }
 
 void GuiEditable::click(float x, float y, int mods) {
     GuiComponent::click(x, y, mods);

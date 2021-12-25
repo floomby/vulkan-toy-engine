@@ -360,6 +360,11 @@ void Api::eng_playSound3d(const char *name, const glm::vec3& position, const glm
     context->sound->playSound(name, position, velocity, true);
 }
 
+void Api::eng_mute(bool mute) {
+    if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
+    context->sound->muted = true;
+}
+
 void Api::eng_setInstanceCustomState(InstanceID unitID, std::string key, int value) {
     lock_and_get_iterator
     it->customState[key] = value;

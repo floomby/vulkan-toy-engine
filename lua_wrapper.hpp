@@ -18,7 +18,8 @@ enum class GuiLayoutKind {
     PANEL,
     TEXT_BUTTON,
     IMAGE_BUTTON,
-    TEXT_EDITABLE
+    TEXT_EDITABLE,
+    TEXT
 };
 
 struct GuiLayoutNode {
@@ -32,6 +33,7 @@ struct GuiLayoutNode {
     std::string name;
     std::vector<std::string> imageStates;
     std::string tooltip;
+    int layerOverride = 0;
 };
 
 #include <iostream>

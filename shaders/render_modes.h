@@ -15,8 +15,10 @@
 #define RINT_UNCOMPLETE 6
 
 #define getRINT(x)      ((x) & 0x7)
+#define getRMODE(x)     (getRINT(x))
 #define getRFLAGS(x)    ((x) & 0xfffffff8)
 
 #define RFLAG_NONE          0
 #define RFLAG_HIGHLIGHT     (1 << 3)
 #define RFLAG_TRANSPARENT   (1 << 4)
+#define RFLAG_NO_HOVER      (1 << 5)

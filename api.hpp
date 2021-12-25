@@ -58,6 +58,7 @@ public:
     static void eng_pickAudioDevice(const char *name);
     static void eng_playSound(const char *name);
     static void eng_playSound3d(const char *name, const glm::vec3& position, const glm::vec3& velocity);
+    static void eng_mute(bool mute);
     static void eng_setInstanceCustomState(InstanceID unitID, std::string key, int value);
     static void engS_setInstanceCustomState(Instance *unit, std::string key, int value);
     static std::optional<int> eng_getInstanceCustomState(InstanceID unitID, std::string key);
