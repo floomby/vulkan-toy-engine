@@ -156,6 +156,10 @@ void AuthoritativeState::doUpdateTick() {
                         if (d < l * timeDelta) {
                             other->health = other->health - it->entity->weapon->damage;
                             toDelete.push_back(it);
+                            // Not a huge fan of dispatching sounds like this from here
+                            if (!Api::context->headless && !it->entity->deathSound.empty()) {
+                                Api::eng_playSound3d(it->entity->deathSound.c_str(), it->position, it->dP);
+                            }
                             it = nullptr;
                             break;
                         }
@@ -164,6 +168,10 @@ void AuthoritativeState::doUpdateTick() {
                     if (it->entity->boundingRadius + other->entity->boundingRadius > distance(it->position, other->position)) {
                         other->health = other->health - it->entity->weapon->damage;
                         toDelete.push_back(it);
+                        // Not a huge fan of dispatching sounds like this from here
+                        if (!Api::context->headless && !it->entity->deathSound.empty()) {
+                            Api::eng_playSound3d(it->entity->deathSound.c_str(), it->position, it->dP);
+                        }
                         it = nullptr;
                         break;
                     }

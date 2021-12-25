@@ -301,8 +301,9 @@ void SoundPlayer::run() {
             for (auto it = activeSources.begin(); it != activeSources.end();) {
                 alErrorGuard(alGetSourcei, *it, AL_SOURCE_STATE, &state);
                 if (state != AL_PLAYING) {
+                    // std::cout << "source is idle" << std::endl;
                     idleSources.push(*it);
-                    activeSources.erase(it);
+                    it = activeSources.erase(it);
                 } else it++;
             }
             if (idleSources.empty()) {
@@ -321,6 +322,7 @@ void SoundPlayer::run() {
             alErrorGuard(alSourcei, idleSources.front(), AL_LOOPING, AL_FALSE);
             alErrorGuard(alSourcei, idleSources.front(), AL_BUFFER, data.buffer);
             alErrorGuard(alSourcePlay, idleSources.front());
+            activeSources.push_back(idleSources.front());
             idleSources.pop();
             
             playbackQueueLock.lock();

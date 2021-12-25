@@ -67,6 +67,8 @@ public:
     std::vector<std::string> buildOptions;
     std::string buildIcon;
 
+    std::string deathSound;
+
     void precompute();
 protected:
     stbi_uc *texturePixels;

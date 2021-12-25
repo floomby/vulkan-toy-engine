@@ -28,6 +28,7 @@ enum class WeaponKind {
 class Weapon {
 public:
     virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID, TeamID teamID) = 0;
+    void playSound(const glm::vec3& position, const glm::vec3& direction);
     virtual bool hasEntity();
     std::shared_ptr<Entity> entity;
     std::string name;
@@ -37,6 +38,7 @@ public:
     virtual ~Weapon() = default;
     // I could use rtti, but this seems simpler
     virtual WeaponKind kindOf() = 0;
+    std::string sound;
 private:
 };
 

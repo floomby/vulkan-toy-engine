@@ -380,6 +380,7 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
 
             ret = new PlasmaCannon(std::make_shared<Entity>(ENT_PROJECTILE, luaName.c_str(), model.c_str(), texture.c_str()));
             ret->entity->maxSpeed = getNumberField("speed");
+            getStringField("death_sound", ret->entity->deathSound);
 
             ret->entity->precompute();
             break;
@@ -396,6 +397,7 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
             ret->entity->acceleration = getNumberField("acceleration");
             ret->entity->maxOmega = getNumberField("maxOmega");
             ret->entity->isGuided = true;
+            getStringField("death_sound", ret->entity->deathSound);
 
             break;
         default:
@@ -405,6 +407,7 @@ Weapon *LuaWrapper::loadWeaponFile(const std::string& filename) {
     luaName[0] = tolower(luaName[0]);
     ret->name = luaName;
     getNumberField("damage", ret->damage);
+    getStringField("sound", ret->sound);
     getNumberField("range", ret->range);
     getNumbersField("reload", ret->reload);
     assert(ret->reload.size());

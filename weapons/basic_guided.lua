@@ -7,5 +7,7 @@ Basic_guided = {
     damage = 2.0,
     acceleration = 6,
     maxOmega = 1.2,
-    reload = { 1.0, 0.18, 0.13 }
+    reload = { 1.0, 0.18, 0.13 },
+    sound = "weapons/launch.ogg",
+    death_sound = "weapons/exp.ogg"
 }

@@ -3712,6 +3712,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         // We can bundle draw commands the entities are the same (this includes the textures), I doubt that the bottleneck is recording the command buffers
         vkCmdDrawIndexed(buffer, currentScene->state.instances[j]->sceneModelInfo->indexCount, 1,
             currentScene->state.instances[j]->sceneModelInfo->indexOffset, 0, 0);
+        // The cursor entity (where j is 1 never has a health or resource bar)
+        if (j == 1) continue;
         // draw the health bar
         if (currentScene->state.instances[j]->entity->isUnit) {
             pushConstants.renderType = RINT_HEALTH;

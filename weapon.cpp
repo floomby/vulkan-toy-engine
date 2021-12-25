@@ -1,9 +1,16 @@
 #include "api.hpp"
 #include "weapon.hpp"
 #include "net.hpp"
+#include "base.hpp"
 
 bool Weapon::hasEntity() {
     return false;
+}
+
+void Weapon::playSound(const glm::vec3& position, const glm::vec3& direction) {
+    if (!Api::context->headless && !sound.empty()) {
+        Api::eng_playSound3d(sound.c_str(), position, direction);
+    }
 }
 
 PlasmaCannon::PlasmaCannon(std::shared_ptr<Entity> projectileEntity) {
@@ -42,7 +49,10 @@ WeaponInstance::WeaponInstance(Weapon *instanceOf, InstanceID parentID, TeamID t
 
 void WeaponInstance::fire(const glm::vec3& position, const glm::vec3& direction, const glm::mat3& transformation) {
     if (timeSinceFired > instanceOf->reload[reloadIndex]) {
-        if (kindOf != WeaponKind::BEAM) instanceOf->fire(position + transformation * offset, direction, parentID, teamID);
+        if (kindOf != WeaponKind::BEAM) {
+            instanceOf->fire(position + transformation * offset, direction, parentID, teamID);
+        }
+        instanceOf->playSound(position + transformation * offset, direction);
         timeSinceFired = 0.0f;
         reloadIndex = (reloadIndex + 1) % instanceOf->reload.size();
         firing = true;

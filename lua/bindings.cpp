@@ -583,6 +583,38 @@ static void eng_playSoundExport(lua_State *ls) {
     lua_setglobal(ls, "eng_playSound");
 }
 
+static int eng_playSound3dWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v1;
+    if (lua_objlen(ls, 2) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 2, i);
+        luaL_checknumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a1(v1[0], v1[1], v1[2]);
+    if(!lua_istable(ls, 3)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v2;
+    if (lua_objlen(ls, 3) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 3, i);
+        luaL_checknumber(ls, -1);
+        v2[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a2(v2[0], v2[1], v2[2]);
+    Api::eng_playSound3d(a0, a1, a2);
+    return 0;
+}
+
+static void eng_playSound3dExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_playSound3dWrapper);
+    lua_setglobal(ls, "eng_playSound3d");
+}
+
 static int eng_setInstanceCustomStateWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     luaL_checkstring(ls, 2);
@@ -1061,6 +1093,7 @@ void LuaWrapper::apiExport() {
     eng_listAudioDevicesExport(luaState);
     eng_pickAudioDeviceExport(luaState);
     eng_playSoundExport(luaState);
+    eng_playSound3dExport(luaState);
     eng_setInstanceCustomStateExport(luaState);
     engS_setInstanceCustomStateExport(luaState);
     eng_getInstanceCustomStateExport(luaState);
