@@ -206,8 +206,42 @@ end
 
 local aspect_ratio = eng_getScreenWidth() / eng_getScreenHeight()
 
-local function populate_selected_menu()
+local selection_menu_shown = false
 
+Selection_menu = {
+    x = -1.0 + 0.075,
+    y = 0.725,
+    width = 0.9125,
+    height = 0.25,
+    kind = GuiLayoutKind__PANEL,
+    color = 0x00000000,
+    children = {
+    }
+}
+
+local function populate_selected_menu()
+    if selection_menu_shown then
+        gui_removePanel("Selection_menu")
+    end
+    Selection_menu.children = {}
+    local units = eng_getSelectedInstances()
+    for i, unit in ipairs(units) do
+        local name = eng_getInstanceEntityName(unit)
+        Selection_menu.children[i] = {
+            x = Selection_menu.x + (i - 1) * 0.05 + 0.025,
+            y = Selection_menu.y + 0.025,
+            height = 0.05,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/" .. name .. "_icon.png"
+            },
+            -- onClick = build_handler,
+            color = 0x000000dd,
+            secondaryColor = 0x000000ff,
+        }
+    end
+    gui_addPanel("selected menu", "Selection_menu")
+    selection_menu_shown = true
 end
 
 Hud = {
@@ -255,12 +289,13 @@ Hud = {
             onSelectionChanged = engret_visibility,
             kind = GuiLayoutKind__IMAGE_BUTTON,
             images = {
-                "engage.png",
-                "retreat.png"
+                "ui/engage.png",
+                "ui/retreat.png"
             },
             color = 0x000000dd,
             secondaryColor = 0x000000ff,
             name = "engret",
+            tooltip = "Idle behavior\nAvoid combat or engage"
         },
         {
             x = -1.0 + 0.025 / aspect_ratio,
@@ -288,10 +323,11 @@ Hud = {
             text = "",
         },
         {
-            x = -1.0 + 0.075,
-            y = 0.725,
-            width = 0.9125,
-            height = 0.25,
+            x = Selection_menu.x,
+            y = Selection_menu.y,
+            width = Selection_menu.width,
+            height = Selection_menu.height,
+            onSelectionChanged = populate_selected_menu,
             kind = GuiLayoutKind__PANEL,
             color = 0x303030bb,
             children = {
