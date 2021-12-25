@@ -21,10 +21,6 @@ local function bind_data(name, wrapper)
     data_bindings[name] = wrapper
 end
 
--- Idk where this belongs, but it isn't here (I should probably just lua_dostring it)
--- local audioDeviceList = eng_listAudioDevices()
--- eng_pickAudioDevice(audioDeviceList[1])
-
 local function Split(s, delimiter)
     local result = {};
     for match in (s..delimiter):gmatch("(.-)"..delimiter) do
@@ -69,14 +65,14 @@ local function build_visibility()
     gui_setVisibility("build", can_build)
 end
 
-function Build_handler(mods, name)
+local function build_handler(mds, name)
     local true_name = Split(name, " ")[1]
     local is_station = eng_entityIsStation(true_name)
     for unit, _ in pairs(build_units[true_name]) do
         if is_station then
             eng_setCursorEntity(true_name)
         else
-            cmd_build(unit, true_name, mods_to_mode(mods))
+            cmd_build(unit, true_name, mods_to_mode(mds))
         end
     end
 end
@@ -94,7 +90,7 @@ local function show_build_options()
             images = {
                 "textures/" .. option .. "_icon.png"
             },
-            onClick = Build_handler,
+            onClick = build_handler,
             color = 0x000000ff,
             secondaryColor = 0x000000ff,
             name = option .. " build button"
@@ -210,7 +206,10 @@ end
 
 local aspect_ratio = eng_getScreenWidth() / eng_getScreenHeight()
 
--- for text buttons it ignores the width field and just makes the width based on what the text says
+local function populate_selected_menu()
+
+end
+
 Hud = {
     name = "hud root",
     x = -1.0,
@@ -234,7 +233,7 @@ Hud = {
             },
             color = 0x00000099,
             secondaryColor = 0x000000ff,
-            tooltip = "Open" .. string.char(10) .. "settings"
+            tooltip = "Open\nsettings"
         },
         -- {
         --     x = -0.2,
@@ -246,50 +245,37 @@ Hud = {
         --     text = "Edit me",
         --     color = 0x101080ff,
         --     secondaryColor = 0x00000000,
-        --     -- children = {}
         --     tooltip = "This has a tooltip!\nIsn't that nice",
-        --     -- onTextUpdated = text_updated
+        --     onTextUpdated = text_updated
         -- },
         {
-            x = -0.9,
-            y = 0.875,
-            width = 0.5,
-            height = 0.1,
-            -- onClick = testFire,
-            -- onToggle = ,
+            x = -1.0 + 0.025 / aspect_ratio,
+            y = 0.725,
+            height = 0.075,
             onSelectionChanged = engret_visibility,
             kind = GuiLayoutKind__IMAGE_BUTTON,
             images = {
                 "engage.png",
                 "retreat.png"
             },
-            color = 0x000000ff,
+            color = 0x000000dd,
             secondaryColor = 0x000000ff,
-            -- children = {}
             name = "engret",
         },
-        -- {
-        --     x = 0.3,
-        --     y = -1.0,
-        --     width = 0.2,
-        --     height = 0.1,
-        --     onSelectionChanged = engret_visibility,
-        --     kind = GuiLayoutKind__PANEL,
-        --     color = 0x6050cc60,
-        --     children = {
-        --         {
-        --             x = 0.3,
-        --             y = -1.0,
-        --             width = 0.5,
-        --             height = 0.1,
-        --             onSelectionChanged = engret_visibility,
-        --             kind = GuiLayoutKind__TEXT_BUTTON,
-        --             color = 0x000000ff,
-        --             name = "rus",
-        --             text = "",
-        --         },
-        --     }
-        -- },
+        {
+            x = -1.0 + 0.025 / aspect_ratio,
+            y = 0.825,
+            height = 0.1,
+            onClick = show_build_options,
+            onSelectionChanged = build_visibility,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "textures/build.png",
+            },
+            color = 0x000000dd,
+            secondaryColor = 0x000000ff,
+            name = "build",
+        },
         {
             x = 0.3,
             y = -1.0,
@@ -302,28 +288,21 @@ Hud = {
             text = "",
         },
         {
-            x = -0.7,
-            y = 0.875,
-            width = 0.5,
-            height = 0.1,
-            onClick = show_build_options,
-            -- onToggle = engret_visibility,
-            onSelectionChanged = build_visibility,
-            kind = GuiLayoutKind__IMAGE_BUTTON,
-            images = {
-                "textures/build.png",
+            x = -1.0 + 0.075,
+            y = 0.725,
+            width = 0.9125,
+            height = 0.25,
+            kind = GuiLayoutKind__PANEL,
+            color = 0x303030bb,
+            children = {
             },
-            color = 0x000000ff,
-            secondaryColor = 0x000000ff,
-            -- children = {}
-            name = "build",
+            name = "selected menu"
         },
         {
-            x = 0.05,
-            y = 0.75,
+            x = 0.0125,
+            y = 0.725,
             width = 0.9,
-            height = 0.2,
-            -- onClick = click,
+            height = 0.25,
             kind = GuiLayoutKind__PANEL,
             color = 0x303030bb,
             children = {
@@ -353,7 +332,6 @@ Build_menu = {
     y = 0.75,
     width = 0.9,
     height = 0.2,
-    -- onClick = click,
     kind = GuiLayoutKind__PANEL,
     color = 0x00000000,
     onSelectionChanged = remove_build_menu,
@@ -369,22 +347,6 @@ state_giveResources(1, 50000)
 state_giveResources(2, 50000)
 
 -- eng_declareKeyBinding(keys.KEY_G);
-
--- cmd_createInstance("miner", { 0.0, 0.0, 3.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1)
--- gui_setLabelText("button", "Hello")
--- print("Created instance " .. id .. " which is a " .. eng_getInstanceEntityName(id))
--- eng_setInstanceHealth(id, 40)
--- print(eng_getInstanceHealth(id))
--- net_declareTeam(1, "josh")
-
--- local function dummyCallback2(id)
---     cmd_destroyInstance(id)
--- end
-
--- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback2)
-
--- state_giveResources(2, 5000)
-
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 -- cmd_createInstance("shipyard", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
 cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
@@ -393,45 +355,7 @@ cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1,
 cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
 -- cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.707, 0.707, 0.0 }, 1, nil)
 
--- cmd_createInstance("miner", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
--- cmd_createInstance("ship", { -100.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, dummyCallback)
-
--- net_pause(false)
-
-
-
--- state_giveResources(1, 55.3)
--- print(state_getResources(1))
 
 net_pause(false)
--- cmd_createInstance("miner", { 0.0, 3.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
 
--- cmd_createInstance("ship", { -10.0, -6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
--- cmd_createInstance("ship", { -10.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-
--- cmd_createInstance("shipyard", { 0.0, 0.0, -5.0 }, { -0.798, 0.420, -0.104, 0.420 }, 2, nil)
-
--- cmd_createInstance("ship", { 110.0, 6.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, dummyCallback)
-
--- state_giveResources(1, 50.76)
-
--- cmd_destroyInstance(100)
-
--- net_pause(false)
 -- print(eng_fps())
-
-
--- eng_playSound("test_mono.ogg")
-
--- eng_setCursorEntity("shipyard")
--- eng_clearCursorEntity()

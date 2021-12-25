@@ -682,7 +682,7 @@ GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, uint32_t seco
 : GuiComponent(context, false, color, secondaryColor, tl, br, layer, luaHandlers, RMODE_IMAGE), state(0) {
     dynamicNDC = true;
     for (const auto& image : images) {
-        textures.push_back(GuiTextures::makeGuiTexture(image.c_str()));
+        textures.push_back(GuiTextures::makeGuiTexture(image));
     }
     textureIndexMap.resize(textures.size());
     for (const auto& tex : textures) {

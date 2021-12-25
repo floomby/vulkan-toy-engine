@@ -133,7 +133,7 @@ private:
 };
 
 namespace GuiTextures {
-    std::shared_ptr<GuiTexture> makeGuiTexture(const char *str);
+    std::shared_ptr<GuiTexture> makeGuiTexture(const std::string& file);
 }
 
 class Gui;

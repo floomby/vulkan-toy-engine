@@ -557,7 +557,6 @@ private:
 
 namespace GuiTextures {
     void initFreetype2(Engine *context);
-    int makeTexture(const char *str);
     void setDefaultTexture();
 }
 

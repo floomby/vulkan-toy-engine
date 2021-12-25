@@ -2347,6 +2347,11 @@ void LineHolder::addAxes(float length, const glm::vec4& orginColor, const glm::v
 namespace GuiTextures {
     static std::shared_ptr<GuiTexture> defaultTexture;
     static int maxGlyphHeight;
+
+    static std::mutex textureCacheMutex;
+    // Idk if I should build garbage collecting into this so it does not tie up gpu resources by keeping them cached indefinately
+    // It is pretty easy to do
+    static std::map<std::string, std::shared_ptr<GuiTexture>> textureCache;
 }
 
 void Engine::setTooltip(std::string&& str) {
@@ -3918,6 +3923,7 @@ Engine::~Engine() {
     textureRefsOldOld.clear();
     delete currentScene;
     GuiTextures::defaultTexture.reset();
+    GuiTextures::textureCache.clear();
     delete gui;
     delete glyphCache;
     delete manager;
@@ -5330,15 +5336,31 @@ namespace GuiTextures {
         atexit(destroyTextTextureBuffer);
     }
 
-    std::shared_ptr<GuiTexture> makeGuiTexture(const char *file) {
-        assert(std::filesystem::exists(file));
+    std::shared_ptr<GuiTexture> makeGuiTexture(const std::string& file) {
+        if (!std::filesystem::exists(file)) {
+            std::string msg = "Unable to find file: ";
+            msg += file;
+            throw std::runtime_error(msg);
+        }
+
+        textureCacheMutex.lock();
+        if (textureCache.contains(file)) {
+            auto ret = textureCache.at(file);
+            textureCacheMutex.unlock();
+            return ret;
+        }
+        textureCacheMutex.unlock();
 
         int texWidth, texHeight, texChannels;
-        auto buf = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        auto buf = stbi_load(file.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
         assert(texChannels == 4);
         auto ret = std::make_shared<GuiTexture>(context, buf, texWidth, texHeight, texChannels, texWidth * texChannels,
             VK_FORMAT_R8G8B8A8_UNORM, VK_FILTER_LINEAR);
+
+        textureCacheMutex.lock();
+        textureCache[file] = ret;
+        textureCacheMutex.unlock();
 
         // stbi_write_png("check.png", texWidth, texHeight, texChannels, buf, texWidth * texChannels);
 
