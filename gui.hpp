@@ -150,10 +150,8 @@ enum class ToggleKind {
 class GuiComponent {
 public:
     GuiComponent() = delete;
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const std::pair<float, float>& c0,
+    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, const std::pair<float, float>& c0,
         const std::pair<float, float>& c1, int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode = RMODE_FLAT);
-    GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0, std::pair<float, float> c1,
-        int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers,uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> c0, std::pair<float, float> c1,
         int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode = RMODE_FLAT);
     GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, std::pair<float, float> tl,
@@ -257,7 +255,7 @@ private:
 
 class GuiImage : public GuiComponent {
 public:
-    GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
+    GuiImage(Gui *context, const char *file, uint32_t color, uint32_t secondaryColor, const std::pair<float, float>& tl, const std::pair<float, float>& br,
         const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers);
     virtual ~GuiImage() = default;
 

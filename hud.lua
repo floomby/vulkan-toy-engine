@@ -96,6 +96,7 @@ local function show_build_options()
             },
             onClick = Build_handler,
             color = 0x000000ff,
+            secondaryColor = 0x000000ff,
             name = option .. " build button"
         })
         i = i + 1
@@ -173,11 +174,14 @@ local function display_settings()
             images = {
                 "ui/x.png",
             },
-            color = 0x000000ff,
+            color = 0x00000099,
+            secondaryColor = 0x000000ff,
         },
     }
     gui_addPanel("hud root", "Dialog")
 end
+
+local aspect_ratio = eng_getScreenWidth() / eng_getScreenHeight()
 
 -- for text buttons it ignores the width field and just makes the width based on what the text says
 Hud = {
@@ -193,15 +197,17 @@ Hud = {
     onPeriodicUpdate = update_bound_data,
     children = {
         {
-            x = -0.9,
-            y = 0.75,
-            width = 0.5,
-            height = 0.1,
+            x = -1 + 0.025 / aspect_ratio,
+            y = -0.975,
+            height = 0.075,
             onClick = display_settings,
-            kind = GuiLayoutKind__TEXT_BUTTON,
-            text = "Settings",
-            color = 0x101080ff,
-            tooltip = "This has a tooltip!"
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "ui/gear.png",
+            },
+            color = 0x00000099,
+            secondaryColor = 0x000000ff,
+            tooltip = "Open" .. string.char(10) .. "settings"
         },
         -- {
         --     x = -0.2,
@@ -231,6 +237,7 @@ Hud = {
                 "retreat.png"
             },
             color = 0x000000ff,
+            secondaryColor = 0x000000ff,
             -- children = {}
             name = "engret",
         },
@@ -261,7 +268,6 @@ Hud = {
             y = -1.0,
             width = 0.5,
             height = 0.1,
-            onSelectionChanged = engret_visibility,
             kind = GuiLayoutKind__TEXT,
             color = 0x000000ff,
             secondaryColor = 0x6050cc60,
@@ -281,6 +287,7 @@ Hud = {
                 "textures/build.png",
             },
             color = 0x000000ff,
+            secondaryColor = 0x000000ff,
             -- children = {}
             name = "build",
         },

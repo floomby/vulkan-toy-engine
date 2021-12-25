@@ -7,7 +7,7 @@
 #include <iostream>
 
 Gui::Gui(float *mouseNormX, float *mouseNormY, int screenHeight, int screenWidth, Engine *context)
-: context(context), root(new GuiComponent(this, true, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
+: context(context), root(new GuiComponent(this, true, 0, 0, { -1.0f, -1.0f }, { 1.0f, 1.0f }, 0, {}, RMODE_NONE)), height(screenHeight), width(screenWidth) {
     setDragBox({ 0.0f, 0.0f }, { 0.0f, 0.0f });
 
     lua = new LuaWrapper(true);
@@ -278,7 +278,7 @@ GuiComponent *GuiComponent::findPanelRoot(const std::string& panelName) {
 
 // Every gui component ultimately comes from one of these 3 constructors (there probably should be just one)
 // TODO Fix this, all these constructors are confusing to work with
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const std::pair<float, float>& c0, const std::pair<float, float>& c1,
+GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32_t secondaryColor, const std::pair<float, float>& c0, const std::pair<float, float>& c1,
     int layer, const std::map<std::string, int>& luaHandlers, uint32_t renderMode)
 : context(context), luaHandlers(luaHandlers) {
     if (renderMode != RMODE_IMAGE) {
@@ -294,11 +294,12 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, const 
 
     if (!layoutOnly) {
         glm::vec4 colorVec = Api::util_colorIntToVec(color);
+        glm::vec4 secondaryColorVec = Api::util_colorIntToVec(secondaryColor);
 
         std::pair<float, float> tl = { std::min(c0.first, c1.first), std::min(c0.second, c1.second) };
         std::pair<float, float> br = { std::max(c0.first, c1.first), std::max(c0.second, c1.second) };
 
-        vertices = Gui::rectangle(tl, br, colorVec, layer, id, renderMode);
+        vertices = Gui::rectangle(tl, br, colorVec, secondaryColorVec, layer, id, renderMode);
     }
     for (const auto& tex : textures) {
         if (context->guiThreadNeedTextureSync) break;
@@ -354,10 +355,6 @@ GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, uint32
         if (!context->alreadyHaveTexture(tex)) context->guiThreadNeedTextureSync = true;
     }
 }
-
-GuiComponent::GuiComponent(Gui *context, bool layoutOnly, uint32_t color, std::pair<float, float> c0,
-    std::pair<float, float> c1, int layer, std::vector<std::shared_ptr<GuiTexture>> textures, std::map<std::string, int> luaHandlers, uint32_t renderMode)
-: GuiComponent(context, layoutOnly, color, color, c0, c1, layer, textures, luaHandlers, renderMode) {}
 
 GuiComponent::~GuiComponent() {
     context->idLookup.erase(id);
@@ -620,7 +617,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
     GuiComponent *ret = nullptr;
     switch (tree->kind) {
         case GuiLayoutKind::PANEL:
-            ret = new GuiComponent(this, false, tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
+            ret = new GuiComponent(this, false, tree->color, tree->secondaryColor, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
                 baseLayer + tree->layerOverride, tree->handlers);
             break;
         case GuiLayoutKind::TEXT:
@@ -633,7 +630,7 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
                 { tree->x + tree->width, tree->y + tree->height }, baseLayer + tree->layerOverride, tree->handlers);
             break;
         case GuiLayoutKind::IMAGE_BUTTON:
-            ret = new GuiImage(this, tree->text.c_str(), tree->color, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
+            ret = new GuiImage(this, tree->text.c_str(), tree->color, tree->secondaryColor, { tree->x, tree->y }, { tree->x + tree->width, tree->y + tree->height },
                 tree->imageStates, baseLayer + tree->layerOverride, tree->handlers);
             break;
         default:
@@ -655,9 +652,9 @@ GuiComponent *Gui::fromLayout(GuiLayoutNode *tree, int baseLayer, const std::str
     return ret;
 }
 
-GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, const std::pair<float, float>& tl, const std::pair<float, float>& br,
+GuiImage::GuiImage(Gui *context, const char *file, uint32_t color, uint32_t secondaryColor, const std::pair<float, float>& tl, const std::pair<float, float>& br,
     const std::vector<std::string>& images, int layer, std::map<std::string, int> luaHandlers)
-: GuiComponent(context, false, color, tl, br, layer, luaHandlers, RMODE_IMAGE), state(0) {
+: GuiComponent(context, false, color, secondaryColor, tl, br, layer, luaHandlers, RMODE_IMAGE), state(0) {
     dynamicNDC = true;
     for (const auto& image : images) {
         textures.push_back(GuiTextures::makeGuiTexture(image.c_str()));

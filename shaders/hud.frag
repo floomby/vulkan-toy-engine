@@ -98,7 +98,16 @@ void main() {
             outColor = vec4(mix(outColor.rgb, inSecondaryColor.rgb, 1.0 - alpha), max(alpha, inSecondaryColor.a));
             break;
         case RMODE_IMAGE:
-            outColor = texture(texSampler[inTexIndex], inTexCoord);
+            if (bool(RFLAG_NO_HOVER & renderFlags)) {
+                outColor = texture(texSampler[inTexIndex], inTexCoord);
+            } else {
+                vec4 col = texture(texSampler[inTexIndex], inTexCoord);
+                if (inGuiID == inCursorID) {
+                    outColor = vec4(col.r, col.g, col.b, col.a * inSecondaryColor.a);
+                } else {
+                    outColor = vec4(col.r, col.g, col.b, col.a * inColor.a);
+                }
+            }
             break;
     }
 }
