@@ -162,12 +162,15 @@ local function hide_dialog()
     gui_removePanel("Dialog")
 end
 
+local function mute_wrapper(state)
+    eng_mute(state == 1)
+end
+
 local function display_settings()
     Dialog.children = {
         {
             x = Dialog.x + Dialog.width - 0.1,
             y = Dialog.y + 0.025,
-            width = 0.075,
             height = 0.075,
             onClick = hide_dialog,
             kind = GuiLayoutKind__IMAGE_BUTTON,
@@ -177,8 +180,32 @@ local function display_settings()
             color = 0x00000099,
             secondaryColor = 0x000000ff,
         },
+        {
+            x = Dialog.x + 0.025,
+            y = Dialog.y + 0.125,
+            height = 0.075,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "ui/unchecked.png",
+                "ui/checked.png",
+            },
+            name = "mute button",
+            color = 0x00000099,
+            secondaryColor = 0x000000ff,
+            onToggle = mute_wrapper
+        },
+        {
+            x = Dialog.x + 0.075,
+            y = Dialog.y + 0.125,
+            height = 0.075,
+            kind = GuiLayoutKind__TEXT,
+            text = "Muted",
+            color = 0x000000ff,
+            secondaryColor = 0x00000000,
+        },
     }
     gui_addPanel("hud root", "Dialog")
+    gui_setToggleState("mute button", eng_isMuted() and 1 or 0)
 end
 
 local aspect_ratio = eng_getScreenWidth() / eng_getScreenHeight()

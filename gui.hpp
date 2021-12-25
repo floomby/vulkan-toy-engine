@@ -190,6 +190,7 @@ public:
     bool visible = true;
     std::string panelName, name;
 
+    void setToggleState(uint state);
     virtual void click(float x, float y, int mods);
     virtual void hover();
     virtual void toggle();
@@ -353,7 +354,8 @@ public:
         // glfw doesn't put them into the codepoint stream and we don't really want them there anyways
         GUI_KEY_INPUT,
         // I could piggyback off the keyboard capturing, but that seems complicated and error prone, doing it sepperatly seems best
-        GUI_KEYBINDING
+        GUI_KEYBINDING,
+        GUI_TOGGLE
     };
 
     // messages passed to the gui

@@ -59,6 +59,7 @@ public:
     static void eng_playSound(const char *name);
     static void eng_playSound3d(const char *name, const glm::vec3& position, const glm::vec3& velocity);
     static void eng_mute(bool mute);
+    static bool eng_isMuted();
     static void eng_setInstanceCustomState(InstanceID unitID, std::string key, int value);
     static void engS_setInstanceCustomState(Instance *unit, std::string key, int value);
     static std::optional<int> eng_getInstanceCustomState(InstanceID unitID, std::string key);
@@ -88,6 +89,7 @@ public:
     // Idk what I am doing, this seems weird and arbitrarly limiting
     static void gui_addPanel(const char *root, const char *tableName);
     static void gui_removePanel(const char *panelName);
+    static void gui_setToggleState(const char *name, uint state);
 
     static void state_dumpAuthStateIDs();
     static void state_giveResources(TeamID teamID, double resourceUnits);

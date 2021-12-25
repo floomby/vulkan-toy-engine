@@ -362,7 +362,12 @@ void Api::eng_playSound3d(const char *name, const glm::vec3& position, const glm
 
 void Api::eng_mute(bool mute) {
     if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
-    context->sound->muted = true;
+    context->sound->muted = mute;
+}
+
+bool Api::eng_isMuted() {
+    if (!context->sound) throw std::runtime_error("Sound is not enabled in this context");
+    return context->sound->muted;
 }
 
 void Api::eng_setInstanceCustomState(InstanceID unitID, std::string key, int value) {
@@ -465,6 +470,15 @@ void Api::gui_removePanel(const char *panelName) {
     // This is a reminder that I will probabl want to implement this in the future
     what->childIndices = {};
     context->gui->submitCommand({ Gui::GUI_REMOVE, what });
+}
+
+void Api::gui_setToggleState(const char *name, uint state) {
+    assert(!context->headless);
+    GuiCommandData *what = new GuiCommandData();
+    what->str = name;
+    what->flags = GUIF_NAMED;
+    what->action = state;
+    context->gui->submitCommand({ Gui::GUI_TOGGLE, what });
 }
 
 void Api::state_dumpAuthStateIDs() {

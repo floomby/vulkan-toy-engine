@@ -237,7 +237,7 @@ void Gui::pollChanges() {
                     } else {
                         std::cerr << "Unable to find named component: " << command.data->str << std::endl;
                     }
-                } else std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                } else std::cerr << "Unsupported component mode" << std::endl;
                 delete command.data;
             } else if (command.action == GUI_CODEPOINT_INPUT) {
                 if (withCapture) {
@@ -251,6 +251,25 @@ void Gui::pollChanges() {
                 delete command.data;
             } else if (command.action == GUI_KEYBINDING) {
                 lua->callKeyBinding(command.data->id, command.data->flags);
+                delete command.data;
+            } else if (command.action == GUI_TOGGLE) {
+                if (command.data->flags == GUIF_INDEX) {
+                    auto comp = root->getComponent(command.data->childIndices);
+                    if (comp->activeTexture != command.data->action) {
+                        comp->setToggleState(command.data->action);
+                        changed = true;
+                    }
+                } else if (command.data->flags == GUIF_NAMED) {
+                    if (namedComponents.contains(command.data->str)) {
+                        auto comp = namedComponents.at(command.data->str);
+                        if (comp->activeTexture != command.data->action) {
+                            comp->setToggleState(command.data->action);
+                            changed = true;
+                        }
+                    } else {
+                        std::cerr << "Unable to find named component: " << command.data->str << std::endl;
+                    }
+                }
                 delete command.data;
             }
             queueLock.lock();
@@ -511,6 +530,12 @@ void GuiComponent::toggle() {
         context->lua->callFunction(luaHandlers["onToggle"] + offset, activeTexture);
 
     context->changed = true;
+}
+
+void GuiComponent::setToggleState(uint state) {
+    if (state >= textures.size()) throw std::runtime_error("Toggle state is greater than active textures");
+
+    activeTexture = state;
 }
 
 void GuiComponent::typing(uint codepoint) {

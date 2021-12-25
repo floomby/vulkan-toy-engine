@@ -626,6 +626,16 @@ static void eng_muteExport(lua_State *ls) {
     lua_setglobal(ls, "eng_mute");
 }
 
+static int eng_isMutedWrapper(lua_State *ls) {
+    auto r = Api::eng_isMuted();
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void eng_isMutedExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_isMutedWrapper);
+    lua_setglobal(ls, "eng_isMuted");
+}
+
 static int eng_setInstanceCustomStateWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     luaL_checkstring(ls, 2);
@@ -964,6 +974,19 @@ static void gui_removePanelExport(lua_State *ls) {
     lua_setglobal(ls, "gui_removePanel");
 }
 
+static int gui_setToggleStateWrapper(lua_State *ls) {
+    luaL_checkstring(ls, 1);
+    auto a0 = lua_tostring(ls, 1);
+    auto a1 = (uint)luaL_checkinteger(ls, 2);
+    Api::gui_setToggleState(a0, a1);
+    return 0;
+}
+
+static void gui_setToggleStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, gui_setToggleStateWrapper);
+    lua_setglobal(ls, "gui_setToggleState");
+}
+
 static int state_dumpAuthStateIDsWrapper(lua_State *ls) {
     Api::state_dumpAuthStateIDs();
     return 0;
@@ -1106,6 +1129,7 @@ void LuaWrapper::apiExport() {
     eng_playSoundExport(luaState);
     eng_playSound3dExport(luaState);
     eng_muteExport(luaState);
+    eng_isMutedExport(luaState);
     eng_setInstanceCustomStateExport(luaState);
     engS_setInstanceCustomStateExport(luaState);
     eng_getInstanceCustomStateExport(luaState);
@@ -1131,6 +1155,7 @@ void LuaWrapper::apiExport() {
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);
     gui_removePanelExport(luaState);
+    gui_setToggleStateExport(luaState);
     state_dumpAuthStateIDsExport(luaState);
     state_giveResourcesExport(luaState);
     state_getResourcesExport(luaState);
