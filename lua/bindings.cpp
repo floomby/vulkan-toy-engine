@@ -16,7 +16,8 @@ static int cmd_moveWrapper(lua_State *ls) {
     }
     glm::vec3 a1(v1[0], v1[1], v1[2]);
     auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
-    Api::cmd_move(a0, a1, a2);
+    auto a3 = lua_toboolean(ls, 4);
+    Api::cmd_move(a0, a1, a2, a3);
     return 0;
 }
 
@@ -29,7 +30,8 @@ static int cmd_setTargetIDWrapper(lua_State *ls) {
     auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
     auto a1 = (InstanceID)luaL_checkinteger(ls, 2);
     auto a2 = (InsertionMode)luaL_checkinteger(ls, 3);
-    Api::cmd_setTargetID(a0, a1, a2);
+    auto a3 = lua_toboolean(ls, 4);
+    Api::cmd_setTargetID(a0, a1, a2, a3);
     return 0;
 }
 
@@ -293,6 +295,42 @@ static int eng_setInstanceStateEngageWrapper(lua_State *ls) {
 static void eng_setInstanceStateEngageExport(lua_State *ls) {
     lua_pushcfunction(ls, eng_setInstanceStateEngageWrapper);
     lua_setglobal(ls, "eng_setInstanceStateEngage");
+}
+
+static int engS_setInstanceStateEngageWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto a1 = (IEngage)luaL_checkinteger(ls, 2);
+    Api::engS_setInstanceStateEngage(a0, a1);
+    return 0;
+}
+
+static void engS_setInstanceStateEngageExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_setInstanceStateEngageWrapper);
+    lua_setglobal(ls, "engS_setInstanceStateEngage");
+}
+
+static int eng_getInstanceStateEngageWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getInstanceStateEngage(a0);
+    lua_pushinteger(ls, static_cast<int>(r));    return 1;
+}
+
+static void eng_getInstanceStateEngageExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getInstanceStateEngageWrapper);
+    lua_setglobal(ls, "eng_getInstanceStateEngage");
+}
+
+static int engS_getInstanceStateEngageWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getInstanceStateEngage(a0);
+    lua_pushinteger(ls, static_cast<int>(r));    return 1;
+}
+
+static void engS_getInstanceStateEngageExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getInstanceStateEngageWrapper);
+    lua_setglobal(ls, "engS_getInstanceStateEngage");
 }
 
 static int eng_setInstanceHealthWrapper(lua_State *ls) {
@@ -941,6 +979,29 @@ static void eng_entityIsStationExport(lua_State *ls) {
     lua_setglobal(ls, "eng_entityIsStation");
 }
 
+static int eng_isEntityIdleWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_isEntityIdle(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void eng_isEntityIdleExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_isEntityIdleWrapper);
+    lua_setglobal(ls, "eng_isEntityIdle");
+}
+
+static int engS_isEntityIdleWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_isEntityIdle(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void engS_isEntityIdleExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_isEntityIdleWrapper);
+    lua_setglobal(ls, "engS_isEntityIdle");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -1164,6 +1225,66 @@ static void math_multQuatExport(lua_State *ls) {
     lua_setglobal(ls, "math_multQuat");
 }
 
+static int math_normVec3Wrapper(lua_State *ls) {
+    if(!lua_istable(ls, 1)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 3> v0;
+    if (lua_objlen(ls, 1) != 3) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 3; i++) {
+        lua_rawgeti(ls, 1, i);
+        luaL_checknumber(ls, -1);
+        v0[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec3 a0(v0[0], v0[1], v0[2]);
+    auto r = Api::math_normVec3(a0);
+    lua_createtable(ls, 3, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_getglobal(ls, "Vec3_mt");
+    lua_setmetatable(ls, -2);
+    return 1;
+}
+
+static void math_normVec3Export(lua_State *ls) {
+    lua_pushcfunction(ls, math_normVec3Wrapper);
+    lua_setglobal(ls, "math_normVec3");
+}
+
+static int math_normVec4Wrapper(lua_State *ls) {
+    if(!lua_istable(ls, 1)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 4> v0;
+    if (lua_objlen(ls, 1) != 4) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 4; i++) {
+        lua_rawgeti(ls, 1, i);
+        luaL_checknumber(ls, -1);
+        v0[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::vec4 a0(v0[0], v0[1], v0[2], v0[3]);
+    auto r = Api::math_normVec4(a0);
+    lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, r.w);
+    lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Vec4_mt");
+    lua_setmetatable(ls, -2);
+    return 1;
+}
+
+static void math_normVec4Export(lua_State *ls) {
+    lua_pushcfunction(ls, math_normVec4Wrapper);
+    lua_setglobal(ls, "math_normVec4");
+}
+
 void LuaWrapper::apiExport() {
     luaL_dofile(luaState, "lua/glm_metatables.lua");
     cmd_moveExport(luaState);
@@ -1180,6 +1301,9 @@ void LuaWrapper::apiExport() {
     eng_getTeamIDExport(luaState);
     eng_getSelectedInstancesExport(luaState);
     eng_setInstanceStateEngageExport(luaState);
+    engS_setInstanceStateEngageExport(luaState);
+    eng_getInstanceStateEngageExport(luaState);
+    engS_getInstanceStateEngageExport(luaState);
     eng_setInstanceHealthExport(luaState);
     eng_getInstanceHealthExport(luaState);
     engS_getInstanceHealthExport(luaState);
@@ -1228,6 +1352,8 @@ void LuaWrapper::apiExport() {
     eng_setCursorEntityExport(luaState);
     eng_clearCursorEntityExport(luaState);
     eng_entityIsStationExport(luaState);
+    eng_isEntityIdleExport(luaState);
+    engS_isEntityIdleExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);
@@ -1243,4 +1369,6 @@ void LuaWrapper::apiExport() {
     util_colorIntToVecExport(luaState);
     util_isNullExport(luaState);
     math_multQuatExport(luaState);
+    math_normVec3Export(luaState);
+    math_normVec4Export(luaState);
 }

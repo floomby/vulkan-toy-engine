@@ -1,10 +1,5 @@
 #!/usr/bin/ruby
 
-# finding class names and enum names automatically would be cool
-
-# I am not sure that Instance * is ever ok to use in lua, there is a jank way to do it, but I don't think it seems worth it.
-# Luckily (well by design actually) the instance ids are ordered in the auth state buffer and we can leverage that to do fast lookups
-
 require 'pp'
 
 require 'rbgccxml'
@@ -81,6 +76,19 @@ END
         lua_pop(ls, 1);
     }
     #{argtype} a#{i}(v#{i}[0], v#{i}[1], v#{i}[2]);
+END
+        when "glm::vec4"
+            return <<-END
+    if(!lua_istable(ls, #{i + 1})) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 4> v#{i};
+    if (lua_objlen(ls, #{i + 1}) != 4) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 4; i++) {
+        lua_rawgeti(ls, #{i + 1}, i);
+        luaL_checknumber(ls, -1);
+        v#{i}[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    #{argtype} a#{i}(v#{i}[0], v#{i}[1], v#{i}[2], v#{i}[3]);
 END
         when "glm::quat"
             return <<-END
@@ -192,7 +200,8 @@ END
             return -> (x) { "lua_pushnumber(ls, #{x});" }
         elsif @@bool.include?(typestr)
             return -> (x) { "lua_pushboolean(ls, #{x});"}
-        # oops
+        elsif @@enums.include?(typestr)
+            return -> (x) { "lua_pushinteger(ls, static_cast<int>(#{x}));" }
         elsif typestr == "glm::vec3"
             return -> (x) do<<-END
 lua_createtable(ls, 3, 0);
@@ -236,6 +245,7 @@ lua_createtable(ls, 4, 0);
     lua_setmetatable(ls, -2);
 END
             end
+        # oops (notice the unbalanced angle brackets....)
         elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>" || typestr == "std::basic_string<char, std::char_traits<char>>" 
             return -> (x) { "lua_pushstring(ls, #{x}.c_str());" }
         else

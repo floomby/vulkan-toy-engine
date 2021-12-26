@@ -16,9 +16,9 @@ public:
     Api() = delete;
     static Base *context;
 
-    static void cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode);
-    static void cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode);
-    static void cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode);
+    static void cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode, bool userDerived);
+    static void cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode, bool userDerived);
+    static void cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode, bool userDerived);
     static void cmd_createInstance(const std::string& name, const glm::vec3& position, const glm::quat& heading, TeamID team, std::function<void(InstanceID)> cb);
     static void cmd_stop(const InstanceID uintID, const InsertionMode mode);
     static void cmd_destroyInstance(InstanceID unitID);
@@ -34,6 +34,9 @@ public:
     static int eng_getTeamID(InstanceID unitID);
     static std::vector<InstanceID> eng_getSelectedInstances();
     static void eng_setInstanceStateEngage(InstanceID unitID, IEngage state);
+    static void engS_setInstanceStateEngage(Instance *unit, IEngage state);
+    static IEngage eng_getInstanceStateEngage(InstanceID unitID);
+    static IEngage engS_getInstanceStateEngage(Instance *unit);
     static void eng_setInstanceHealth(InstanceID uintID, float health);
     static float eng_getInstanceHealth(InstanceID unitID);
     static float engS_getInstanceHealth(Instance *unit);
@@ -84,6 +87,8 @@ public:
     static void eng_setCursorEntity(const std::string& name);
     static void eng_clearCursorEntity();
     static bool eng_entityIsStation(const std::string& name);
+    static bool eng_isEntityIdle(InstanceID unitID);
+    static bool engS_isEntityIdle(Instance *unit);
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);
@@ -105,4 +110,6 @@ public:
     static bool util_isNull(void *ptr);
 
     static glm::quat math_multQuat(const glm::quat& a, const glm::quat& b);
+    static glm::vec3 math_normVec3(const glm::vec3& v);
+    static glm::vec4 math_normVec4(const glm::vec4& v);
 };

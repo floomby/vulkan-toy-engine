@@ -272,7 +272,7 @@ void Engine::mouseButtonCallback(GLFWwindow *window, int button, int action, int
         if (mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
         engine->apiLocks[APIL_SELECTION].lock();
         for (auto id : engine->idsSelected)
-            Api::cmd_setTargetID(id, engine->mousedOverId, mode);
+            Api::cmd_setTargetID(id, engine->mousedOverId, mode, true);
         engine->apiLocks[APIL_SELECTION].unlock();
     }
 }
@@ -2636,7 +2636,7 @@ void Engine::handleInput() {
                 if (mouseEvent.mods & GLFW_MOD_SHIFT) mode = InsertionMode::BACK;
                 if (mouseEvent.mods & GLFW_MOD_ALT) mode = InsertionMode::FRONT;
                 if (mouseAction == MOUSE_MOVING_Z) {
-                    Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode);
+                    Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode, true);
                 } else {
                     if (cursorInstance.valid) {
                         Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
@@ -3145,6 +3145,8 @@ void Engine::runCurrentScene() {
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
+    lua->exportEnumToLua<InsertionMode>();
+    lua->exportEnumToLua<IEngage>();
     lua->apiExport();
 
     manager = new ComputeManager(this);
@@ -3208,6 +3210,8 @@ void Engine::runCurrentScene() {
     gui->submitCommand({ Gui::GUI_VISIBILITY, what2 });
 
     consoleLua = new LuaWrapper(true);
+    consoleLua->exportEnumToLua<InsertionMode>();
+    consoleLua->exportEnumToLua<IEngage>();
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 

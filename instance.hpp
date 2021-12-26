@@ -40,6 +40,7 @@ struct Command {
     InstanceID id;
     CommandData data;
     InsertionMode mode;
+    bool userDerived;
 };
 
 static const std::vector<std::string> CommandKinds = enumNames2<CommandKind>();

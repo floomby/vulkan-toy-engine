@@ -56,13 +56,13 @@ void LuaWrapper::dispatchCallbacks() {
     if (itx == context->authState.instances.end() || (*itx)->id != unitID) throw std::runtime_error("Invalid instance id"); \
     auto it = *itx;
 
-void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode }};
+void Api::cmd_move(const InstanceID unitID, const glm::vec3& destination, const InsertionMode mode, bool userDerived) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::MOVE, unitID, { destination, {}, unitID }, mode, userDerived }};
     context->send(data);
 }
 
 void Api::cmd_stop(const InstanceID unitID, const InsertionMode mode) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::STOP, unitID, { {}, {}, unitID }, mode }};
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::STOP, unitID, { {}, {}, unitID }, mode, true }};
     context->send(data);
 }
 
@@ -72,7 +72,7 @@ void Api::cmd_createInstance(const std::string& name, const glm::vec3& position,
     auto cbID = ApiUtil::callbackIds.front();
     ApiUtil::callbackIds.pop();
 
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE }};
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::CREATE, 0, { position, heading, (uint32_t)team }, InsertionMode::NONE, true }};
     strncpy(data.buf, name.c_str(), ApiTextBufferSize);
     data.buf[ApiTextBufferSize - 1] = '\0';
     data.callbackID = cbID;
@@ -86,23 +86,23 @@ void Api::cmd_createInstance(const std::string& name, const glm::vec3& position,
 }
 
 void Api::cmd_destroyInstance(InstanceID unitID) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, unitID, { {}, {}, 0 }, InsertionMode::NONE }};
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::DESTROY, unitID, { {}, {}, 0 }, InsertionMode::NONE, true }};
     context->send(data);
 }
 
-void Api::cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { location, {}, 0 }, mode }};
+void Api::cmd_setTargetLocation(InstanceID unitID, glm::vec3&& location, InsertionMode mode, bool userDerived) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { location, {}, 0 }, mode, userDerived }};
     context->send(data);
 }
 
-void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode) {
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { {}, {}, targetID }, mode }};
+void Api::cmd_setTargetID(InstanceID unitID, InstanceID targetID, InsertionMode mode, bool userDerived) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::TARGET_LOCATION, 0, { {}, {}, targetID }, mode, userDerived }};
     context->send(data);
 }
 
 void Api::cmd_build(InstanceID unitID, const char *what, InsertionMode mode) {
     if (!Api::context->currentScene->entities.contains(what)) throw std::runtime_error("Invalid build order");
-    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::BUILD, unitID, { {}, {}, 0 }, mode }};
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::BUILD, unitID, { {}, {}, 0 }, mode, true }};
     strncpy(data.command.data.buf, what, CommandDataBufSize);
     data.command.data.buf[CommandDataBufSize - 1] = '\0';
     context->send(data);
@@ -111,15 +111,15 @@ void Api::cmd_build(InstanceID unitID, const char *what, InsertionMode mode) {
 void Api::cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionMode mode, const char *what) {
     switch (mode) {
         case InsertionMode::BACK:
-            Api::cmd_move(unitID, where, InsertionMode::BACK);
+            Api::cmd_move(unitID, where, InsertionMode::BACK, true);
             Api::cmd_build(unitID, what, InsertionMode::BACK);
             break;
         case InsertionMode::OVERWRITE:
-            Api::cmd_move(unitID, where, InsertionMode::OVERWRITE);
+            Api::cmd_move(unitID, where, InsertionMode::OVERWRITE, true);
             Api::cmd_build(unitID, what, InsertionMode::BACK);
             break;
         case InsertionMode::FRONT:
-            Api::cmd_move(unitID, where, InsertionMode::FRONT);
+            Api::cmd_move(unitID, where, InsertionMode::FRONT, true);
             Api::cmd_build(unitID, what, InsertionMode::SECOND);
             break;
         default:
@@ -187,6 +187,19 @@ int Api::eng_getTeamID(InstanceID unitID) {
 void Api::eng_setInstanceStateEngage(InstanceID unitID, IEngage state) {
     lock_and_get_iterator
     it->state.engageKind = state;
+}
+
+void Api::engS_setInstanceStateEngage(Instance *unit, IEngage state) {
+    unit->state.engageKind = state;
+}
+
+IEngage Api::eng_getInstanceStateEngage(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->state.engageKind;
+}
+
+IEngage Api::engS_getInstanceStateEngage(Instance *unit) {
+    return unit->state.engageKind;
 }
 
 void Api::eng_setInstanceHealth(InstanceID unitID, float health) {
@@ -305,6 +318,17 @@ bool Api::eng_instanceCanBuild(InstanceID unitID) {
 
 bool Api::engS_instanceCanBuild(Instance *unit) {
     return !unit->entity->buildOptions.empty();
+}
+
+bool Api::eng_isEntityIdle(InstanceID unitID) {
+    lock_and_get_iterator
+    auto cit = find_if(it->commandList.begin(), it->commandList.end(), [](auto x){ return x.userDerived; });
+    return cit == it->commandList.end();
+}
+
+bool Api::engS_isEntityIdle(Instance *unit) {
+    auto cit = find_if(unit->commandList.begin(), unit->commandList.end(), [](auto x){ return x.userDerived; });
+    return cit == unit->commandList.end();
 }
 
 std::vector<std::string>& Api::eng_getInstanceBuildOptions(InstanceID unitID) {
@@ -579,4 +603,12 @@ bool Api::util_isNull(void *ptr) {
 
 glm::quat Api::math_multQuat(const glm::quat& a, const glm::quat& b) {
     return a * b;
+}
+
+glm::vec3 Api::math_normVec3(const glm::vec3& v) {
+    return glm::normalize(v);
+}
+
+glm::vec4 Api::math_normVec4(const glm::vec4& v) {
+    return glm::normalize(v);
 }
