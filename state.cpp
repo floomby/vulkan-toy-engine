@@ -131,6 +131,7 @@ void AuthoritativeState::doUpdateTick() {
     std::scoped_lock l(lock);
     if (frame % 300 == 1) std::cout << std::hex << crc() << std::endl;
     auto copy = instances;
+    instRef = &copy;
     instances.clear();
     beams.clear();
     beamDatum.clear();
@@ -367,6 +368,7 @@ void AuthoritativeState::doUpdateTick() {
     copy.reserve(copy.size() + instances.size());
     copy.insert(copy.end(), instances.begin(), instances.end());
     instances = std::move(copy);
+    instRef = &instances;
 }
 
 void AuthoritativeState::dump() const {
@@ -389,7 +391,7 @@ uint32_t AuthoritativeState::crc() const {
 }
 
 AuthoritativeState::AuthoritativeState(Base *context)
-: context(context) {}
+: context(context), instRef(&instances) {}
 
 template<int N>
 struct Forwardable {

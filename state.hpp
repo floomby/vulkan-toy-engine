@@ -138,6 +138,7 @@ public:
     ~AuthoritativeState();
 
     std::vector<Instance *> instances;
+    std::vector<Instance *> *instRef;
     std::vector<LineUBO> beams;
     std::vector<BeamData> beamDatum;
     std::atomic<unsigned long> frame = 0;

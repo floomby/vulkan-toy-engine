@@ -24,7 +24,7 @@ end
 
 class BindingGenerator
     @@enums = ["InsertionMode", "IEngage"]
-    @@classes = ["Entity", "Instance"]
+    @@classes = ["Entity", "Instance", "void"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }
     @@integers = ["uint32_t", "int", "uint", "size_t", "unsigned int", "long unsigned int", "InstanceID", "TeamID", "unsigned char"]
@@ -93,7 +93,7 @@ END
         v#{i}[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
-    #{argtype} a#{i}(v#{i}[0], v#{i}[1], v#{i}[2], v#{i}[3]);
+    #{argtype} a#{i}(v#{i}[3], v#{i}[0], v#{i}[1], v#{i}[2]);
 END
         when *@@classes_matchers
             return <<-END
@@ -202,6 +202,8 @@ lua_createtable(ls, 3, 0);
     lua_rawseti(ls, -2, 2);
     lua_pushnumber(ls, #{x}.z);
     lua_rawseti(ls, -2, 3);
+    lua_getglobal(ls, "Vec3_mt");
+    lua_setmetatable(ls, -2);
 END
             end
         elsif typestr == "glm::vec4"
@@ -215,6 +217,8 @@ lua_createtable(ls, 4, 0);
     lua_rawseti(ls, -2, 3);
     lua_pushnumber(ls, #{x}.w);
     lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Vec4_mt");
+    lua_setmetatable(ls, -2);
 END
             end
         elsif typestr == "glm::quat"
@@ -228,6 +232,8 @@ lua_createtable(ls, 4, 0);
     lua_rawseti(ls, -2, 3);
     lua_pushnumber(ls, #{x}.w);
     lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Quat_mt");
+    lua_setmetatable(ls, -2);
 END
             end
         elsif typestr == "std::string" || typestr == "std::basic_string<char, std::char_traits<char>>>>" || typestr == "std::basic_string<char, std::char_traits<char>>" 
@@ -342,6 +348,7 @@ end
 
 puts <<-END
 void LuaWrapper::apiExport() {
+    luaL_dofile(luaState, "lua/glm_metatables.lua");
 #{call_list.join("\n")}
 }
 END

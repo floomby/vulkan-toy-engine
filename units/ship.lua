@@ -16,7 +16,7 @@ Ship = {
         -- "basic_guided"
     },
     unitAIs = {
-        -- "shooter_tester"
+        "idle_combat_behavior"
     },
     resources = 120
 }

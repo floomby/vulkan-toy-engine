@@ -60,7 +60,7 @@ static int cmd_createInstanceWrapper(lua_State *ls) {
         v2[i - 1] = lua_tonumber(ls, -1);
         lua_pop(ls, 1);
     }
-    glm::quat a2(v2[0], v2[1], v2[2], v2[3]);
+    glm::quat a2(v2[3], v2[0], v2[1], v2[2]);
     auto a3 = (TeamID)luaL_checkinteger(ls, 4);
     CallbackID id4 = 0;
     if (!lua_isnil(ls, -1)) {
@@ -737,6 +737,8 @@ static int eng_getInstancePositionWrapper(lua_State *ls) {
     lua_rawseti(ls, -2, 2);
     lua_pushnumber(ls, r.z);
     lua_rawseti(ls, -2, 3);
+    lua_getglobal(ls, "Vec3_mt");
+    lua_setmetatable(ls, -2);
     return 1;
 }
 
@@ -756,12 +758,26 @@ static int engS_getInstancePositionWrapper(lua_State *ls) {
     lua_rawseti(ls, -2, 2);
     lua_pushnumber(ls, r.z);
     lua_rawseti(ls, -2, 3);
+    lua_getglobal(ls, "Vec3_mt");
+    lua_setmetatable(ls, -2);
     return 1;
 }
 
 static void engS_getInstancePositionExport(lua_State *ls) {
     lua_pushcfunction(ls, engS_getInstancePositionWrapper);
     lua_setglobal(ls, "engS_getInstancePosition");
+}
+
+static int engS_getClosestEnemyWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getClosestEnemy(a0);
+    lua_pushlightuserdata(ls, r);    return 1;
+}
+
+static void engS_getClosestEnemyExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getClosestEnemyWrapper);
+    lua_setglobal(ls, "engS_getClosestEnemy");
 }
 
 static int eng_getInstanceHeadingWrapper(lua_State *ls) {
@@ -776,6 +792,8 @@ static int eng_getInstanceHeadingWrapper(lua_State *ls) {
     lua_rawseti(ls, -2, 3);
     lua_pushnumber(ls, r.w);
     lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Quat_mt");
+    lua_setmetatable(ls, -2);
     return 1;
 }
 
@@ -797,6 +815,8 @@ static int engS_getInstanceHeadingWrapper(lua_State *ls) {
     lua_rawseti(ls, -2, 3);
     lua_pushnumber(ls, r.w);
     lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Quat_mt");
+    lua_setmetatable(ls, -2);
     return 1;
 }
 
@@ -1081,6 +1101,8 @@ static int util_colorIntToVecWrapper(lua_State *ls) {
     lua_rawseti(ls, -2, 3);
     lua_pushnumber(ls, r.w);
     lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Vec4_mt");
+    lua_setmetatable(ls, -2);
     return 1;
 }
 
@@ -1089,7 +1111,61 @@ static void util_colorIntToVecExport(lua_State *ls) {
     lua_setglobal(ls, "util_colorIntToVec");
 }
 
+static int util_isNullWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (void*)lua_topointer(ls, 1);
+    auto r = Api::util_isNull(a0);
+    lua_pushboolean(ls, r);    return 1;
+}
+
+static void util_isNullExport(lua_State *ls) {
+    lua_pushcfunction(ls, util_isNullWrapper);
+    lua_setglobal(ls, "util_isNull");
+}
+
+static int math_multQuatWrapper(lua_State *ls) {
+    if(!lua_istable(ls, 1)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 4> v0;
+    if (lua_objlen(ls, 1) != 4) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 4; i++) {
+        lua_rawgeti(ls, 1, i);
+        luaL_checknumber(ls, -1);
+        v0[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::quat a0(v0[3], v0[0], v0[1], v0[2]);
+    if(!lua_istable(ls, 2)) throw std::runtime_error("Invalid lua arguments (table)");
+    std::array<float, 4> v1;
+    if (lua_objlen(ls, 2) != 4) throw std::runtime_error("C++/Lua vector mismatch");
+    for (int i = 1; i <= 4; i++) {
+        lua_rawgeti(ls, 2, i);
+        luaL_checknumber(ls, -1);
+        v1[i - 1] = lua_tonumber(ls, -1);
+        lua_pop(ls, 1);
+    }
+    glm::quat a1(v1[3], v1[0], v1[1], v1[2]);
+    auto r = Api::math_multQuat(a0, a1);
+    lua_createtable(ls, 4, 0);
+    lua_pushnumber(ls, r.x);
+    lua_rawseti(ls, -2, 1);
+    lua_pushnumber(ls, r.y);
+    lua_rawseti(ls, -2, 2);
+    lua_pushnumber(ls, r.z);
+    lua_rawseti(ls, -2, 3);
+    lua_pushnumber(ls, r.w);
+    lua_rawseti(ls, -2, 4);
+    lua_getglobal(ls, "Quat_mt");
+    lua_setmetatable(ls, -2);
+    return 1;
+}
+
+static void math_multQuatExport(lua_State *ls) {
+    lua_pushcfunction(ls, math_multQuatWrapper);
+    lua_setglobal(ls, "math_multQuat");
+}
+
 void LuaWrapper::apiExport() {
+    luaL_dofile(luaState, "lua/glm_metatables.lua");
     cmd_moveExport(luaState);
     cmd_setTargetIDExport(luaState);
     cmd_createInstanceExport(luaState);
@@ -1138,6 +1214,7 @@ void LuaWrapper::apiExport() {
     engS_removeInstanceCustomStateExport(luaState);
     eng_getInstancePositionExport(luaState);
     engS_getInstancePositionExport(luaState);
+    engS_getClosestEnemyExport(luaState);
     eng_getInstanceHeadingExport(luaState);
     engS_getInstanceHeadingExport(luaState);
     eng_frameExport(luaState);
@@ -1164,4 +1241,6 @@ void LuaWrapper::apiExport() {
     net_declareNullTeamExport(luaState);
     net_pauseExport(luaState);
     util_colorIntToVecExport(luaState);
+    util_isNullExport(luaState);
+    math_multQuatExport(luaState);
 }

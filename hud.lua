@@ -385,10 +385,11 @@ state_giveResources(2, 50000)
 -- eng_declareKeyBinding(keys.KEY_G);
 -- cmd_createInstance("asteroid", { -20.0, 0.0, 0.0 }, { -0.798, 0.420, -0.104, 0.420 }, 1, dummyCallback)
 -- cmd_createInstance("shipyard", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
-cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 2, nil)
+cmd_createInstance("shipyard", { -6.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0, 1.0 }, 2, nil)
 -- cmd_createInstance("ship", { 0.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
-cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 1.0, 0.0, 0.0, 0.0 }, 1, nil)
+cmd_createInstance("constructor", { 26.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0, 1.0 }, 1, nil)
+cmd_createInstance("ship", { 50.0, 0.0, 0.0 }, { 0.707, 0.0, 0.0, 0.707 }, 1, nil)
+cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0, 1.0 }, 1, nil)
 -- cmd_createInstance("turret", { 6.0, 0.0, 0.0 }, { 0.0, 0.707, 0.707, 0.0 }, 1, nil)
 
 

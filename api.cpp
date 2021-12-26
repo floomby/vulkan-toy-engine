@@ -413,8 +413,24 @@ glm::vec3 Api::eng_getInstancePosition(InstanceID unitID) {
     return it->position;
 }
 
-glm::vec3& Api::engS_getInstancePosition(Instance *unit) {
+const glm::vec3& Api::engS_getInstancePosition(Instance *unit) {
     return unit->position;
+}
+
+Instance *Api::engS_getClosestEnemy(Instance *unit) {
+    // Idk what my policy in these things being null is??
+    if (!unit) return nullptr;
+    auto closest = std::numeric_limits<float>::max();
+    Instance *ret = nullptr;
+    for (auto other : *context->authState.instRef) {
+        if (!other || other->entity->isProjectile || other == unit || other->team == unit->team) continue;
+        auto dist2 = distance2(unit->position, other->position);
+        if (dist2 < closest) {
+            ret = other;
+            closest = dist2;
+        }
+    }
+    return ret;
 }
 
 glm::quat Api::eng_getInstanceHeading(InstanceID unitID) {
@@ -422,7 +438,7 @@ glm::quat Api::eng_getInstanceHeading(InstanceID unitID) {
     return it->heading;
 }
 
-glm::quat& Api::engS_getInstanceHeading(Instance *unit) {
+const glm::quat& Api::engS_getInstanceHeading(Instance *unit) {
     return unit->heading;
 }
 
@@ -555,4 +571,12 @@ glm::vec4 Api::util_colorIntToVec(uint32_t color) {
         (float)(0x0000ff00 & color) / 0x0000ff00,
         (float)(0x000000ff & color) / 0x000000ff,
     };
+}
+
+bool Api::util_isNull(void *ptr) {
+    return !ptr;
+}
+
+glm::quat Api::math_multQuat(const glm::quat& a, const glm::quat& b) {
+    return a * b;
 }

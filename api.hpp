@@ -67,9 +67,10 @@ public:
     static void eng_removeInstanceCustomState(InstanceID unitID, std::string key);
     static void engS_removeInstanceCustomState(Instance *unit, std::string key);
     static glm::vec3 eng_getInstancePosition(InstanceID unitID);
-    static glm::vec3& engS_getInstancePosition(Instance *unit);
+    static const glm::vec3& engS_getInstancePosition(Instance *unit);
+    static Instance *engS_getClosestEnemy(Instance *unit);
     static glm::quat eng_getInstanceHeading(InstanceID unitID);
-    static glm::quat& engS_getInstanceHeading(Instance *unit);
+    static const glm::quat& engS_getInstanceHeading(Instance *unit);
     static unsigned long eng_frame();
     static float engS_getRandomF();
     static void eng_quit();
@@ -101,4 +102,7 @@ public:
     static void net_pause(bool pause);
 
     static glm::vec4 util_colorIntToVec(uint32_t color);
+    static bool util_isNull(void *ptr);
+
+    static glm::quat math_multQuat(const glm::quat& a, const glm::quat& b);
 };

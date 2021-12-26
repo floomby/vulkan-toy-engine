@@ -1,6 +1,6 @@
 ## Next steps
  * Streaming sound for music (the sounds now are loaded into ram, which is fine for small stuff, but traditionally music is streamed)
- * Configurable keyboard input
+ * Configurable keyboard input (This is half done)
  * Resource system
  * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
