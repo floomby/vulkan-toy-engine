@@ -2178,6 +2178,7 @@ uint32_t Gui::idUnderPoint(float x, float y) {
     std::scoped_lock l(dataMutex);
     uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
     float maxLayer = 1.0;
+    // TODO which buffer is a race with rebuildBuffer (at least I am pretty sure)
     for(int i = Gui::dummyVertexCount; i < usedSizes[whichBuffer]; i += 6){
         GuiVertex *vertex = static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + i;
         if(

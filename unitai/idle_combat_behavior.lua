@@ -7,7 +7,7 @@ function Idle_combat_behavior(instance)
         local epos = engS_getInstancePosition(enemy)
         local vec = epos - pos
         local dist = math.sqrt(vec * vec)
-        local engret = engS_getInstanceStateEngage(instance)
+        local engret = engS_getState(instance, "engage")
         if dist > 18 and engret == IEngage__ENGAGE then
             local id = engS_getInstanceID(instance)
             local norm = vec / dist
@@ -16,7 +16,7 @@ function Idle_combat_behavior(instance)
         if dist < 30 and engret == IEngage__AVOID then
             local id = engS_getInstanceID(instance)
             local norm = vec / dist
-            cmd_move(id, pos + norm * (27 - dist), InsertionMode__OVERWRITE)
+            cmd_move(id, pos - norm * (27 - dist), InsertionMode__OVERWRITE)
         end
     end
 end

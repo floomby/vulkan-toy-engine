@@ -59,7 +59,7 @@ void Instance::syncToAuthInstance(const Instance& other) {
     // dH = other.dH;
     commandList = other.commandList;
     health = other.health;
-    state = other.state;
+    customState = other.customState;
     uncompleted = other.uncompleted;
     resources = other.resources;
 }

@@ -24,6 +24,7 @@ public:
     static void cmd_destroyInstance(InstanceID unitID);
     static void cmd_build(InstanceID unitID, const char *what, InsertionMode mode);
     static void cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionMode mode, const char *what);
+    static void cmd_setState(InstanceID unitID, const char *state, uint32_t value, InsertionMode mode);
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     // I dont like how I "namespaced" these function, it seems like almost everything is an eng* function
@@ -33,10 +34,6 @@ public:
     static void eng_echo(const char *message);
     static int eng_getTeamID(InstanceID unitID);
     static std::vector<InstanceID> eng_getSelectedInstances();
-    static void eng_setInstanceStateEngage(InstanceID unitID, IEngage state);
-    static void engS_setInstanceStateEngage(Instance *unit, IEngage state);
-    static IEngage eng_getInstanceStateEngage(InstanceID unitID);
-    static IEngage engS_getInstanceStateEngage(Instance *unit);
     static void eng_setInstanceHealth(InstanceID uintID, float health);
     static float eng_getInstanceHealth(InstanceID unitID);
     static float engS_getInstanceHealth(Instance *unit);
@@ -89,6 +86,8 @@ public:
     static bool eng_entityIsStation(const std::string& name);
     static bool eng_isEntityIdle(InstanceID unitID);
     static bool engS_isEntityIdle(Instance *unit);
+    static uint32_t eng_getState(InstanceID unitID, const char *name);
+    static uint32_t engS_getState(Instance *unit, const char *name);
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);

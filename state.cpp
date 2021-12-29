@@ -231,6 +231,9 @@ void AuthoritativeState::doUpdateTick() {
                     it->target = Target(cmd.data.id);
                     it->commandList.pop_front();
                     break;
+                case CommandKind::STATE:
+                    it->customState[cmd.data.buf] = cmd.data.value;
+                    break;
             }
             if (!it->isBuilding && it->entity->buildPower > 0) {
                 auto bit = find_if(it->commandList.begin(), it->commandList.end(), [](const auto& x) -> bool { return x.kind == CommandKind::BUILD; });
@@ -407,12 +410,13 @@ private:
     CommandKind data[N];
 };
 
-static const Forwardable<5> forwardable(
+static const Forwardable<6> forwardable(
     CommandKind::MOVE,
     CommandKind::STOP,
     CommandKind::TARGET_UNIT,
     CommandKind::TARGET_LOCATION,
-    CommandKind::BUILD
+    CommandKind::BUILD,
+    CommandKind::STATE
 );
 
 #include "api_util.hpp"

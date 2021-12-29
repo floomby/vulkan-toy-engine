@@ -244,6 +244,16 @@ local function populate_selected_menu()
     selection_menu_shown = true
 end
 
+local engage_state_map = {}
+engage_state_map[0] = IEngage__ENGAGE
+engage_state_map[1] = IEngage__AVOID
+
+local function set_engagement_settings(state)
+    for _, unit in ipairs(eng_getSelectedInstances()) do
+        cmd_setState(unit, "engage", engage_state_map[state], InsertionMode__FRONT)
+    end
+end
+
 Hud = {
     name = "hud root",
     x = -1.0,
@@ -295,7 +305,8 @@ Hud = {
             color = 0x000000dd,
             secondaryColor = 0x000000ff,
             name = "engret",
-            tooltip = "Idle behavior\nAvoid combat or engage"
+            tooltip = "Idle behavior\nAvoid combat or engage",
+            onToggle = set_engagement_settings
         },
         {
             x = -1.0 + 0.025 / aspect_ratio,

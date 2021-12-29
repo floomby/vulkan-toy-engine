@@ -147,6 +147,21 @@ static void cmd_buildStationExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_buildStation");
 }
 
+static int cmd_setStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto a2 = (uint32_t)luaL_checkinteger(ls, 3);
+    auto a3 = (InsertionMode)luaL_checkinteger(ls, 4);
+    Api::cmd_setState(a0, a1, a2, a3);
+    return 0;
+}
+
+static void cmd_setStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_setStateWrapper);
+    lua_setglobal(ls, "cmd_setState");
+}
+
 static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
     auto a0 = (Entity*)lua_topointer(ls, 1);
@@ -283,54 +298,6 @@ static int eng_getSelectedInstancesWrapper(lua_State *ls) {
 static void eng_getSelectedInstancesExport(lua_State *ls) {
     lua_pushcfunction(ls, eng_getSelectedInstancesWrapper);
     lua_setglobal(ls, "eng_getSelectedInstances");
-}
-
-static int eng_setInstanceStateEngageWrapper(lua_State *ls) {
-    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
-    auto a1 = (IEngage)luaL_checkinteger(ls, 2);
-    Api::eng_setInstanceStateEngage(a0, a1);
-    return 0;
-}
-
-static void eng_setInstanceStateEngageExport(lua_State *ls) {
-    lua_pushcfunction(ls, eng_setInstanceStateEngageWrapper);
-    lua_setglobal(ls, "eng_setInstanceStateEngage");
-}
-
-static int engS_setInstanceStateEngageWrapper(lua_State *ls) {
-    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
-    auto a0 = (Instance*)lua_topointer(ls, 1);
-    auto a1 = (IEngage)luaL_checkinteger(ls, 2);
-    Api::engS_setInstanceStateEngage(a0, a1);
-    return 0;
-}
-
-static void engS_setInstanceStateEngageExport(lua_State *ls) {
-    lua_pushcfunction(ls, engS_setInstanceStateEngageWrapper);
-    lua_setglobal(ls, "engS_setInstanceStateEngage");
-}
-
-static int eng_getInstanceStateEngageWrapper(lua_State *ls) {
-    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
-    auto r = Api::eng_getInstanceStateEngage(a0);
-    lua_pushinteger(ls, static_cast<int>(r));    return 1;
-}
-
-static void eng_getInstanceStateEngageExport(lua_State *ls) {
-    lua_pushcfunction(ls, eng_getInstanceStateEngageWrapper);
-    lua_setglobal(ls, "eng_getInstanceStateEngage");
-}
-
-static int engS_getInstanceStateEngageWrapper(lua_State *ls) {
-    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
-    auto a0 = (Instance*)lua_topointer(ls, 1);
-    auto r = Api::engS_getInstanceStateEngage(a0);
-    lua_pushinteger(ls, static_cast<int>(r));    return 1;
-}
-
-static void engS_getInstanceStateEngageExport(lua_State *ls) {
-    lua_pushcfunction(ls, engS_getInstanceStateEngageWrapper);
-    lua_setglobal(ls, "engS_getInstanceStateEngage");
 }
 
 static int eng_setInstanceHealthWrapper(lua_State *ls) {
@@ -1002,6 +969,33 @@ static void engS_isEntityIdleExport(lua_State *ls) {
     lua_setglobal(ls, "engS_isEntityIdle");
 }
 
+static int eng_getStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto r = Api::eng_getState(a0, a1);
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void eng_getStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getStateWrapper);
+    lua_setglobal(ls, "eng_getState");
+}
+
+static int engS_getStateWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    auto r = Api::engS_getState(a0, a1);
+    lua_pushinteger(ls, r);    return 1;
+}
+
+static void engS_getStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getStateWrapper);
+    lua_setglobal(ls, "engS_getState");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -1294,16 +1288,13 @@ void LuaWrapper::apiExport() {
     cmd_destroyInstanceExport(luaState);
     cmd_buildExport(luaState);
     cmd_buildStationExport(luaState);
+    cmd_setStateExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_createGuidedProjectileExport(luaState);
     eng_createBeamExport(luaState);
     eng_echoExport(luaState);
     eng_getTeamIDExport(luaState);
     eng_getSelectedInstancesExport(luaState);
-    eng_setInstanceStateEngageExport(luaState);
-    engS_setInstanceStateEngageExport(luaState);
-    eng_getInstanceStateEngageExport(luaState);
-    engS_getInstanceStateEngageExport(luaState);
     eng_setInstanceHealthExport(luaState);
     eng_getInstanceHealthExport(luaState);
     engS_getInstanceHealthExport(luaState);
@@ -1354,6 +1345,8 @@ void LuaWrapper::apiExport() {
     eng_entityIsStationExport(luaState);
     eng_isEntityIdleExport(luaState);
     engS_isEntityIdleExport(luaState);
+    eng_getStateExport(luaState);
+    engS_getStateExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

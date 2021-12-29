@@ -127,6 +127,22 @@ void Api::cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionM
     }
 }
 
+void Api::cmd_setState(InstanceID unitID, const char *state, uint32_t value, InsertionMode mode) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::STATE, unitID, { {}, {}, value }, mode, true }};
+    strncpy(data.command.data.buf, state, CommandDataBufSize);
+    data.command.data.buf[CommandDataBufSize - 1] = '\0';
+    context->send(data);
+}
+
+uint32_t Api::eng_getState(InstanceID unitID, const char *name) {
+    lock_and_get_iterator
+    return it->customState[name];
+}
+
+uint32_t Api::engS_getState(Instance *unit, const char *name) {
+    return unit->customState[name];
+}
+
 void Api::eng_createBallisticProjectile(Entity *projectileEntity, const glm::vec3& position, const glm::vec3& normedDirection, InstanceID parentID) {
     std::scoped_lock l(context->authState.lock);
     Instance *inst;
@@ -182,24 +198,6 @@ std::vector<InstanceID> Api::eng_getSelectedInstances() {
 int Api::eng_getTeamID(InstanceID unitID) {
     lock_and_get_iterator
     return it->id;
-}
-
-void Api::eng_setInstanceStateEngage(InstanceID unitID, IEngage state) {
-    lock_and_get_iterator
-    it->state.engageKind = state;
-}
-
-void Api::engS_setInstanceStateEngage(Instance *unit, IEngage state) {
-    unit->state.engageKind = state;
-}
-
-IEngage Api::eng_getInstanceStateEngage(InstanceID unitID) {
-    lock_and_get_iterator
-    return it->state.engageKind;
-}
-
-IEngage Api::engS_getInstanceStateEngage(Instance *unit) {
-    return unit->state.engageKind;
 }
 
 void Api::eng_setInstanceHealth(InstanceID unitID, float health) {

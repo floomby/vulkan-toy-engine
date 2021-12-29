@@ -22,7 +22,8 @@ enum class CommandKind {
     DESTROY,
     TARGET_LOCATION,
     TARGET_UNIT,
-    BUILD
+    BUILD,
+    STATE,
     //.....
 };
 
@@ -31,7 +32,10 @@ const size_t CommandDataBufSize = 256;
 struct CommandData {
     glm::vec3 dest;
     glm::quat heading;
-    uint32_t id;
+    union {
+        uint32_t id;
+        uint32_t value;
+    };
     char buf[CommandDataBufSize];
 };
 
@@ -133,8 +137,9 @@ public:
     // This is the build power being USED on this units construction
     float buildPower = 0.0f;
 
-    InstanceState state { IEngage::ENGAGE };
-    std::map<std::string, int> customState;
+    // This mutext may have to exist in the future
+    // std::mutex customStateMutex;
+    std::map<std::string, uint32_t> customState;
 
     uint framesAlive = 0;
 
