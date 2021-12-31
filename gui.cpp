@@ -562,6 +562,10 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
 
     if (visible) {
         acm.insert(acm.end(), vertices.begin(), vertices.end());
+        for (const auto& vert : vertices) {
+            if (vert.pos.x == 0.0f && vert.pos.y == 0.0f)
+                std::cout << "We found the problem" << std::endl;
+        }
         indexMap.insert({ id, index });
         index++;
 

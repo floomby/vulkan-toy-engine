@@ -233,6 +233,7 @@ void AuthoritativeState::doUpdateTick() {
                     break;
                 case CommandKind::STATE:
                     it->customState[cmd.data.buf] = cmd.data.value;
+                    it->commandList.pop_front();
                     break;
             }
             if (!it->isBuilding && it->entity->buildPower > 0) {

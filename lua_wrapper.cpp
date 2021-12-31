@@ -338,6 +338,7 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     auto minable = getBooleanField("minable");
     ret->isResource = minable;
     ret->isUnit = !minable;
+    ret->canCloak = getBooleanField("cloakable");
     ret->resources = getNumberField("resources");
     ret->isStation = getBooleanField("stationary");
     getStringsField("buildOptions", ret->buildOptions);

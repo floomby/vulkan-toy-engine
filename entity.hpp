@@ -46,6 +46,7 @@ public:
     std::string name;
     float buildPower = 0.0f;
     float minePower = 0.0f;
+    bool canCloak = false;
 
     float dv;
     float v_m;

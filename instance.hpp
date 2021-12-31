@@ -112,6 +112,7 @@ public:
     bool inPlay = false;
     bool orphaned = false;
     bool isPlacement = false;
+    bool cloaked = false;
 
     InstanceID parentID = 0;
 
