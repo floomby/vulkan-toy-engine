@@ -4,7 +4,7 @@ require 'pp'
 
 require 'rbgccxml'
 
-source = RbGCCXML.parse("api.hpp", :cxxflags => ["-std=c++20"])
+source = RbGCCXML.parse((`git rev-parse --show-toplevel`).chomp + "/api.hpp", :cxxflags => ["-std=c++20"])
 
 class String
     def valid_brackets?
@@ -114,6 +114,7 @@ END
             argtype.gsub!(/>/, "")
             if argtype.gsub!(/^void /) == nil
                 puts "Non void returning callbacks are nonsense"
+                raise
             end
             # This supports multiple callbacks, the networking protocol does not, but can be made to easily
             return <<-END
@@ -334,7 +335,8 @@ END
     end
 end
 
-puts <<-END
+File.open((`git rev-parse --show-toplevel`).chomp + "/lua/bindings.cpp","w") do |f|
+    f.puts <<-END
 // This is an auto generated file changes can be overwritten durring build process
 #include "../lua_wrapper.hpp"
 #include "../api.hpp"
@@ -342,23 +344,26 @@ puts <<-END
 
 END
 
-call_list = []
+    call_list = []
 
-source.classes("Api").methods.each do |m|
-    name = m.to_cpp
-    rettype = m.return_type.to_cpp
-    argtypes = m.arguments.map { |x| x.to_cpp }
+    source.classes("Api").methods.each do |m|
+        name = m.to_cpp
+        rettype = m.return_type.to_cpp
+        argtypes = m.arguments.map { |x| x.to_cpp }
 
-    bg = BindingGenerator.new(name, rettype, argtypes)
+        bg = BindingGenerator.new(name, rettype, argtypes)
 
-    puts bg.wrapper_gen
-    puts bg.exporter_gen
-    call_list << bg.to_call
-end
+        f.puts bg.wrapper_gen
+        f.puts bg.exporter_gen
+        call_list << bg.to_call
+    end
 
-puts <<-END
+    f.puts <<-END
 void LuaWrapper::apiExport() {
     luaL_dofile(luaState, "lua/glm_metatables.lua");
 #{call_list.join("\n")}
 }
 END
+end
+
+puts "Generated lua bindings"

@@ -1,0 +1,6 @@
+[submodule "lua/LuaJIT"]
+	path = lua/LuaJIT
+	url = https://github.com/LuaJIT/LuaJIT.git
+[submodule "lua/rbgccxml"]
+	path = lua/rbgccxml
+	url = https://github.com/floomby/rbgccxml.git
