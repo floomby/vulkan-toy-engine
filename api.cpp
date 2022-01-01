@@ -282,9 +282,9 @@ int Api::eng_getScreenHeight() {
 }
 
 // Idk if I actually want these 2
-void Api::eng_setCursorEntity(const std::string& name) {
+void Api::eng_setCursorEntity(InstanceID unitID, const std::string& name) {
     assert(!context->headless);
-    static_cast<Engine *>(context)->setCursorEntity(name);
+    static_cast<Engine *>(context)->setCursorEntity(name, unitID);
 }
 
 void Api::eng_clearCursorEntity() {

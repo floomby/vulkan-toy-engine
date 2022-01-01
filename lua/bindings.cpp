@@ -927,9 +927,10 @@ static void eng_getScreenHeightExport(lua_State *ls) {
 }
 
 static int eng_setCursorEntityWrapper(lua_State *ls) {
-    luaL_checkstring(ls, 1);
-    auto a0 = lua_tostring(ls, 1);
-    Api::eng_setCursorEntity(a0);
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    luaL_checkstring(ls, 2);
+    auto a1 = lua_tostring(ls, 2);
+    Api::eng_setCursorEntity(a0, a1);
     return 0;
 }
 

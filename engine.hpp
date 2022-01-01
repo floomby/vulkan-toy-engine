@@ -266,9 +266,10 @@ private:
         CURSOR_ATTACK
     };
     Instance cursorInstance, cursorRender;
+    InstanceID unitDoingStationBuilding = 0;
     void setCursorInstance(const Instance& instance);
     void setCursorInstance(Instance&& instance);
-    void setCursorEntity(const std::string& name);
+    void setCursorEntity(const std::string& name, InstanceID unitID);
     void removeCursorEntity();
 
     inline std::pair<float, float> normedDevice(float x, float y);

@@ -83,7 +83,7 @@ public:
     static int eng_getScreenWidth();
     static int eng_getScreenHeight();
     // read setCursorEntity as "we are placing a structure to build now" (I don't like how I did this)
-    static void eng_setCursorEntity(const std::string& name);
+    static void eng_setCursorEntity(InstanceID unitID, const std::string& name);
     static void eng_clearCursorEntity();
     static bool eng_entityIsStation(const std::string& name);
     static bool eng_isEntityIdle(InstanceID unitID);

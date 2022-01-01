@@ -2,26 +2,22 @@
  * Streaming sound for music (the sounds now are loaded into ram, which is fine for small stuff, but traditionally music is streamed)
  * Configurable keyboard input (This is half done)
  * Resource system
- * Shader multisampling (This is going to create a problem with alpha discard for the icons)
  * Unit highlighting shader improvement
  * gui - I still need some more components, but this seems really low priority right now
- * Fix the projectile calculation code
  * Maybe units should try and avoid friendly firing
- * Finish unit ais
  * Decide where the cammera settings go (runtime in setting, in lua, or compile time?) becuase the health bar drawing depends near far for normed z offset (This needs to be fixed)
  * The switching in the dynamic shadow level of detail is sort of appalling (this could be as easy as reducing the pcf kernel size, but I doubt it)
+ * The cmake file is crappy
 
 ## Considerations
+ * AHHHHH, There is the absolutely obnoxious bug that rarely happens which that leads to the corrpution of the second (always the second one it seems, happens on first buffer swap after the initial draw) of the gui vertex buffers (they are double buffered), but I can't seem to ever reproduce it
  * I should adopt a style guide or something, the code base is big enough to warrent one
- * I think many things will be broken on big endian systems
- * There are problems with building stuff. I had to patch the castxml rubygem I was using to make it work.
- * I am linking to libpng now for freetype2, maybe I should stop using stbi
+ * I think networking is broken on big endian systems (I don't think I care though)
  * The string of glyphs to cache is pretty silly imo
  * cpu (host) allocation stuff for vulkan (vma)?? (This is not worth doing until I profile stuff)
  * I think I read the glfw docs wrong and dont need to be using interthread queues for the input handling threads (afaict the linux tids are the same as the engine thread, this could be not guarenteed though)
  * The background rendinging pass is almost entirely uneeded at this point, I moved the icon rendering from this pass back into the world pass because without it the code complexity of order line drawing was going to be really high doing it this way
  * I need to take a look and lighting and materials and stuff
- * I should move to using cmake or something for building
  * I need to look around at vram memory usage in general, it is very inefficient in many places
 
 ## Longer term

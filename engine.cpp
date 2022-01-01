@@ -2159,6 +2159,8 @@ void Gui::destroyBuffer(int index) {
 }
 
 void Gui::reallocateBuffer(int index, size_t newSize) {
+    std::cout << "Reallocating hud buffer" << std::endl;
+
     destroyBuffer(index);
 
     VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
@@ -2178,7 +2180,6 @@ uint32_t Gui::idUnderPoint(float x, float y) {
     std::scoped_lock l(dataMutex);
     uint32_t ret = 0; // the root has id 0 and will get all clicks that are orphans
     float maxLayer = 1.0;
-    // TODO which buffer is a race with rebuildBuffer (at least I am pretty sure)
     for(int i = Gui::dummyVertexCount; i < usedSizes[whichBuffer]; i += 6){
         GuiVertex *vertex = static_cast<GuiVertex *>(gpuAllocations[whichBuffer]->GetMappedData()) + i;
         if(
@@ -2639,12 +2640,13 @@ void Engine::handleInput() {
                 if (mouseAction == MOUSE_MOVING_Z) {
                     Api::cmd_move(id, { movingTo.x, movingTo.y, movingTo.z }, mode, true);
                 } else {
-                    if (cursorInstance.valid) {
-                        Api::cmd_buildStation(id, movingTo, mode, cursorInstance.entity->name.c_str());
+                    if (cursorInstance.valid && unitDoingStationBuilding) {
+                        Api::cmd_buildStation(unitDoingStationBuilding, movingTo, mode, cursorInstance.entity->name.c_str());
                         if (mode == InsertionMode::OVERWRITE) {
                             apiLocks[APIL_CURSOR_INSTANCE].lock();
                             setCursorInstance(Instance());
                             apiLocks[APIL_CURSOR_INSTANCE].unlock();
+                            break;
                         }
                     }
                 }
@@ -2942,7 +2944,7 @@ void Engine::drawFrame() {
         auto bufRet = gui->updateBuffer();
         hudVertexCount = get<0>(bufRet);
         guiOutOfDate = false;
-        guiIdToBufferIndex = std::move(get<1>(bufRet));
+        guiIdToBufferIndex = get<1>(bufRet);
         hudBuffer = get<2>(bufRet);
     }
     if (hudDescriptorNeedsRewrite[currentFrame]) {
@@ -3268,7 +3270,7 @@ void Engine::setCursorInstance(Instance&& instance) {
     cursorInstance.position = position;
 }
 
-void Engine::setCursorEntity(const std::string& name) {
+void Engine::setCursorEntity(const std::string& name, InstanceID unitID) {
     if (name.empty()) {
         removeCursorEntity();
     }
@@ -3277,6 +3279,7 @@ void Engine::setCursorEntity(const std::string& name) {
     Instance inst(ent, currentScene->textures.data() + ent->textureIndex, currentScene->models.data() + ent->modelIndex, 1, engineSettings.teamIAm.id, false);
     setCursorInstance(std::move(inst));
     placingStructure = true;
+    unitDoingStationBuilding = unitID;
 }
 
 void Engine::removeCursorEntity() {

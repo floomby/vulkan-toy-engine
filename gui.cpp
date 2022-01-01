@@ -561,6 +561,8 @@ void GuiComponent::propegateEngineNotification(const std::string& notification) 
 void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint32_t, uint>& indexMap, uint& index) {
     if (dynamicNDC) resizeVertices();
 
+    if (index == Gui::dummyCompomentCount) oldTextures.clear();
+    
     if (visible) {
         acm.insert(acm.end(), vertices.begin(), vertices.end());
         for (const auto& vert : vertices) {
@@ -573,8 +575,6 @@ void GuiComponent::buildVertexBuffer(std::vector<GuiVertex>& acm, std::map<uint3
         for(const auto child : children)
             child->buildVertexBuffer(acm, indexMap, index);
     }
-
-    oldTextures.clear();
 }
 
 GuiLabel::GuiLabel(Gui *context, const char *str, uint32_t textColor, uint32_t backgroundColor, std::pair<float, float> c0, std::pair<float, float> c1, int layer,
