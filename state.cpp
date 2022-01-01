@@ -143,6 +143,9 @@ void AuthoritativeState::doUpdateTick() {
             toDelete.push_back(it);
             it = nullptr;
             continue;
+        } else {
+            std::fill(it->outOfFog.begin(), it->outOfFog.end(), true);
+            std::fill(it->outOfRadar.begin(), it->outOfRadar.end(), true);
         }
         assert(it->inPlay);
         if (it->entity->isProjectile) {
@@ -235,6 +238,10 @@ void AuthoritativeState::doUpdateTick() {
                     it->customState[cmd.data.buf] = cmd.data.value;
                     it->commandList.pop_front();
                     break;
+                case CommandKind::INTRINSIC_STATE:
+                    it->intrinicStates[cmd.data.intrinicState] = cmd.data.value;
+                    it->commandList.pop_front();
+                    break;
             }
             if (!it->isBuilding && it->entity->buildPower > 0) {
                 auto bit = find_if(it->commandList.begin(), it->commandList.end(), [](const auto& x) -> bool { return x.kind == CommandKind::BUILD; });
@@ -271,11 +278,21 @@ void AuthoritativeState::doUpdateTick() {
         }
         if (it && !it->uncompleted) {
             if (it->hasCollision) for (auto other : copy) {
+                if (other && other->team && other->team != it->team && !other->entity->isProjectile && !other->uncompleted) {
+                    if (it->outOfFog[other->team - 1]) {
+                        it->outOfFog[other->team - 1] = distance2(it->position, other->position) > other->entity->visionRange2;
+                    }
+                    if (it->outOfRadar[other->team - 1]) {
+                        it->outOfRadar[other->team - 1] = distance2(it->position, other->position) > other->entity->radarRange2;
+                    }
+                }
                 if (!other || *other == *it || it->entity->isProjectile || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
             }
-            for (const auto& ai : it->entity->ais) {
-                ai->run(*it);
+            if (it->intrinicStates[IS_UNIT_AI_ENABLED]) {
+                for (const auto& ai : it->entity->ais) {
+                    ai->run(*it);
+                }
             }
             float closest = std::numeric_limits<float>::max();
             glm::mat3 trans;

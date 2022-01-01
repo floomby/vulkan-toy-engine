@@ -341,6 +341,8 @@ Entity *LuaWrapper::loadEntityFile(const std::string& filename) {
     ret->canCloak = getBooleanField("cloakable");
     ret->resources = getNumberField("resources");
     ret->isStation = getBooleanField("stationary");
+    getNumberField("radar", ret->radarRange);
+    getNumberField("vision", ret->visionRange);
     getStringsField("buildOptions", ret->buildOptions);
     getStringField("buildIcon", ret->buildIcon);
     getNumberField("buildPower", ret->buildPower);

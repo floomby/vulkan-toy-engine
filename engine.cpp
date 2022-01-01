@@ -3147,6 +3147,7 @@ void Engine::runCurrentScene() {
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
     lua->exportEnumToLua<InsertionMode>();
+    lua->exportEnumToLua<IntrinicStates>();
     lua->exportEnumToLua<IEngage>();
     lua->apiExport();
 
@@ -3213,6 +3214,7 @@ void Engine::runCurrentScene() {
     consoleLua = new LuaWrapper(true);
     consoleLua->exportEnumToLua<InsertionMode>();
     consoleLua->exportEnumToLua<IEngage>();
+    consoleLua->exportEnumToLua<IntrinicStates>();
     consoleLua->apiExport();
     consoleThread = std::thread(&Engine::handleConsoleInput, this);
 
@@ -3697,6 +3699,9 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
     // 0th instance is always the skybox (see Engine::loadDefaultScene)
     for (auto j : zSorted) {
         if (!currentScene->state.instances[j]->valid || !currentScene->state.instances[j]->rendered) continue;
+        if (engineSettings.teamIAm.id && engineSettings.teamIAm.id != currentScene->state.instances[j]->team &&
+            currentScene->state.instances[j]->entity->isUnit && currentScene->state.instances[j]->outOfFog[engineSettings.teamIAm.id - 1]) continue;
+        // TODO I need to decide how I am drawing radar dots
         pushConstants.teamColor = Scene::teamColors[currentScene->state.instances[j]->team];
         dynamicOffset = j * uniformSync->uniformSkip;
         // render the unit as an icon
@@ -3714,7 +3719,8 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
             pushConstants.renderType = RINT_PROJECTILE;
         } else {
             pushConstants.renderType = (currentScene->state.instances[j]->uncompleted ? RINT_UNCOMPLETE : RINT_OBJ)
-                | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT | (int)currentScene->state.instances[j]->isPlacement * RFLAG_TRANSPARENT;
+                | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT | (int)currentScene->state.instances[j]->isPlacement * RFLAG_TRANSPARENT
+                | (int)!!currentScene->state.instances[j]->intrinicStates[IS_CLOAKED] * RFLAG_CLOAKED;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         pushConstants.textureIndex = currentScene->state.instances[j]->entity->textureIndex;

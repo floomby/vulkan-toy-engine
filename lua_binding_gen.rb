@@ -18,7 +18,7 @@ class String
 end
 
 class BindingGenerator
-    @@enums = ["InsertionMode", "IEngage"]
+    @@enums = ["InsertionMode", "IEngage", "IntrinicStates"]
     @@classes = ["Entity", "Instance", "void"]
     @@classes_matchers = @@classes.map { |x| x + "*" }
     @@classes_regexes = @@classes.map { |x| /#{x} *\*/ }

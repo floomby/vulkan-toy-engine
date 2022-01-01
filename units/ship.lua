@@ -18,5 +18,6 @@ Ship = {
     unitAIs = {
         "idle_combat_behavior"
     },
-    resources = 120
+    resources = 120,
+    vision = 20
 }

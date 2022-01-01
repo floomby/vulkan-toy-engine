@@ -162,6 +162,20 @@ static void cmd_setStateExport(lua_State *ls) {
     lua_setglobal(ls, "cmd_setState");
 }
 
+static int cmd_setIntrinsicStateWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto a1 = (IntrinicStates)luaL_checkinteger(ls, 2);
+    auto a2 = (uint32_t)luaL_checkinteger(ls, 3);
+    auto a3 = (InsertionMode)luaL_checkinteger(ls, 4);
+    Api::cmd_setIntrinsicState(a0, a1, a2, a3);
+    return 0;
+}
+
+static void cmd_setIntrinsicStateExport(lua_State *ls) {
+    lua_pushcfunction(ls, cmd_setIntrinsicStateWrapper);
+    lua_setglobal(ls, "cmd_setIntrinsicState");
+}
+
 static int eng_createBallisticProjectileWrapper(lua_State *ls) {
     if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
     auto a0 = (Entity*)lua_topointer(ls, 1);
@@ -996,6 +1010,29 @@ static void engS_getStateExport(lua_State *ls) {
     lua_setglobal(ls, "engS_getState");
 }
 
+static int eng_getEngageRangeWrapper(lua_State *ls) {
+    auto a0 = (InstanceID)luaL_checkinteger(ls, 1);
+    auto r = Api::eng_getEngageRange(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void eng_getEngageRangeExport(lua_State *ls) {
+    lua_pushcfunction(ls, eng_getEngageRangeWrapper);
+    lua_setglobal(ls, "eng_getEngageRange");
+}
+
+static int engS_getEngageRangeWrapper(lua_State *ls) {
+    if (!lua_islightuserdata(ls, 1)) throw std::runtime_error("Invalid lua arguments (pointer)");
+    auto a0 = (Instance*)lua_topointer(ls, 1);
+    auto r = Api::engS_getEngageRange(a0);
+    lua_pushnumber(ls, r);    return 1;
+}
+
+static void engS_getEngageRangeExport(lua_State *ls) {
+    lua_pushcfunction(ls, engS_getEngageRangeWrapper);
+    lua_setglobal(ls, "engS_getEngageRange");
+}
+
 static int gui_setVisibilityWrapper(lua_State *ls) {
     luaL_checkstring(ls, 1);
     auto a0 = lua_tostring(ls, 1);
@@ -1289,6 +1326,7 @@ void LuaWrapper::apiExport() {
     cmd_buildExport(luaState);
     cmd_buildStationExport(luaState);
     cmd_setStateExport(luaState);
+    cmd_setIntrinsicStateExport(luaState);
     eng_createBallisticProjectileExport(luaState);
     eng_createGuidedProjectileExport(luaState);
     eng_createBeamExport(luaState);
@@ -1347,6 +1385,8 @@ void LuaWrapper::apiExport() {
     engS_isEntityIdleExport(luaState);
     eng_getStateExport(luaState);
     engS_getStateExport(luaState);
+    eng_getEngageRangeExport(luaState);
+    engS_getEngageRangeExport(luaState);
     gui_setVisibilityExport(luaState);
     gui_setLabelTextExport(luaState);
     gui_addPanelExport(luaState);

@@ -24,7 +24,9 @@ public:
     static void cmd_destroyInstance(InstanceID unitID);
     static void cmd_build(InstanceID unitID, const char *what, InsertionMode mode);
     static void cmd_buildStation(InstanceID unitID, const glm::vec3& where, InsertionMode mode, const char *what);
+    // Do I need both? The idea is that intrinsic states are things which the engine needs to know about and states are just lua things
     static void cmd_setState(InstanceID unitID, const char *state, uint32_t value, InsertionMode mode);
+    static void cmd_setIntrinsicState(InstanceID unitID, IntrinicStates state, uint32_t value, InsertionMode mode);
     // static void cmd_attack(InstanceID unitID, InstanceID target, InsertionMode mode);
 
     // I dont like how I "namespaced" these function, it seems like almost everything is an eng* function
@@ -88,6 +90,8 @@ public:
     static bool engS_isEntityIdle(Instance *unit);
     static uint32_t eng_getState(InstanceID unitID, const char *name);
     static uint32_t engS_getState(Instance *unit, const char *name);
+    static float eng_getEngageRange(InstanceID unitID);
+    static float engS_getEngageRange(Instance *unit);
 
     static void gui_setVisibility(const char *name, bool visibility);
     static void gui_setLabelText(const std::string& name, const std::string& text);

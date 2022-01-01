@@ -24,6 +24,7 @@ enum class CommandKind {
     TARGET_UNIT,
     BUILD,
     STATE,
+    INTRINSIC_STATE,
     //.....
 };
 
@@ -37,6 +38,7 @@ struct CommandData {
         uint32_t value;
     };
     char buf[CommandDataBufSize];
+    IntrinicStates intrinicState;
 };
 
 struct Command {
@@ -112,7 +114,10 @@ public:
     bool inPlay = false;
     bool orphaned = false;
     bool isPlacement = false;
-    bool cloaked = false;
+
+    std::array<int, IS_COUNT> intrinicStates = { 0, 1 };
+
+    std::array<bool, Config::maxTeams> outOfFog, outOfRadar;
 
     InstanceID parentID = 0;
 

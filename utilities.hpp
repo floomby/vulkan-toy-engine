@@ -165,6 +165,12 @@ enum class InsertionMode {
     NONE
 };
 
+enum IntrinicStates {
+    IS_CLOAKED,
+    IS_UNIT_AI_ENABLED,
+    IS_COUNT
+};
+
 template <typename T> int sgn(T x) {
     return (T(0) < x) - (x < T(0));
 }

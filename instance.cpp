@@ -62,6 +62,8 @@ void Instance::syncToAuthInstance(const Instance& other) {
     customState = other.customState;
     uncompleted = other.uncompleted;
     resources = other.resources;
+    outOfFog = other.outOfFog;
+    outOfRadar = other.outOfRadar;
 }
 
 // NOTE: direction has to be normalized

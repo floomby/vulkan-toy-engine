@@ -134,6 +134,11 @@ void Api::cmd_setState(InstanceID unitID, const char *state, uint32_t value, Ins
     context->send(data);
 }
 
+void Api::cmd_setIntrinsicState(InstanceID unitID, IntrinicStates state, uint32_t value, InsertionMode mode) {
+    ApiProtocol data { ApiProtocolKind::COMMAND, 0, "", { CommandKind::INTRINSIC_STATE, unitID, { {}, {}, value, "", state }, mode, true }};
+    context->send(data);
+}
+
 uint32_t Api::eng_getState(InstanceID unitID, const char *name) {
     lock_and_get_iterator
     return it->customState[name];
@@ -359,6 +364,15 @@ Entity *Api::eng_getEntityFromName(const char *name) {
         throw std::runtime_error(msg);
     }
     return ent->second;
+}
+
+float Api::eng_getEngageRange(InstanceID unitID) {
+    lock_and_get_iterator
+    return it->entity->preferedEngageRange;
+}
+
+float Api::engS_getEngageRange(Instance *unit) {
+    return unit->entity->preferedEngageRange;
 }
 
 // TODO The sound api stuff needs to be made threadsafe

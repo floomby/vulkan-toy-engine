@@ -198,6 +198,9 @@ void Entity::precompute() {
         for (auto w : weapons) {
             sum += w->range;
         }
-        preferedEngageRange = sum * 0.6f;
+        preferedEngageRange = sum / weapons.size() * 0.8f;
     }
+
+    radarRange2 = sq(radarRange);
+    visionRange2 = sq(visionRange);
 }

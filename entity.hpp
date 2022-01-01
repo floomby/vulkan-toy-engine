@@ -47,6 +47,10 @@ public:
     float buildPower = 0.0f;
     float minePower = 0.0f;
     bool canCloak = false;
+    float visionRange = 0.0f;
+    float radarRange = 0.0f;
+    float visionRange2 = 0.0f;
+    float radarRange2 = 0.0f;
 
     float dv;
     float v_m;
