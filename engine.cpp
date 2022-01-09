@@ -3130,6 +3130,8 @@ void Engine::runCurrentScene() {
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &lineAllocInfo, mainPass.lineDescriptorSets.data()), "Failed to allocate descriptor sets.");
 
     lineSync = new DynUBOSyncer<LineUBO>(this, {{ &mainPass.lineDescriptorSets, 0 }});
+    nonBeamLines.resize(concurrentFrames);
+    fill(nonBeamLines.begin(), nonBeamLines.end(), 0);
 
     allocateCommandBuffers();
     initSynchronization();
@@ -3687,7 +3689,11 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     vkCmdSetLineWidth(buffer, 1.0);
 
+    // std::cout << nonBeamLines << ":" << lineSync->validCount[index] << std::endl;
     for (int j = 0; j < lineSync->validCount[index]; j++) {
+        if (j == nonBeamLines[index]) {
+            vkCmdSetLineWidth(buffer, 4.0);
+        }
         dynamicOffset = j * uniformSync->uniformSkip;
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, linePipelineLayout, 0, 1, &mainPass.lineDescriptorSets[index], 1, &dynamicOffset);
         vkCmdPushConstants(buffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pushConstants);
@@ -4441,8 +4447,7 @@ void Engine::runShadowPass(const VkCommandBuffer& buffer, int index) {
 }
 
 // Just check for linear filtering support
-VkBool32 Engine::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling)
-{
+VkBool32 Engine::formatIsFilterable(VkPhysicalDevice physicalDevice, VkFormat format, VkImageTiling tiling) {
     VkFormatProperties formatProps;
     vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
 
@@ -4875,7 +4880,8 @@ void Scene::updateUniforms(int idx) {
         return s + x->lines.size();
     });
     // I don't like making extra copies (With some thinking I can make a generator function that avoids this)
-    std::vector<LineUBO> lineTmp(commandCount + lineObjectSize + state.beams.size());
+    std::vector<LineUBO> lineTmp;
+    lineTmp.reserve(commandCount + lineObjectSize + state.beams.size());
 
     for (const auto&  lineHolder : static_cast<Engine *>(context)->lineObjects) {
         lineTmp.insert(lineTmp.end(), lineHolder->lines.begin(), lineHolder->lines.end());
@@ -4911,6 +4917,7 @@ void Scene::updateUniforms(int idx) {
 
     lineTmp.insert(lineTmp.end(), state.beams.begin(), state.beams.end());
 
+    static_cast<Engine *>(context)->nonBeamLines[idx] = commandCount + lineObjectSize;
     static_cast<Engine *>(context)->lineSync->sync(idx, lineTmp);
 }
 

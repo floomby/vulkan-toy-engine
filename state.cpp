@@ -327,6 +327,7 @@ void AuthoritativeState::doUpdateTick() {
         auto normed = normalize(beams[i].b - beams[i].a);
         Instance *closestHit = nullptr;
         float closest = std::numeric_limits<float>::max();
+        float additionalBeamLength = 0.f;
         for (auto it : copy) {
             if (!it || it->entity->isProjectile || beamDatum[i].parent == it->id) continue;
             float dist;
@@ -334,10 +335,11 @@ void AuthoritativeState::doUpdateTick() {
             if (hit && dist < length && dist < closest) {
                 closestHit = it;
                 closest = dist;
+                additionalBeamLength = it->entity->boundingRadius;
             }
         }
         if (closestHit) {
-            beams[i].b = beams[i].a + normed * closest;
+            beams[i].b = beams[i].a + normed * (closest + additionalBeamLength);
             if (closestHit->entity->isUnit) {
                 closestHit->health -= beamDatum[i].damage;
             }

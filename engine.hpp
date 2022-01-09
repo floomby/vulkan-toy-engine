@@ -443,6 +443,7 @@ private:
     // void createHudBuffers();
 
     std::list<LineHolder *> lineObjects;
+    std::vector<uint> nonBeamLines;
     LineHolder *cursorLines, *staticLines;
 
     DynUBOSyncer<InstanceUBO> *uniformSync;

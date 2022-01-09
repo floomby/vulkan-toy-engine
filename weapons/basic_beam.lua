@@ -3,6 +3,6 @@ Basic_beam = {
     range = 20.0,
     damage = 10.0,
     reload = { 1.0 },
-    color = 0x40ff40ff,
+    color = 0x4040ffff,
     sound = "weapons/laser.ogg"
 }
