@@ -117,5 +117,6 @@ Scene::Scene(Server *context)
                 std::cerr << "Weapon not found: " << weapon << std::endl;
             }
         }
+        entity->precompute();
     }
 }

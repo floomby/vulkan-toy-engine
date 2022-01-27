@@ -204,3 +204,61 @@ void Entity::precompute() {
     radarRange2 = sq(radarRange);
     visionRange2 = sq(visionRange);
 }
+
+static const std::vector<std::string> WeaponKinds = enumNames2<WeaponKind>();
+
+std::ostream& operator<<(std::ostream& os, const Entity& entity) {
+    os << "Name: " << entity.name << "\n" << std::dec;
+    os << "  boundingRadius: " << entity.boundingRadius << "\n";
+    os << "  textureIndex: " << entity.textureIndex << "\n";
+    os << "  iconIndex: " << entity.iconIndex << "\n";
+    os << "  modelIndex: " << entity.modelIndex << "\n";
+    os << "  maxSpeed: " << entity.maxSpeed << "\n";
+    os << "  mass: " << entity.mass << "\n";
+    os << "  thrust: " << entity.thrust << "\n";
+    os << "  acceleration: " << entity.acceleration << "\n";
+    os << "  maxOmega: " << entity.maxOmega << "\n";
+    os << "  maxHealth: " << entity.maxHealth << "\n";
+    os << "  resources: " << entity.resources << "\n";
+    os << "  buildPower: " << entity.buildPower << "\n";
+    os << "  minePower: " << entity.minePower << "\n";
+    os << "  canCloak: " << (int)entity.canCloak << "\n";
+    os << "  visionRange: " << entity.visionRange << "\n";
+    os << "  radarRange: " << entity.radarRange << "\n";
+    os << "  visionRange2: " << entity.visionRange2 << "\n";
+    os << "  radarRange2: " << entity.radarRange2 << "\n";
+    os << "  dv: " << entity.dv << "\n";
+    os << "  v_m: " << entity.v_m << "\n";
+    os << "  w_m: " << entity.w_m << "\n";
+    os << "  weapon: " << entity.weapon << "\n";
+    os << "  isProjectile: " << (int)entity.isProjectile << "\n";
+    os << "  isUnit: " << (int)entity.isUnit << "\n";
+    os << "  isResource: " << (int)entity.isResource << "\n";
+    os << "  isGuided: " << (int)entity.isGuided << "\n";
+    os << "  isStation: " << (int)entity.isStation << "\n";
+    os << "  weaponKind: ";
+    if (static_cast<int>(entity.weaponKind) > 0 && static_cast<int>(entity.weaponKind) < WeaponKinds.size()) os << WeaponKinds[static_cast<int>(entity.weaponKind)] << "\n";
+    else os << "out of range: " << static_cast<int>(entity.weaponKind) << "\n";
+    os << "  framesTillDead: " << entity.framesTillDead << "\n";
+    for (const auto& weapon : entity.weapons) os << "    weapon: " << *weapon << "\n";
+    for (const auto& weaponPosition : entity.weaponPositions) os << "    weaponPosition: " << weaponPosition << "\n";
+    os << "  preferedEngageRange: " << entity.preferedEngageRange << "\n";
+    for (const auto& unitAIName : entity.unitAINames) os << "    unitAIName: " << unitAIName << "\n";
+    for (const auto& ai : entity.ais) os << ai << "\n";
+    for (const auto& buildOption : entity.buildOptions) os << "    buildOption" << buildOption << "\n";
+    os << "  deathSound: " << entity.deathSound << "\n";
+    os << "  texturePixels: " << (void *)entity.texturePixels << "\n";
+    os << "  iconPixels: " << (void *)entity.iconPixels << "\n";
+    os << "  textureWidth: " << entity.textureWidth << "\n";
+    os << "  textureHeight: " << entity.textureHeight << "\n";
+    os << "  textureChannels: " << entity.textureChannels << "\n";
+    os << "  iconWidth: " << entity.iconWidth << "\n";
+    os << "  iconHeight: " << entity.iconHeight << "\n";
+    os << "  iconChannels: " << entity.iconChannels << "\n";
+    os << "  Note that this is not printing the mesh data" << "\n";
+    os << "  hasIcon: " << (int)entity.hasIcon << "\n";
+    os << "  hasTexture: " << (int)entity.hasTexture << "\n";
+    os << "  hasConstTexture: " << (int)entity.hasConstTexture << "\n";
+    os << std::endl;
+    return os;
+}

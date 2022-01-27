@@ -115,7 +115,7 @@ public:
     bool orphaned = false;
     bool isPlacement = false;
 
-    std::array<int, IS_COUNT> intrinicStates = { 0, 1 };
+    std::array<int, getEnumCount<IntrinicStates>()> intrinicStates = { 0, 1 };
 
     std::array<bool, Config::maxTeams> outOfFog, outOfRadar;
 
@@ -132,7 +132,7 @@ public:
 
     // This is the stuff that needs to get synced
     glm::vec3 position, dP = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::quat heading = { 1.0, 0.0, 0.0, 0.0 };
+    glm::quat heading = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     std::list<Command> commandList;
 
     Target target;

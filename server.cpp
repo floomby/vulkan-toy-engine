@@ -35,6 +35,7 @@ void Server::quit() {
 }
 
 void Server::runCurrentScene() {
+    currentScene->initUnitAIs(lua, "unitai");
     std::thread ioThread(&Server::poll, this);
     try {
         net.bindStateUpdater(&authState, server);
@@ -45,16 +46,30 @@ void Server::runCurrentScene() {
     ioThread.join();
 }
 
-void Server::send(const ApiProtocol& data) {
+void Server::emit(const ApiProtocol& data) {
     server->writeData(data);
 }
 
-void Server::send(ApiProtocol&& data) {
+void Server::emit(ApiProtocol&& data) {
     server->writeData(data);
+}
+
+void Server::send(const ApiProtocol& data) {
+    std::cout << data << std::endl;
+    server->queue.push({ data, nullptr });
+}
+
+void Server::send(ApiProtocol&& data) {
+    server->queue.push({ data, nullptr });
 }
 
 #include "lua_wrapper.hpp"
 
-Base::Base() : lua(new LuaWrapper(true)), authState(this) {}
+Base::Base() : lua(new LuaWrapper(true)), authState(this) {
+    lua->exportEnumToLua<InsertionMode>();
+    lua->exportEnumToLua<IEngage>();
+    lua->exportEnumToLua<IntrinicStates>();
+    lua->apiExport();
+}
 
 Base::~Base() { delete lua; }

@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "server.hpp"
 
 #include <coroutine>
 
@@ -139,6 +140,7 @@ void AuthoritativeState::doUpdateTick() {
     std::vector<Instance *> toDelete;
     for (auto& it : copy) {
         if (!it) continue;
+        if (frame == 50 && it->entity->name == "ship") std::cout << *it->entity;
         if (it->health < 0) {
             toDelete.push_back(it);
             it = nullptr;
@@ -207,6 +209,7 @@ void AuthoritativeState::doUpdateTick() {
             }
         } else if (it && !it->commandList.empty() && !it->uncompleted) {
             const auto& cmd = it->commandList.front();
+            if (it && it->entity->name == "ship") std::cout << "count: " << it->commandList.size() << " --- " << it->position << std::endl;
             float distance;
             switch (cmd.kind){
                 case CommandKind::MOVE:
@@ -239,7 +242,7 @@ void AuthoritativeState::doUpdateTick() {
                     it->commandList.pop_front();
                     break;
                 case CommandKind::INTRINSIC_STATE:
-                    it->intrinicStates[cmd.data.intrinicState] = cmd.data.value;
+                    it->intrinicStates[static_cast<int>(cmd.data.intrinicState)] = cmd.data.value;
                     it->commandList.pop_front();
                     break;
             }
@@ -268,13 +271,14 @@ void AuthoritativeState::doUpdateTick() {
                 }
             }
         } else if (it && it->entity->isUnit && !it->entity->isStation && !it->uncompleted) {
-            Pathgen::stop(*it);
+            // Pathgen::stop(*it);
+            // if (it && it->entity->name == "ship") std::cout << it->position << std::endl;
         }
         if (it && it->buildPower) {
             buildPowerAllocations[it->team].push_back({ it, it->buildPower });
         }
         if (it && it->isBuilding) {
-                doingBuilding.push_back(it);
+            doingBuilding.push_back(it);
         }
         if (it && !it->uncompleted) {
             if (it->hasCollision) for (auto other : copy) {
@@ -289,8 +293,9 @@ void AuthoritativeState::doUpdateTick() {
                 if (!other || *other == *it || it->entity->isProjectile || it->entity->isGuided || other->entity->isProjectile || !other->hasCollision) continue;
                 Pathgen::collide(*other, *it);
             }
-            if (it->intrinicStates[IS_UNIT_AI_ENABLED]) {
+            if (it->intrinicStates[static_cast<int>(IntrinicStates::UNIT_AI_ENABLED)]) {
                 for (const auto& ai : it->entity->ais) {
+                    // std::cout << "down " << it->position << std::endl;
                     ai->run(*it);
                 }
             }
@@ -385,9 +390,11 @@ void AuthoritativeState::doUpdateTick() {
             }
         }
     }
-    frame.fetch_add(1, std::memory_order_relaxed);
+    frame += 1;
     copy.erase(std::remove(copy.begin(), copy.end(), nullptr), copy.end());
-    for (auto inst : toDelete) delete inst;
+    for (auto inst : toDelete) {
+        delete inst;
+    }
     copy.reserve(copy.size() + instances.size());
     copy.insert(copy.end(), instances.begin(), instances.end());
     instances = std::move(copy);
@@ -405,8 +412,8 @@ void AuthoritativeState::dump() const {
 uint32_t AuthoritativeState::crc() const {
     boost::crc_32_type crc;
     std::scoped_lock l(lock);
-    auto tmp = frame.load(std::memory_order_relaxed);
-    crc.process_bytes(&tmp, sizeof(tmp));
+    auto tmp = frame.load(std::memory_order_seq_cst);
+    // crc.process_bytes(&tmp, sizeof(tmp));
     for (const auto& inst : instances) {
         inst->doCrc(crc);
     }
@@ -441,7 +448,7 @@ static const Forwardable<6> forwardable(
 
 #include "api_util.hpp"
 
-void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session) {
+void AuthoritativeState::process(ApiProtocol *data, std::shared_ptr<Networking::Session> session) {
     
     if (data->kind == ApiProtocolKind::COMMAND) {
         if (forwardable(data->command.kind)) {
@@ -487,12 +494,13 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             inst->heading = data->command.data.heading;
             inst->position = data->command.data.dest;
             inst->resources = ent->resources;
+            std::cout << "created " << inst->position << std::endl;
             if (data->callbackID && session) {
                 ApiProtocol data2 = { ApiProtocolKind::CALLBACK };
                 data2.callbackID = data->callbackID;
-                data2.frame = frame.load(std::memory_order_relaxed);
+                data2.frame = frame;
                 data2.command.id = inst->id;
-                callbacks.push({ data2, session.value() });
+                callbacks.push({ data2, session });
             }
             instances.push_back(inst);
             lock.unlock();
@@ -521,8 +529,8 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
             return;
         }
         teams[data->frame] = std::make_shared<Team>((TeamID)data->frame, data->buf, session);
-        if (session.has_value()) {
-            session.value()->team = teams[data->frame];
+        if (session) {
+            session->team = teams[data->frame];
         }
         lock.unlock();
     } else if (data->kind == ApiProtocolKind::RESOURCES) {
@@ -548,7 +556,8 @@ void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_pt
 }
 
 void AuthoritativeState::emit(const ApiProtocol& data) const {
-    context->send(data);
+    assert(context->headless);
+    static_cast<Server *>(context)->emit(data);
 }
 
 void AuthoritativeState::doCallbacks() {

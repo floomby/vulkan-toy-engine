@@ -39,6 +39,7 @@ public:
     // I could use rtti, but this seems simpler
     virtual WeaponKind kindOf() = 0;
     std::string sound;
+    friend std::ostream& operator<<(std::ostream& os, const Weapon& weapon);
 private:
 };
 
@@ -48,7 +49,7 @@ public:
     virtual void fire(const glm::vec3& position, const glm::vec3& direction, InstanceID parentID, TeamID teamID);
     virtual bool hasEntity();
     virtual ~PlasmaCannon() = default;
-    inline virtual WeaponKind kindOf() { return WeaponKind::PLASMA_CANNON; } 
+    inline virtual WeaponKind kindOf() { return WeaponKind::PLASMA_CANNON; }
 private:
 };
 

@@ -10,6 +10,8 @@ public:
     virtual void runCurrentScene();
     virtual void send(const ApiProtocol& data);
     virtual void send(ApiProtocol&& data);
+    void emit(const ApiProtocol& data);
+    void emit(ApiProtocol&& data);
     virtual void quit();
 private:
     void poll();

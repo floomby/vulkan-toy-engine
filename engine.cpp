@@ -3130,8 +3130,6 @@ void Engine::runCurrentScene() {
     vulkanErrorGuard(vkAllocateDescriptorSets(device, &lineAllocInfo, mainPass.lineDescriptorSets.data()), "Failed to allocate descriptor sets.");
 
     lineSync = new DynUBOSyncer<LineUBO>(this, {{ &mainPass.lineDescriptorSets, 0 }});
-    nonBeamLines.resize(concurrentFrames);
-    fill(nonBeamLines.begin(), nonBeamLines.end(), 0);
 
     allocateCommandBuffers();
     initSynchronization();
@@ -3166,7 +3164,6 @@ void Engine::runCurrentScene() {
     glyphCache->writeDescriptors(computeSets[CP_SDF_BLIT], 0);
 
     gui = new Gui(&lastMousePosition.normedX, &lastMousePosition.normedY, swapChainExtent.height, swapChainExtent.width, this);
-    currentScene->initUnitAIs(lua, "unitai");
 
     // we need to get stuff for the first frame so we don't crash
     currentScene->updateUniforms(0);
@@ -3691,7 +3688,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
 
     // std::cout << nonBeamLines << ":" << lineSync->validCount[index] << std::endl;
     for (int j = 0; j < lineSync->validCount[index]; j++) {
-        if (j == nonBeamLines[index]) {
+        if (j == nonBeamLines) {
             vkCmdSetLineWidth(buffer, 4.0);
         }
         dynamicOffset = j * uniformSync->uniformSkip;
@@ -3729,7 +3726,7 @@ void Engine::recordCommandBuffer(const VkCommandBuffer& buffer, const VkFramebuf
         } else {
             pushConstants.renderType = (currentScene->state.instances[j]->uncompleted ? RINT_UNCOMPLETE : RINT_OBJ)
                 | (int)currentScene->state.instances[j]->highlight * RFLAG_HIGHLIGHT | (int)currentScene->state.instances[j]->isPlacement * RFLAG_TRANSPARENT
-                | (int)!!currentScene->state.instances[j]->intrinicStates[IS_CLOAKED] * RFLAG_CLOAKED;
+                | (int)!!currentScene->state.instances[j]->intrinicStates[static_cast<int>(IntrinicStates::CLOAKED)] * RFLAG_CLOAKED;
         }
         vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 1, &dynamicOffset);
         pushConstants.textureIndex = currentScene->state.instances[j]->entity->textureIndex;
@@ -4917,7 +4914,7 @@ void Scene::updateUniforms(int idx) {
 
     lineTmp.insert(lineTmp.end(), state.beams.begin(), state.beams.end());
 
-    static_cast<Engine *>(context)->nonBeamLines[idx] = commandCount + lineObjectSize;
+    static_cast<Engine *>(context)->nonBeamLines = commandCount + lineObjectSize;
     static_cast<Engine *>(context)->lineSync->sync(idx, lineTmp);
 }
 

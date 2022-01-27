@@ -21,6 +21,11 @@ local function bind_data(name, wrapper)
     data_bindings[name] = wrapper
 end
 
+local selection = {}
+local function update_local_selection()
+    selection = eng_getSelectedInstances()
+end
+
 local function Split(s, delimiter)
     local result = {};
     for match in (s..delimiter):gmatch("(.-)"..delimiter) do
@@ -30,7 +35,12 @@ local function Split(s, delimiter)
 end
 
 local function engret_visibility()
-    gui_setVisibility("engret", #eng_getSelectedInstances() > 0)
+    gui_setVisibility("engret", #selection > 0)
+end
+
+local function unitai_visibility()
+    gui_setVisibility("unitai", #selection > 0)
+
 end
 
 local function mods_to_mode(mds)
@@ -47,7 +57,7 @@ end
 local build_options = {}
 local build_units = {}
 local function build_visibility()
-    local units = eng_getSelectedInstances()
+    local units = selection
     local can_build = false
     build_options = {}
     build_units = {}
@@ -225,7 +235,7 @@ local function populate_selected_menu()
         gui_removePanel("Selection_menu")
     end
     Selection_menu.children = {}
-    local units = eng_getSelectedInstances()
+    local units = selection
     for i, unit in ipairs(units) do
         local name = eng_getInstanceEntityName(unit)
         Selection_menu.children[i] = {
@@ -250,8 +260,15 @@ engage_state_map[0] = IEngage__ENGAGE
 engage_state_map[1] = IEngage__AVOID
 
 local function set_engagement_settings(state)
-    for _, unit in ipairs(eng_getSelectedInstances()) do
+    for _, unit in ipairs(selection) do
         cmd_setState(unit, "engage", engage_state_map[state], InsertionMode__FRONT)
+    end
+end
+
+local function set_unitai_settings(state)
+    print("setting selection")
+    for _, unit in ipairs(selection) do
+        cmd_setIntrinsicState(unit, IntrinicStates__UNIT_AI_ENABLED, state, InsertionMode__FRONT)
     end
 end
 
@@ -266,6 +283,7 @@ Hud = {
     text = "",
     color = 0x6050cc60,
     onPeriodicUpdate = update_bound_data,
+    onSelectionChanged = update_local_selection,
     children = {
         {
             x = -1 + 0.025 / aspect_ratio,
@@ -308,6 +326,22 @@ Hud = {
             name = "engret",
             tooltip = "Idle behavior\nAvoid combat or engage",
             onToggle = set_engagement_settings
+        },
+        {
+            x = -1.0 + 0.025 / aspect_ratio,
+            y = 0.825,
+            height = 0.075,
+            onSelectionChanged = unitai_visibility,
+            kind = GuiLayoutKind__IMAGE_BUTTON,
+            images = {
+                "ui/unitai_on.png",
+                "ui/unitai_off.png"
+            },
+            color = 0x000000dd,
+            secondaryColor = 0x000000ff,
+            name = "unitai",
+            tooltip = "Toggel unit ai\nDisable or enable \"smart\" unit behavion",
+            onToggle = set_unitai_settings
         },
         {
             x = -1.0 + 0.025 / aspect_ratio,

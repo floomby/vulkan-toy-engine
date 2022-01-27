@@ -459,8 +459,20 @@ Instance *Api::engS_getClosestEnemy(Instance *unit) {
     auto closest = std::numeric_limits<float>::max();
     Instance *ret = nullptr;
     for (auto other : *context->authState.instRef) {
-        if (!other || other->entity->isProjectile || other == unit || other->team == unit->team) continue;
+        // bool something = false;
+        // if (other && other->team == 2) {
+        //     std::cout << "here" << std::endl;
+        //     something = true;
+        // }
+        if (!other || other->entity->isProjectile || other == unit || other->team == unit->team) {
+            continue;
+        }
         auto dist2 = distance2(unit->position, other->position);
+        // if (something) {
+        //     std::cout << "why not continue: " << dist2 << std::endl;
+        //     std::cout << unit->position << " :: " << other->position << std::endl;
+        //     std::cout << unit->entity->name << std::endl;
+        // }
         if (dist2 < closest) {
             ret = other;
             closest = dist2;

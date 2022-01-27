@@ -20,6 +20,8 @@ class Entity {
     friend class Engine;
     friend class Scene;
 public:
+    friend std::ostream& operator<<(std::ostream& os, const Entity& entity);
+
     Entity(SpecialEntities entityType, const char *name = "", const char *model = "", const char *texture = "");
     Entity(const char *model, const char *texture = "", const char *icon = "");
     Entity(const char *name, const char *model, const char *texture, const char *icon);
@@ -32,7 +34,7 @@ public:
     ~Entity();
     // temp stuff
     float boundingRadius;
-    int textureIndex, iconIndex, modelIndex;
+    int textureIndex = 0, iconIndex = 0, modelIndex = 0;
 
     // Idk why I set defaults here??
     float maxSpeed = 0.5f;

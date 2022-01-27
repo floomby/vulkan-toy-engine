@@ -22,7 +22,7 @@ public:
     virtual void send(ApiProtocol&& data) = 0;
     virtual void quit() = 0;
     LuaWrapper *lua;
-    friend void AuthoritativeState::process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>>);
+    friend void AuthoritativeState::process(ApiProtocol *data, std::shared_ptr<Networking::Session> session);
     friend void LuaWrapper::dispatchCallbacks();
     friend void AuthoritativeState::doUpdateTick();
     bool headless = false;

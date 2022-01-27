@@ -13,6 +13,12 @@ void Weapon::playSound(const glm::vec3& position, const glm::vec3& direction) {
     }
 }
 
+std::ostream& operator<<(std::ostream& os, const Weapon& weapon) {
+    os << weapon.name;
+    return os;
+}
+
+
 PlasmaCannon::PlasmaCannon(std::shared_ptr<Entity> projectileEntity) {
     entity = projectileEntity;
     entity->weapon = this;

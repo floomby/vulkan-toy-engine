@@ -157,7 +157,7 @@ public:
     void dump() const;
     uint32_t crc() const;
 
-    void process(ApiProtocol *data, std::optional<std::shared_ptr<Networking::Session>> session);
+    void process(ApiProtocol *data, std::shared_ptr<Networking::Session> session);
     void emit(const ApiProtocol& data) const;
     void doCallbacks();
     void enableCallbacks();

@@ -68,10 +68,10 @@ public:
     void removeSession(std::shared_ptr<Session> session);
     friend void Session::doRead();
     friend void Net::stateUpdater();
+    std::queue<std::pair<ApiProtocol, std::shared_ptr<Session>>> queue;
 private:
     void doAccept(std::weak_ptr<Server> self);
     boost::asio::ip::tcp::acceptor acceptor;
-    std::queue<std::pair<ApiProtocol, std::shared_ptr<Session>>> queue;
 };
 
 // TODO The client has a use after free bug when shutting down
