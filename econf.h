@@ -21,7 +21,7 @@ struct {
     const float gimbleStop = 0.1;
     const float minClip = 0.1, maxClip = 150.0;
     const float renderAsIcon2 = 10000.0;
-} Cammera;
+} Camera;
 
 namespace Net {
     static constexpr uint msPerTick = 33;

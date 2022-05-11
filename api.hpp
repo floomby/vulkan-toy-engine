@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "utilities.hpp"
 
 enum class IEngage;

@@ -8,7 +8,7 @@ InstanceZSorter::InstanceZSorter(Scene *context)
 : context(context) {}
 
 bool InstanceZSorter::operator() (int a, int b) {
-    return context->state.instances[a]->cammeraDistance2 > context->state.instances[b]->cammeraDistance2;
+    return context->state.instances[a]->cameraDistance2 > context->state.instances[b]->cameraDistance2;
 }
 
 std::vector<Entity *> Scene::loadEntitiesFromLua(const char *directory) {

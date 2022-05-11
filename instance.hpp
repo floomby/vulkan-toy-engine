@@ -106,7 +106,7 @@ public:
     bool secondQueuedCommandRequiresMovement() const;
 
     bool renderAsIcon = false;
-    float cammeraDistance2; // , cammeraDistance;
+    float cameraDistance2; // , cameraDistance;
     bool highlight = false, rendered = false;
 
     bool valid = true;

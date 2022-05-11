@@ -259,8 +259,8 @@ void Sound::playSound(const char *name, const glm::vec3& position, const glm::ve
     alErrorGuard(alDeleteSources, 1, &source);
 }
 
-void Sound::setCammeraPosition(const glm::vec3& position, const glm::vec3& up, const glm::vec3& at, const glm::vec3& velocity) {
-    if (!player) throw std::runtime_error("Please set an active sound device before attempting to set cammera spatial components");
+void Sound::setCameraPosition(const glm::vec3& position, const glm::vec3& up, const glm::vec3& at, const glm::vec3& velocity) {
+    if (!player) throw std::runtime_error("Please set an active sound device before attempting to set camera spatial components");
     player->submit({ PlaybackDataKind::CAMMERA, 0, { position, at, up, velocity }});
 }
 

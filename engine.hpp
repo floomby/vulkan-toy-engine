@@ -164,7 +164,7 @@ private:
     bool guiOutOfDate = false;
     // Gui *gui = nullptr;
 
-    struct Cammera {
+    struct Camera {
         glm::vec3 position;
         glm::vec3 target;
         glm::vec3 pointing, strafing, fowarding, heading;
@@ -174,7 +174,7 @@ private:
             glm::mat4 projView;
             glm::mat4 view_1Proj_1;
         } cached;
-    } cammera;
+    } camera;
     void stateObserver(ObservableState& state);
 
     std::chrono::time_point<std::chrono::steady_clock> lastTime;

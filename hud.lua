@@ -345,7 +345,7 @@ Hud = {
         },
         {
             x = -1.0 + 0.025 / aspect_ratio,
-            y = 0.825,
+            y = 0.925,
             height = 0.1,
             onClick = show_build_options,
             onSelectionChanged = build_visibility,

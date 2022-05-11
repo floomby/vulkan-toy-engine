@@ -1947,7 +1947,6 @@ void Engine::dumpDepthBuffer(const VkCommandBuffer& buffer, int index) {
     // barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     // barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-    // Still no clue about stage masks
     // vkCmdPipelineBarrier(
     //     buffer,
     //     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -2030,7 +2029,7 @@ void Engine::createFramebuffers() {
     }
 }
 
-// TODO Elliminate this in favor of using vmaCreateBuffer
+// TODO Eliminate this in favor of using vmaCreateBuffer
 void Engine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer,
     VkDeviceMemory& bufferMemory, bool concurrent, std::vector<uint32_t> queues) {
 
@@ -2374,7 +2373,7 @@ void Engine::setTooltip(const std::string& str) {
 // So many silly lines of code in this function
 // TODO I need to rewrite this as traversals of a state graph (I am putting off doing this until maintaining this function becomes absolutely terrible)
 void Engine::handleInput() {
-    bool didCammeraMovement = false;
+    bool didCameraMovement = false;
 
     assert(!wasZPlacing || !wasZMoving);
     if (wasZMoving && placingStructure) {
@@ -2478,14 +2477,14 @@ void Engine::handleInput() {
         }
     }
     // TODO This whole thing could be more effeciently calculated (when I feel like being clever I will come back and fix it)
-    const auto pointingLength = length(cammera.position - cammera.target);
+    const auto pointingLength = length(camera.position - camera.target);
 
     if (!notFirstTime) {
-        cammera.pointing = normalize(cammera.position - cammera.target);
-        cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
-        cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
-        cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
-        sound->setCammeraPosition(cammera.position, cammera.heading, cammera.pointing, { 0.0f, 0.0f, 0.0f });
+        camera.pointing = normalize(camera.position - camera.target);
+        camera.strafing = normalize(cross(camera.pointing, { 0.0f, 0.0f, 1.0f }));
+        camera.fowarding = normalize(cross(camera.strafing, { 0.0f, 0.0f, 1.0f }));
+        camera.heading = normalize(cross(camera.pointing, camera.strafing));
+        sound->setCameraPosition(camera.position, camera.heading, camera.pointing, { 0.0f, 0.0f, 0.0f });
     }
 
     const float planeIntersectionDenominator = glm::dot(mouseRay, { 0.0f, 0.0f, 1.0f });
@@ -2494,8 +2493,8 @@ void Engine::handleInput() {
     if (planeIntersectionDenominator == 0) {
         planeIntersection = glm::vec3(0.0);
     } else {
-        planeDist = - (glm::dot(cammera.position, { 0.0f, 0.0f, 1.0f }) + 0) / planeIntersectionDenominator;
-        planeIntersection = cammera.position + mouseRay * planeDist;
+        planeDist = - (glm::dot(camera.position, { 0.0f, 0.0f, 1.0f }) + 0) / planeIntersectionDenominator;
+        planeIntersection = camera.position + mouseRay * planeDist;
     }
 
     if (mouseAction == MOUSE_DRAGGING) {
@@ -2510,7 +2509,7 @@ void Engine::handleInput() {
     for(int i = 1; i < currentScene->state.instances.size(); i++) {
         if (!currentScene->state.instances[i]->inPlay) continue;
         float distance;
-        if(currentScene->state.instances[i]->rayIntersects(cammera.position, mouseRayNormed, distance)) {
+        if(currentScene->state.instances[i]->rayIntersects(camera.position, mouseRayNormed, distance)) {
             if (distance < minDistance) mousedOver = currentScene->state.instances[i];
         }
         // instance.highlight() = false;
@@ -2589,8 +2588,8 @@ void Engine::handleInput() {
             mouseAction = MOUSE_NONE;
             // std::cout << "Dragged box (" << dragStartDevice.first << ":" << dragStartDevice.second << " - "
             //     << mouseNormed.first << ":" << mouseNormed.second << "):" << std::endl;
-            auto planes = boundingPlanes(cammera.position, cammera.strafing, cammera.pointing, dragStartRay, mouseRayNormed);
-            // auto planes = boundingPlanes(cammera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
+            auto planes = boundingPlanes(camera.position, camera.strafing, camera.pointing, dragStartRay, mouseRayNormed);
+            // auto planes = boundingPlanes(camera.position, strafing, pointing, dragStartRay, raycast(mouseEvent.x, mouseEvent.y, inverseProjection, inverseView));
             // for(const auto& plane : planes) {
             //     std::cout << "\t" << plane.first << " --- " << plane.second << std::endl;
             // }
@@ -2600,13 +2599,13 @@ void Engine::handleInput() {
             for (int i = 0; i < currentScene->state.instances.size(); i++) {
                 if (!currentScene->state.instances[i]->valid || !currentScene->state.instances[i]->inPlay || !currentScene->state.instances[i]->entity->isUnit) continue;
                 if (engineSettings.teamIAm.id && engineSettings.teamIAm.id != currentScene->state.instances[i]->team) continue;
-                if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Cammera.minClip, currentScene->state.instances[i]->position) < 0 &&
+                if (whichSideOfPlane(planes[4].first, planes[4].second - Config::Camera.minClip, currentScene->state.instances[i]->position) < 0 &&
                     whichSideOfPlane(planes[0].first, planes[0].second, currentScene->state.instances[i]->position) < 0 !=
                     whichSideOfPlane(planes[2].first, planes[2].second, currentScene->state.instances[i]->position) < 0 &&
                     whichSideOfPlane(planes[1].first, planes[1].second, currentScene->state.instances[i]->position) < 0 !=
                     whichSideOfPlane(planes[3].first, planes[3].second, currentScene->state.instances[i]->position) < 0 &&
-                    whichSideOfPlane(planes[4].first, planes[4].second + Config::Cammera.maxClip, currentScene->state.instances[i]->position) > 0
-                    // To only select things as far as the cammera drawing distance
+                    whichSideOfPlane(planes[4].first, planes[4].second + Config::Camera.maxClip, currentScene->state.instances[i]->position) > 0
+                    // To only select things as far as the camera drawing distance
                 ) {
                     currentScene->state.instances[i]->highlight = true;
                     idsSelected.push_back(currentScene->state.instances[i]->id);
@@ -2656,33 +2655,33 @@ void Engine::handleInput() {
     }
 
     if (scrollAmount != 0.0f) {
-        // Scroll to cammera target
-        // cammera.position += scrollAmount / 5.0f * pointing;
-        // if (glm::distance(cammera.target, cammera.position) > cammera.maxZoom2) cammera.position = pointing * cammera.maxZoom2 + cammera.target;
-        // if (glm::distance(cammera.target, cammera.position) < cammera.minZoom2) cammera.position = pointing * cammera.minZoom2 + cammera.target;
+        // Scroll to camera target
+        // camera.position += scrollAmount / 5.0f * pointing;
+        // if (glm::distance(camera.target, camera.position) > camera.maxZoom2) camera.position = pointing * camera.maxZoom2 + camera.target;
+        // if (glm::distance(camera.target, camera.position) < camera.minZoom2) camera.position = pointing * camera.minZoom2 + camera.target;
         // scrollAmount = 0.0f;
 
         // scrollToCursor
         scrollAmount *= std::max(powf(1.5f, pointingLength / 10.0f), 1.5f);
         auto deltaPos = -scrollAmount / 5.0f * mouseRayNormed;
-        auto deltaTarget = normalize(planeIntersection - cammera.target) * (length(deltaPos) * length(planeIntersection - cammera.target) / planeDist);
-        auto newTar = cammera.target + deltaTarget * sgn(-scrollAmount);
-        auto newPos = cammera.position + deltaPos;
+        auto deltaTarget = normalize(planeIntersection - camera.target) * (length(deltaPos) * length(planeIntersection - camera.target) / planeDist);
+        auto newTar = camera.target + deltaTarget * sgn(-scrollAmount);
+        auto newPos = camera.position + deltaPos;
         auto newDelta = length2(newTar - newPos);
-        if (newDelta > Config::Cammera.minZoom2 && (newDelta < Config::Cammera.maxZoom2 || scrollAmount < 0)) {
-            cammera.target = newTar;
-            cammera.position = newPos;
-            didCammeraMovement = true;
+        if (newDelta > Config::Camera.minZoom2 && (newDelta < Config::Camera.maxZoom2 || scrollAmount < 0)) {
+            camera.target = newTar;
+            camera.position = newPos;
+            didCameraMovement = true;
         }
-        if (newDelta > Config::Cammera.maxZoom2 && scrollAmount > 0) {
+        if (newDelta > Config::Camera.maxZoom2 && scrollAmount > 0) {
             // linear interpolation to get to max zoom
             auto d = sqrtf(newDelta);
-            auto m = sqrtf(Config::Cammera.maxZoom2);
-            auto c = distance(cammera.target, cammera.position);
+            auto m = sqrtf(Config::Camera.maxZoom2);
+            auto c = distance(camera.target, camera.position);
             auto ratio = (m - c) / (d - c);
-            cammera.target += (newTar - cammera.target) * ratio;
-            cammera.position += (newPos - cammera.position) * ratio;
-            didCammeraMovement = true;
+            camera.target += (newTar - camera.target) * ratio;
+            camera.position += (newPos - camera.position) * ratio;
+            didCameraMovement = true;
         }
 
         scrollAmount = 0.0f;
@@ -2690,58 +2689,58 @@ void Engine::handleInput() {
 
     if (!keyboardCaptured) {
         if (keysPressed[GLFW_KEY_RIGHT]) {
-            cammera.position -= cammera.strafing / 600.0f;
-            cammera.target -= cammera.strafing / 600.0f;
-            didCammeraMovement = true;
+            camera.position -= camera.strafing / 600.0f;
+            camera.target -= camera.strafing / 600.0f;
+            didCameraMovement = true;
         }
         if (keysPressed[GLFW_KEY_LEFT]) {
-            cammera.position += cammera.strafing / 600.0f;
-            cammera.target += cammera.strafing / 600.0f;
-            didCammeraMovement = true;
+            camera.position += camera.strafing / 600.0f;
+            camera.target += camera.strafing / 600.0f;
+            didCameraMovement = true;
         }
         if (keysPressed[GLFW_KEY_DOWN]) {
-            cammera.position -= cammera.fowarding / 600.0f;
-            cammera.target -= cammera.fowarding / 600.0f;
-            didCammeraMovement = true;
+            camera.position -= camera.fowarding / 600.0f;
+            camera.target -= camera.fowarding / 600.0f;
+            didCameraMovement = true;
         }
         if (keysPressed[GLFW_KEY_UP]) {
-            cammera.position += cammera.fowarding / 600.0f;
-            cammera.target += cammera.fowarding / 600.0f;
-            didCammeraMovement = true;
+            camera.position += camera.fowarding / 600.0f;
+            camera.target += camera.fowarding / 600.0f;
+            didCameraMovement = true;
         }
     }
 
     if (mouseAction == MOUSE_PANNING) {
-        cammera.position -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
-        cammera.target -= cammera.strafing * 4.0f * deltaX * pointingLength / 5.2;
-        cammera.position -= cammera.fowarding * 4.0f * deltaY / (sgn(cammera.position.z) * std::clamp(fabs(cammera.position.z) / pointingLength,
+        camera.position -= camera.strafing * 4.0f * deltaX * pointingLength / 5.2;
+        camera.target -= camera.strafing * 4.0f * deltaX * pointingLength / 5.2;
+        camera.position -= camera.fowarding * 4.0f * deltaY / (sgn(camera.position.z) * std::clamp(fabs(camera.position.z) / pointingLength,
             0.5f, std::numeric_limits<float>::max())) * pointingLength / 5.2;
-        cammera.target -= cammera.fowarding * 4.0f * deltaY / (sgn(cammera.position.z) * std::clamp(fabs(cammera.position.z) / pointingLength,
+        camera.target -= camera.fowarding * 4.0f * deltaY / (sgn(camera.position.z) * std::clamp(fabs(camera.position.z) / pointingLength,
             0.5f, std::numeric_limits<float>::max())) * pointingLength / 5.2;
     } else if (mouseAction == MOUSE_ROTATING) {
         if (deltaY != 0.0f) {
-            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, cammera.strafing);
+            auto mouseTilt = glm::angleAxis(glm::radians(0 - deltaY * 400.0f) / 2.0f, camera.strafing);
             auto mouseTiltMatrix = glm::toMat3(mouseTilt);
-            auto newPosition = mouseTiltMatrix * (cammera.position - cammera.target) + cammera.target;
-            if (/*(newPosition.z - cammera.target.z) > cammera.gimbleStop && */(newPosition.x - cammera.target.x) * (newPosition.x - cammera.target.x) +
-                (newPosition.y - cammera.target.y) * (newPosition.y - cammera.target.y) > Config::Cammera.gimbleStop) {
-                    cammera.position = newPosition;
-                    didCammeraMovement = true;
+            auto newPosition = mouseTiltMatrix * (camera.position - camera.target) + camera.target;
+            if (/*(newPosition.z - camera.target.z) > camera.gimbleStop && */(newPosition.x - camera.target.x) * (newPosition.x - camera.target.x) +
+                (newPosition.y - camera.target.y) * (newPosition.y - camera.target.y) > Config::Camera.gimbleStop) {
+                    camera.position = newPosition;
+                    didCameraMovement = true;
             }
         }
         if (deltaX != 0.0f) {
             auto mouseOrbit = glm::angleAxis(glm::radians(deltaX * 400.0f) / 2.0f, glm::vec3({ 0.0f, 0.0f, 1.0f }));
             auto mouseOrbitMatrix = glm::toMat3(mouseOrbit);
-            cammera.position = mouseOrbitMatrix * (cammera.position - cammera.target) + cammera.target;
-            didCammeraMovement = true;
+            camera.position = mouseOrbitMatrix * (camera.position - camera.target) + camera.target;
+            didCameraMovement = true;
         }
     }
 
     if (mouseAction == MOUSE_MOVING_Z || mouseAction == MOUSE_PLACING_Z) {
         if (planeIntersectionDenominator != 0.0f) {
             float dist;
-            if (glm::intersectRayPlane(cammera.position, mouseRayNormed, { movingTo.x, movingTo.y, 0.0f }, zPlaneNormal, dist)) {
-                auto intersection = cammera.position + mouseRayNormed * dist;
+            if (glm::intersectRayPlane(camera.position, mouseRayNormed, { movingTo.x, movingTo.y, 0.0f }, zPlaneNormal, dist)) {
+                auto intersection = camera.position + mouseRayNormed * dist;
                 movingTo.z = intersection.z;
                 apiLocks[APIL_CURSOR_INSTANCE].lock();
                 cursorInstance.position = movingTo;
@@ -2773,12 +2772,12 @@ void Engine::handleInput() {
 
     notFirstTime = false;
 
-    if (didCammeraMovement) {
-        cammera.pointing = normalize(cammera.position - cammera.target);
-        cammera.strafing = normalize(cross(cammera.pointing, { 0.0f, 0.0f, 1.0f }));
-        cammera.fowarding = normalize(cross(cammera.strafing, { 0.0f, 0.0f, 1.0f }));
-        cammera.heading = normalize(cross(cammera.pointing, cammera.strafing));
-        sound->setCammeraPosition(cammera.position, cammera.heading, cammera.pointing, { 0.0f, 0.0f, 0.0f });
+    if (didCameraMovement) {
+        camera.pointing = normalize(camera.position - camera.target);
+        camera.strafing = normalize(cross(camera.pointing, { 0.0f, 0.0f, 1.0f }));
+        camera.fowarding = normalize(cross(camera.strafing, { 0.0f, 0.0f, 1.0f }));
+        camera.heading = normalize(cross(camera.pointing, camera.strafing));
+        sound->setCameraPosition(camera.position, camera.heading, camera.pointing, { 0.0f, 0.0f, 0.0f });
     }
 }
 
@@ -2824,23 +2823,23 @@ float Engine::updateScene(int index) {
     float delta = std::chrono::duration<float, std::chrono::seconds::period>(nowTime - lastTime).count();
     lastTime = nowTime;
 
-    pushConstants.view = glm::lookAt(cammera.position, cammera.target, glm::vec3(0.0f, 0.0f, 1.0f));
-    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, Config::Cammera.minClip, Config::Cammera.maxClip);
+    pushConstants.view = glm::lookAt(camera.position, camera.target, glm::vec3(0.0f, 0.0f, 1.0f));
+    pushConstants.projection = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, Config::Camera.minClip, Config::Camera.maxClip);
     pushConstants.projection[1][1] *= -1;
     // TODO I should just store this in the camera struct since I need it here and in the input handling
-    pushConstants.normedPointing = normalize(cammera.position - cammera.target);
+    pushConstants.normedPointing = normalize(camera.position - camera.target);
 
-    cammera.cached.proj_1 = inverse(pushConstants.projection);
-    cammera.cached.view_1 = inverse(pushConstants.view);
-    cammera.cached.projView = pushConstants.projection * pushConstants.view;
-    cammera.cached.view_1Proj_1 = cammera.cached.view_1 * cammera.cached.proj_1;
+    camera.cached.proj_1 = inverse(pushConstants.projection);
+    camera.cached.view_1 = inverse(pushConstants.view);
+    camera.cached.projView = pushConstants.projection * pushConstants.view;
+    camera.cached.view_1Proj_1 = camera.cached.view_1 * camera.cached.proj_1;
 
     // The 0th instance is always the skybox
-    currentScene->state.instances[0]->position = cammera.position;
+    currentScene->state.instances[0]->position = camera.position;
 
     auto projView = pushConstants.projection * pushConstants.view;
-    auto cammeraFrustumNormed = normalizePlanes(extractFrustum(projView));
-    // auto cammeraFrustum = extractFrustum(projView);
+    auto cameraFrustumNormed = normalizePlanes(extractFrustum(projView));
+    // auto cameraFrustum = extractFrustum(projView);
 
     // zSortedIcons.clear();
     // It is probably better just to reserve to avoid reallocations
@@ -2861,13 +2860,13 @@ float Engine::updateScene(int index) {
             continue;
         }
         const Entity& entity = *currentScene->state.instances[i]->entity;
-        currentScene->state.instances[i]->cammeraDistance2 = distance2(cammera.position, currentScene->state.instances[i]->position);
-        // currentScene->state.instances[i].cammeraDistance = sqrtf(currentScene->state.instances[i].cammeraDistance2);
-        currentScene->state.instances[i]->renderAsIcon = currentScene->state.instances[i]->cammeraDistance2 > Config::Cammera.renderAsIcon2;
+        currentScene->state.instances[i]->cameraDistance2 = distance2(camera.position, currentScene->state.instances[i]->position);
+        // currentScene->state.instances[i].cameraDistance = sqrtf(currentScene->state.instances[i].cameraDistance2);
+        currentScene->state.instances[i]->renderAsIcon = currentScene->state.instances[i]->cameraDistance2 > Config::Camera.renderAsIcon2;
         // if (currentScene->state.instances[i].renderAsIcon) zSortedIcons.push_back(i);
         currentScene->state.instances[i]->rendered =
-            // frustumContainsPoint(cammeraFrustumNormed, currentScene->state.instances[i].position);
-            frustumContainsSphere(cammeraFrustumNormed, currentScene->state.instances[i]->position, entity.boundingRadius);
+            // frustumContainsPoint(cameraFrustumNormed, currentScene->state.instances[i].position);
+            frustumContainsSphere(cameraFrustumNormed, currentScene->state.instances[i]->position, entity.boundingRadius);
         if (currentScene->state.instances[i]->rendered && !currentScene->state.instances[i]->renderAsIcon) {
             auto inLightingViewSpace = lightingData.view * glm::vec4{ currentScene->state.instances[i]->position, 1.0f };
             xMax = std::max(xMax, inLightingViewSpace.x);
@@ -3143,8 +3142,8 @@ void Engine::runCurrentScene() {
     lastMousePosition.normedX = mouseNormed.first;
     lastMousePosition.normedY = mouseNormed.second;
 
-    cammera.position = glm::vec3({ 20.0f, 20.0f, 20.0f });
-    cammera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
+    camera.position = glm::vec3({ 20.0f, 20.0f, 20.0f });
+    camera.target = glm::vec3({ 0.0f, 0.0f, 0.0f });
 
     GuiTextures::setDefaultTexture();
     writeHudDescriptors();
@@ -4860,8 +4859,8 @@ void Scene::makeBuffers() {
 void Scene::updateUniforms(int idx) {
     float aspectRatio = static_cast<Engine *>(context)->swapChainExtent.width / (float) static_cast<Engine *>(context)->swapChainExtent.height;
     static_cast<Engine *>(context)->uniformSync->sync(idx, state.instances.size(), [this, aspectRatio] (size_t n) -> InstanceUBO * {
-        return this->state.instances[n]->getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->cammera.cached.projView,
-            static_cast<Engine *>(context)->cammera.cached.view_1Proj_1, aspectRatio, Config::Cammera.minClip, Config::Cammera.maxClip);
+        return this->state.instances[n]->getUBO(static_cast<Engine *>(context)->pushConstants.view, static_cast<Engine *>(context)->camera.cached.projView,
+            static_cast<Engine *>(context)->camera.cached.view_1Proj_1, aspectRatio, Config::Camera.minClip, Config::Camera.maxClip);
     });
 
     std::vector<uint> inPlayIndices;
